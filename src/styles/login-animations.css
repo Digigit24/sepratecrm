@@ -1,0 +1,106 @@
+/* Animated Gradient Blobs */
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.7;
+  animation-duration: 20s;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+.blob-1 {
+  width: 500px;
+  height: 500px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  top: -10%;
+  left: -10%;
+  animation-name: float-1;
+}
+
+.blob-2 {
+  width: 400px;
+  height: 400px;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  top: 40%;
+  right: -5%;
+  animation-name: float-2;
+  animation-duration: 25s;
+}
+
+.blob-3 {
+  width: 450px;
+  height: 450px;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  bottom: -10%;
+  left: 30%;
+  animation-name: float-3;
+  animation-duration: 30s;
+}
+
+/* Blob animations */
+@keyframes float-1 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 30px) scale(0.9);
+  }
+}
+
+@keyframes float-2 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(-40px, 40px) scale(0.95);
+  }
+  66% {
+    transform: translate(30px, -30px) scale(1.05);
+  }
+}
+
+@keyframes float-3 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(50px, 30px) scale(1.08);
+  }
+  66% {
+    transform: translate(-30px, -40px) scale(0.92);
+  }
+}
+
+/* Glass card effect */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(200, 200, 200, 0.3);
+}
+
+/* Additional smooth transitions */
+.glass-card * {
+  transition: all 0.3s ease;
+}
+
+/* Hover effects for glass elements */
+.glass-card input:focus {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.glass-card button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* White background for the main container */
+body .min-h-screen {
+  background: #ffffff;
+}
