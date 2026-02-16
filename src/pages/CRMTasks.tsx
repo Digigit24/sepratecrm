@@ -3,10 +3,12 @@ import { useState, useCallback } from 'react';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
 import { DataTable, type DataTableColumn } from '@/components/DataTable';
+import { TaskKanbanBoard } from '@/components/TaskKanbanBoard';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, RefreshCw, CheckSquare } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Plus, RefreshCw, CheckSquare, LayoutGrid, List, Clock, CircleCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow, format } from 'date-fns';
 import type {
@@ -17,14 +19,19 @@ import type {
 } from '@/types/crmTypes';
 import TasksFormDrawer from '@/components/TasksFormDrawer';
 
+type ViewMode = 'list' | 'kanban';
+
 export const CRMTasks: React.FC = () => {
   const { user } = useAuth();
-  const { hasCRMAccess, useTasks, deleteTask } = useCRM();
+  const { hasCRMAccess, useTasks, patchTask, deleteTask } = useCRM();
+
+  // View mode state
+  const [viewMode, setViewMode] = useState<ViewMode>('kanban');
 
   // Query parameters state
   const [queryParams, setQueryParams] = useState<TasksQueryParams>({
     page: 1,
-    page_size: 20,
+    page_size: viewMode === 'kanban' ? 1000 : 20,
     ordering: '-created_at',
   });
 
@@ -69,7 +76,7 @@ export const CRMTasks: React.FC = () => {
     setDrawerOpen(true);
   };
 
-  const handleCreate = () => {
+  const handleCreate = (status?: TaskStatusEnum) => {
     setSelectedTaskId(null);
     setDrawerMode('create');
     setDrawerOpen(true);
@@ -92,27 +99,70 @@ export const CRMTasks: React.FC = () => {
     mutate();
   };
 
+  const handleUpdateTaskStatus = useCallback(
+    async (taskId: number, newStatus: TaskStatusEnum) => {
+      const currentData = tasksData;
+      if (!currentData) {
+        throw new Error('No tasks data available');
+      }
+
+      // Optimistic update
+      const optimisticData = {
+        ...currentData,
+        results: currentData.results.map((t) =>
+          t.id === taskId
+            ? { ...t, status: newStatus, updated_at: new Date().toISOString() }
+            : t
+        ),
+      };
+
+      try {
+        await mutate(optimisticData, false);
+        await patchTask(taskId, { status: newStatus });
+        await mutate();
+      } catch (error: any) {
+        await mutate();
+        throw new Error(error?.message || 'Failed to update task status');
+      }
+    },
+    [patchTask, mutate, tasksData]
+  );
+
+  const handleViewModeChange = useCallback((newMode: ViewMode) => {
+    setViewMode(newMode);
+    setQueryParams((prev) => ({
+      ...prev,
+      page: 1,
+      page_size: newMode === 'kanban' ? 1000 : 20,
+    }));
+  }, []);
+
+  // Compute stats from all tasks
+  const todoCount = tasks.filter((t) => t.status === 'TODO').length;
+  const inProgressCount = tasks.filter((t) => t.status === 'IN_PROGRESS').length;
+  const doneCount = tasks.filter((t) => t.status === 'DONE').length;
+
   // Get status badge variant
   const getStatusBadge = (status: TaskStatusEnum) => {
-    const statusConfig = {
-      TODO: { label: 'To Do', variant: 'secondary' as const },
-      IN_PROGRESS: { label: 'In Progress', variant: 'default' as const },
-      DONE: { label: 'Done', variant: 'success' as const },
-      CANCELLED: { label: 'Cancelled', variant: 'destructive' as const },
+    const statusConfig: Record<string, { label: string; className: string }> = {
+      TODO: { label: 'To Do', className: 'bg-gray-100 text-gray-700 border-gray-200' },
+      IN_PROGRESS: { label: 'In Progress', className: 'bg-blue-100 text-blue-700 border-blue-200' },
+      DONE: { label: 'Done', className: 'bg-green-100 text-green-700 border-green-200' },
+      CANCELLED: { label: 'Cancelled', className: 'bg-red-100 text-red-700 border-red-200' },
     };
-    const config = statusConfig[status] || { label: status, variant: 'secondary' as const };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    const config = statusConfig[status] || { label: status, className: '' };
+    return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
   };
 
   // Get priority badge variant
   const getPriorityBadge = (priority: PriorityEnum) => {
-    const priorityConfig = {
-      LOW: { label: 'Low', variant: 'secondary' as const },
-      MEDIUM: { label: 'Medium', variant: 'default' as const },
-      HIGH: { label: 'High', variant: 'destructive' as const },
+    const priorityConfig: Record<string, { label: string; className: string }> = {
+      LOW: { label: 'Low', className: 'bg-gray-100 text-gray-700 border-gray-200' },
+      MEDIUM: { label: 'Medium', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+      HIGH: { label: 'High', className: 'bg-red-100 text-red-800 border-red-200' },
     };
-    const config = priorityConfig[priority] || { label: priority, variant: 'secondary' as const };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    const config = priorityConfig[priority] || { label: priority, className: '' };
+    return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
   };
 
   // Define table columns
@@ -251,14 +301,15 @@ export const CRMTasks: React.FC = () => {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
             onClick={() => mutate()}
             disabled={isLoading}
+            className="h-9 w-9"
+            title="Refresh"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
-          <Button onClick={handleCreate} size="default" className="w-full sm:w-auto">
+          <Button onClick={() => handleCreate()} size="default" className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             New Task
           </Button>
@@ -285,42 +336,40 @@ export const CRMTasks: React.FC = () => {
           <Card>
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center gap-3">
+                <div className="p-2 bg-gray-100 rounded-lg">
+                  <List className="h-5 w-5 text-gray-600" />
+                </div>
+                <div>
+                  <p className="text-xs sm:text-sm text-muted-foreground">To Do</p>
+                  <p className="text-xl sm:text-2xl font-bold">{todoCount}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-xs sm:text-sm text-muted-foreground">In Progress</p>
+                  <p className="text-xl sm:text-2xl font-bold">{inProgressCount}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center gap-3">
                 <div className="p-2 bg-green-100 rounded-lg">
-                  <RefreshCw className="h-5 w-5 text-green-600" />
+                  <CircleCheck className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">This Page</p>
-                  <p className="text-xl sm:text-2xl font-bold">{tasks.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Plus className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Total Pages</p>
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {Math.ceil(tasksData.count / (queryParams.page_size || 20))}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <CheckSquare className="h-5 w-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Current Page</p>
-                  <p className="text-xl sm:text-2xl font-bold">{queryParams.page || 1}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Done</p>
+                  <p className="text-xl sm:text-2xl font-bold">{doneCount}</p>
                 </div>
               </div>
             </CardContent>
@@ -328,66 +377,99 @@ export const CRMTasks: React.FC = () => {
         </div>
       )}
 
-      {/* Tasks Table */}
+      {/* View Mode Toggle */}
       <Card>
-        <CardContent className="p-0">
-          {error ? (
-            <div className="p-8 text-center">
-              <div className="text-destructive">
-                <p className="font-semibold">Failed to load tasks</p>
-                <p className="text-sm mt-2">{error}</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <DataTable
-                rows={tasks}
-                isLoading={isLoading}
-                columns={columns}
-                renderMobileCard={renderMobileCard}
-                getRowId={(task) => task.id}
-                getRowLabel={(task) => task.title}
-                onView={handleView}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                emptyTitle="No tasks found"
-                emptySubtitle="Create a new task to get started"
-              />
-
-              {/* Pagination */}
-              {!isLoading && tasksData && tasksData.count > 0 && (
-                <div className="flex items-center justify-between px-6 py-4 border-t">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {tasks.length} of {tasksData.count} task(s)
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!tasksData.previous}
-                      onClick={() =>
-                        setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) - 1 }))
-                      }
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!tasksData.next}
-                      onClick={() =>
-                        setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) + 1 }))
-                      }
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+        <CardContent className="p-4">
+          <Tabs value={viewMode} onValueChange={(value) => handleViewModeChange(value as ViewMode)}>
+            <TabsList className="grid w-full grid-cols-2 max-w-xs">
+              <TabsTrigger value="kanban" className="flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4" />
+                Kanban Board
+              </TabsTrigger>
+              <TabsTrigger value="list" className="flex items-center gap-2">
+                <List className="h-4 w-4" />
+                List View
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </CardContent>
       </Card>
+
+      {/* Content */}
+      {viewMode === 'kanban' ? (
+        <Card>
+          <CardContent className="p-4">
+            <TaskKanbanBoard
+              tasks={tasks}
+              onViewTask={handleView}
+              onEditTask={handleEdit}
+              onCreateTask={handleCreate}
+              onUpdateTaskStatus={handleUpdateTaskStatus}
+              isLoading={isLoading}
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            {error ? (
+              <div className="p-8 text-center">
+                <div className="text-destructive">
+                  <p className="font-semibold">Failed to load tasks</p>
+                  <p className="text-sm mt-2">{error}</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <DataTable
+                  rows={tasks}
+                  isLoading={isLoading}
+                  columns={columns}
+                  renderMobileCard={renderMobileCard}
+                  getRowId={(task) => task.id}
+                  getRowLabel={(task) => task.title}
+                  onView={handleView}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  emptyTitle="No tasks found"
+                  emptySubtitle="Create a new task to get started"
+                />
+
+                {/* Pagination */}
+                {!isLoading && tasksData && tasksData.count > 0 && (
+                  <div className="flex items-center justify-between px-6 py-4 border-t">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {tasks.length} of {tasksData.count} task(s)
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!tasksData.previous}
+                        onClick={() =>
+                          setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) - 1 }))
+                        }
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!tasksData.next}
+                        onClick={() =>
+                          setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) + 1 }))
+                        }
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Drawer */}
       <TasksFormDrawer
