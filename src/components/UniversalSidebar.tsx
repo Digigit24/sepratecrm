@@ -3,9 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
-  Mail,
   Stethoscope,
-  Database,
   ChevronDown,
   ChevronRight,
   Users,
@@ -14,44 +12,26 @@ import {
   Menu,
   X,
   Building2,
-  UserCheck,
   Activity,
-  Kanban,
   MessageCircle,
   FileText,
   Send,
   CheckSquare,
-  Award,
-  User,
-  ClipboardPlus,
-  Microscope,
-  Package,
-  Receipt,
-  Shield,
   Settings2,
   UserCog,
   ShieldCheck,
   Bug,
-  IndianRupee,
-  CreditCard,
-  TrendingUp,
   Workflow,
   QrCode,
   UserPlus,
-  Pill, // Added Pill icon for Pharmacy module
-  ShoppingCart, // Added ShoppingCart icon for Cart
-  BarChart3, // Added for Statistics
-  Loader2, // Added for loading state
-  Bed, // Added for IPD module
-  Building, // Added for Wards
-  UserRoundCheck, // Added for Admissions
-  FlaskConical, // Added for Diagnostics module
-  Plug, // Added for Integrations
-  Zap, // Added for Workflows
+  Shield,
+  Plug,
+  Zap,
+  Loader2,
+  PanelLeftClose,
+  PanelLeft,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Collapsible,
@@ -60,7 +40,6 @@ import {
 } from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
-import { Icon3D } from "@/components/Icon3D";
 
 interface MenuItem {
   id: string;
@@ -69,7 +48,7 @@ interface MenuItem {
   path?: string;
   badge?: number;
   children?: MenuItem[];
-  module?: string; // Module required to access this menu item
+  module?: string;
 }
 
 const menuItems: MenuItem[] = [
@@ -78,70 +57,21 @@ const menuItems: MenuItem[] = [
     label: "Dashboard",
     icon: LayoutDashboard,
     path: "/",
-    // No module required - Dashboard is always accessible
   },
-  // {
-  //   id: "inbox",
-  //   label: "Inbox",
-  //   icon: Mail,
-  //   path: "/inbox",
-  //   badge: 3,
-  // },
-
   {
     id: "whatsapp",
     label: "WhatsApp",
     icon: MessageCircle,
     module: "whatsapp",
     children: [
-      {
-        id: "whatsapp-onboarding",
-        label: "Onboarding",
-        icon: UserPlus,
-        path: "/whatsapp/onboarding",
-      },
-      {
-        id: "whatsapp-contacts",
-        label: "Contacts",
-        icon: Users,
-        path: "/whatsapp/contacts",
-      },
-      {
-        id: "whatsapp-chats",
-        label: "Chats",
-        icon: MessageCircle,
-        path: "/whatsapp/chats",
-      },
-      {
-        id: "whatsapp-groups",
-        label: "Groups",
-        icon: Users,
-        path: "/whatsapp/groups",
-      },
-      {
-        id: "whatsapp-templates",
-        label: "Templates",
-        icon: FileText,
-        path: "/whatsapp/templates",
-      },
-      {
-        id: "whatsapp-campaigns",
-        label: "Campaigns",
-        icon: Send,
-        path: "/whatsapp/campaigns",
-      },
-      {
-        id: "whatsapp-flows",
-        label: "Flows",
-        icon: Workflow,
-        path: "/whatsapp/flows",
-      },
-      {
-        id: "whatsapp-qrcode",
-        label: "QR Codes",
-        icon: QrCode,
-        path: "/whatsapp/qrcode",
-      },
+      { id: "whatsapp-onboarding", label: "Onboarding", icon: UserPlus, path: "/whatsapp/onboarding" },
+      { id: "whatsapp-contacts", label: "Contacts", icon: Users, path: "/whatsapp/contacts" },
+      { id: "whatsapp-chats", label: "Chats", icon: MessageCircle, path: "/whatsapp/chats" },
+      { id: "whatsapp-groups", label: "Groups", icon: Users, path: "/whatsapp/groups" },
+      { id: "whatsapp-templates", label: "Templates", icon: FileText, path: "/whatsapp/templates" },
+      { id: "whatsapp-campaigns", label: "Campaigns", icon: Send, path: "/whatsapp/campaigns" },
+      { id: "whatsapp-flows", label: "Flows", icon: Workflow, path: "/whatsapp/flows" },
+      { id: "whatsapp-qrcode", label: "QR Codes", icon: QrCode, path: "/whatsapp/qrcode" },
     ],
   },
   {
@@ -150,48 +80,12 @@ const menuItems: MenuItem[] = [
     icon: Building2,
     module: "crm",
     children: [
-      {
-        id: "crm-leads",
-        label: "Leads",
-        icon: Users,
-        path: "/crm/leads",
-      },
-      {
-        id: "crm-activities",
-        label: "Activities",
-        icon: Activity,
-        path: "/crm/activities",
-      },
-      {
-        id: "crm-statuses",
-        label: "Lead Statuses",
-        icon: ClipboardList,
-        path: "/crm/statuses",
-      },
-      // {
-      //   id: "crm-pipeline",
-      //   label: "Pipeline",
-      //   icon: Kanban,
-      //   path: "/crm/pipeline",
-      // },
-      {
-        id: "crm-tasks",
-        label: "Tasks",
-        icon: CheckSquare,
-        path: "/crm/tasks",
-      },
-      {
-        id: "crm-meetings",
-        label: "Meetings",
-        icon: Calendar,
-        path: "/crm/meetings",
-      },
-      {
-        id: "crm-settings",
-        label: "Settings",
-        icon: Settings2,
-        path: "/crm/settings",
-      },
+      { id: "crm-leads", label: "Leads", icon: Users, path: "/crm/leads" },
+      { id: "crm-activities", label: "Activities", icon: Activity, path: "/crm/activities" },
+      { id: "crm-statuses", label: "Lead Statuses", icon: ClipboardList, path: "/crm/statuses" },
+      { id: "crm-tasks", label: "Tasks", icon: CheckSquare, path: "/crm/tasks" },
+      { id: "crm-meetings", label: "Meetings", icon: Calendar, path: "/crm/meetings" },
+      { id: "crm-settings", label: "Settings", icon: Settings2, path: "/crm/settings" },
     ],
   },
   {
@@ -200,18 +94,8 @@ const menuItems: MenuItem[] = [
     icon: Plug,
     module: "integrations",
     children: [
-      {
-        id: "integrations-overview",
-        label: "Overview",
-        icon: LayoutDashboard,
-        path: "/integrations",
-      },
-      {
-        id: "integrations-workflows",
-        label: "Workflows",
-        icon: Zap,
-        path: "/integrations",
-      },
+      { id: "integrations-overview", label: "Overview", icon: LayoutDashboard, path: "/integrations" },
+      { id: "integrations-workflows", label: "Workflows", icon: Zap, path: "/integrations" },
     ],
   },
   {
@@ -220,30 +104,10 @@ const menuItems: MenuItem[] = [
     icon: Shield,
     module: "admin",
     children: [
-      {
-        id: "admin-users",
-        label: "Users",
-        icon: UserCog,
-        path: "/admin/users",
-      },
-      {
-        id: "admin-roles",
-        label: "Roles",
-        icon: ShieldCheck,
-        path: "/admin/roles",
-      },
-      {
-        id: "admin-settings",
-        label: "Settings",
-        icon: Settings2,
-        path: "/admin/settings",
-      },
-      {
-        id: "admin-debug",
-        label: "Debug",
-        icon: Bug,
-        path: "/admin/debug",
-      },
+      { id: "admin-users", label: "Users", icon: UserCog, path: "/admin/users" },
+      { id: "admin-roles", label: "Roles", icon: ShieldCheck, path: "/admin/roles" },
+      { id: "admin-settings", label: "Settings", icon: Settings2, path: "/admin/settings" },
+      { id: "admin-debug", label: "Debug", icon: Bug, path: "/admin/debug" },
     ],
   },
 ];
@@ -268,38 +132,17 @@ export function UniversalSidebar({
   const [openSections, setOpenSections] = useState<string[]>(["masters"]);
   const [logoError, setLogoError] = useState(false);
 
-  // Get tenant data - prioritize API data, fallback to user context
   const tenantData = currentTenant || user?.tenant;
-
-  // Get tenant logo from settings
-  // Logo can be a URL or base64 string (data:image/...;base64,...)
   const tenantLogo = tenantData?.settings?.logo && tenantData?.settings?.logo.trim() !== ''
     ? tenantData.settings.logo
     : undefined;
   const tenantName = tenantData?.name || 'HMS';
 
-  // Filter menu items based on enabled modules
   const filteredMenuItems = menuItems.filter((item) => {
-    // If no module is specified, item is always visible (e.g., Dashboard)
     if (!item.module) return true;
-
-    // Check if user has access to the module
     return hasModuleAccess(item.module);
   });
 
-  // Debug logging
-  console.log('Tenant data:', {
-    hasTenant: !!tenantData,
-    hasSettings: !!tenantData?.settings,
-    logoValue: tenantData?.settings?.logo,
-    logoLength: tenantData?.settings?.logo?.length,
-    tenantName: tenantData?.name,
-    isBase64: tenantData?.settings?.logo?.startsWith('data:image'),
-    fromAPI: !!currentTenant,
-    isLoading: isTenantLoading
-  });
-
-  // Reset logo error when logo changes
   useEffect(() => {
     setLogoError(false);
   }, [tenantLogo]);
@@ -328,71 +171,66 @@ export function UniversalSidebar({
   };
 
   const closeMobileSidebar = () => {
-    if (setMobileOpen) {
-      setMobileOpen(false);
-    }
+    if (setMobileOpen) setMobileOpen(false);
   };
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col h-full">
       {/* Logo Area */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
+      <div className="h-14 flex items-center justify-between px-4 border-b border-border/50">
         {!collapsed && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {isTenantLoading ? (
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
               </div>
             ) : tenantLogo && !logoError ? (
               <img
                 src={tenantLogo}
                 alt={`${tenantName} logo`}
-                className="w-20 h-20 object-contain rounded-lg"
+                className="w-16 h-16 object-contain rounded-lg"
                 onError={handleLogoError}
               />
             ) : (
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center shrink-0">
-                <Icon3D icon={Stethoscope} className="w-6 h-6" />
+              <div className="w-8 h-8 bg-foreground rounded-lg flex items-center justify-center shrink-0">
+                <Stethoscope className="w-4 h-4 text-background" />
               </div>
             )}
           </div>
         )}
         {collapsed && (
           isTenantLoading ? (
-            <div className="w-8 h-8 flex items-center justify-center mx-auto">
-              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            <div className="w-7 h-7 flex items-center justify-center mx-auto">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
             </div>
           ) : tenantLogo && !logoError ? (
             <img
               src={tenantLogo}
               alt={`${tenantName} logo`}
-              className="w-8 h-8 object-contain rounded-lg mx-auto"
+              className="w-7 h-7 object-contain rounded-lg mx-auto"
               onError={handleLogoError}
             />
           ) : (
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center mx-auto">
-              <Icon3D icon={Stethoscope} className="w-5 h-5" />
+            <div className="w-7 h-7 bg-foreground rounded-lg flex items-center justify-center mx-auto">
+              <Stethoscope className="w-3.5 h-3.5 text-background" />
             </div>
           )
         )}
         {mobileOpen && setMobileOpen && (
-          <Button
-            variant="ghost"
-            size="icon"
+          <button
             onClick={() => setMobileOpen(false)}
-            className="lg:hidden"
+            className="lg:hidden p-1.5 rounded-md hover:bg-accent"
           >
-            <Icon3D icon={X} className="h-5 w-5" />
-          </Button>
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
         )}
       </div>
 
-      {/* Navigation Menu */}
-      <ScrollArea className="flex-1 px-3 py-4">
-        <nav className="space-y-1">
+      {/* Navigation */}
+      <ScrollArea className="flex-1 px-3 py-3">
+        <nav className="space-y-0.5">
           {filteredMenuItems.map((item) => {
             if (item.children) {
-              // Menu item with children (collapsible)
               const isOpen = openSections.includes(item.id);
               const hasActiveChild = isParentActive(item.children);
 
@@ -403,47 +241,47 @@ export function UniversalSidebar({
                   onOpenChange={() => toggleSection(item.id)}
                 >
                   <CollapsibleTrigger asChild>
-                    <Button
-                      variant="ghost"
+                    <button
                       className={cn(
-                        "w-full justify-start gap-3 h-10 px-3",
-                        hasActiveChild && "bg-sidebar-accent text-sidebar-accent-foreground",
+                        "w-full flex items-center gap-2.5 h-9 px-2.5 rounded-lg text-sm transition-colors",
+                        "text-muted-foreground hover:text-foreground hover:bg-accent",
+                        hasActiveChild && "text-foreground bg-accent",
                         collapsed && "justify-center px-2"
                       )}
                     >
-                      <Icon3D icon={item.icon} className="h-5 w-5 shrink-0" />
+                      <item.icon className="h-4 w-4 shrink-0" />
                       {!collapsed && (
                         <>
-                          <span className="flex-1 text-left">{item.label}</span>
+                          <span className="flex-1 text-left text-[13px]">{item.label}</span>
                           {isOpen ? (
-                            <Icon3D icon={ChevronDown} className="h-4 w-4 shrink-0" />
+                            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
                           ) : (
-                            <Icon3D icon={ChevronRight} className="h-4 w-4 shrink-0" />
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" />
                           )}
                         </>
                       )}
-                    </Button>
+                    </button>
                   </CollapsibleTrigger>
 
                   {!collapsed && (
-                    <CollapsibleContent className="pl-4 mt-1 space-y-1">
+                    <CollapsibleContent className="pl-4 mt-0.5 space-y-0.5">
                       {item.children.map((child) => (
                         <Link
                           key={child.id}
                           to={child.path || "#"}
                           onClick={closeMobileSidebar}
                         >
-                          <Button
-                            variant="ghost"
+                          <div
                             className={cn(
-                              "w-full justify-start gap-3 h-9 px-3",
+                              "flex items-center gap-2.5 h-8 px-2.5 rounded-lg text-[13px] transition-colors",
+                              "text-muted-foreground hover:text-foreground hover:bg-accent",
                               isActive(child.path) &&
-                                "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                "text-foreground bg-accent font-medium"
                             )}
                           >
-                            <Icon3D icon={child.icon} className="h-4 w-4 shrink-0" />
-                            <span className="text-sm">{child.label}</span>
-                          </Button>
+                            <child.icon className="h-3.5 w-3.5 shrink-0" />
+                            <span>{child.label}</span>
+                          </div>
                         </Link>
                       ))}
                     </CollapsibleContent>
@@ -452,86 +290,72 @@ export function UniversalSidebar({
               );
             }
 
-            // Regular menu item
             return (
               <Link
                 key={item.id}
                 to={item.path || "#"}
                 onClick={closeMobileSidebar}
               >
-                <Button
-                  variant="ghost"
+                <div
                   className={cn(
-                    "w-full justify-start gap-3 h-10 px-3",
+                    "flex items-center gap-2.5 h-9 px-2.5 rounded-lg text-sm transition-colors",
+                    "text-muted-foreground hover:text-foreground hover:bg-accent",
                     isActive(item.path) &&
-                      "bg-sidebar-accent text-sidebar-accent-foreground font-medium",
+                      "text-foreground bg-accent font-medium",
                     collapsed && "justify-center px-2"
                   )}
                 >
-                  <Icon3D icon={item.icon} className="h-5 w-5 shrink-0" />
+                  <item.icon className="h-4 w-4 shrink-0" />
                   {!collapsed && (
-                    <>
-                      <span className="flex-1 text-left">{item.label}</span>
-                      {item.badge && (
-                        <Badge variant="destructive" className="min-w-[20px] justify-center">
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </>
+                    <span className="flex-1 text-left text-[13px]">{item.label}</span>
                   )}
-                </Button>
+                </div>
               </Link>
             );
           })}
         </nav>
       </ScrollArea>
 
-      {/* Gradient Blob - Bottom Left Corner */}
-      <div className="absolute bottom-0 left-0 w-80 h-80 pointer-events-none overflow-hidden">
-        <div
-          className="absolute -bottom-20 -left-20 w-80 h-80 rounded-full opacity-30 blur-3xl"
-          style={{
-            background: 'linear-gradient(135deg, #a78bfa 0%, #60a5fa 50%, #818cf8 100%)',
-          }}
-        />
-      </div>
-
-      {/* Collapse Button (Desktop only) */}
+      {/* Collapse Button */}
       {!mobileOpen && onCollapse && (
-        <div className="p-3 border-t border-sidebar-border relative z-10">
-          <Button
-            variant="ghost"
+        <div className="p-3 border-t border-border/50">
+          <button
             onClick={onCollapse}
             className={cn(
-              "w-full justify-start gap-3 h-10",
+              "w-full flex items-center gap-2.5 h-9 px-2.5 rounded-lg text-sm transition-colors",
+              "text-muted-foreground hover:text-foreground hover:bg-accent",
               collapsed && "justify-center"
             )}
           >
-            <Icon3D icon={Menu} className="h-5 w-5 shrink-0" />
-            {!collapsed && <span>Collapse</span>}
-          </Button>
+            {collapsed ? (
+              <PanelLeft className="h-4 w-4 shrink-0" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-4 w-4 shrink-0" />
+                <span className="text-[13px]">Collapse</span>
+              </>
+            )}
+          </button>
         </div>
       )}
     </div>
   );
 
-  // Render both mobile and desktop sidebars
-  // CSS classes control which one is visible based on screen size
   return (
     <>
-      {/* Mobile Overlay - only show on mobile when drawer is open */}
+      {/* Mobile Overlay */}
       {mobileOpen && setMobileOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Mobile Sidebar (Drawer) - hidden on desktop (lg:hidden) */}
+      {/* Mobile Sidebar */}
       {setMobileOpen && (
         <aside
           className={cn(
-            "fixed top-0 left-0 h-full w-72 bg-sidebar text-sidebar-foreground border-r border-sidebar-border z-50 transition-transform duration-300 lg:hidden",
+            "fixed top-0 left-0 h-full w-64 bg-background border-r border-border z-50 transition-transform duration-300 lg:hidden",
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
@@ -539,11 +363,11 @@ export function UniversalSidebar({
         </aside>
       )}
 
-      {/* Desktop Sidebar - hidden on mobile (hidden lg:block) */}
+      {/* Desktop Sidebar */}
       <aside
         className={cn(
-          "h-screen bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 hidden lg:block",
-          collapsed ? "w-16" : "w-64"
+          "h-screen bg-background border-r border-border transition-all duration-300 hidden lg:block",
+          collapsed ? "w-16" : "w-60"
         )}
       >
         <SidebarContent />
