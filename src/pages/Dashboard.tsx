@@ -142,7 +142,7 @@ const Dashboard = () => {
 
   return (
     <div className={`flex-1 p-6 overflow-auto ${isDark ? 'bg-gray-950' : 'bg-gray-50/80'}`}>
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="space-y-6">
 
         {/* Header */}
         <div>
