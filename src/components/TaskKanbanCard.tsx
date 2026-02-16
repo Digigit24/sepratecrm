@@ -40,6 +40,7 @@ export const TaskKanbanCard: React.FC<TaskKanbanCardProps> = ({
 
   const getDueDateBadge = (dueDate: string) => {
     const date = parseISO(dueDate);
+    if (isNaN(date.getTime())) return null;
     const isOverdue = isPast(date) && !isToday(date);
 
     if (isOverdue) {
@@ -131,7 +132,9 @@ export const TaskKanbanCard: React.FC<TaskKanbanCardProps> = ({
               </div>
             )}
             <span className="text-[10px] text-muted-foreground">
-              {formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })}
+              {task.updated_at && !isNaN(new Date(task.updated_at).getTime())
+                ? formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })
+                : ''}
             </span>
           </div>
         </div>
