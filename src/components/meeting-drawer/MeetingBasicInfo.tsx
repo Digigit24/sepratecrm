@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -230,11 +229,10 @@ const MeetingBasicInfo = forwardRef<MeetingBasicInfoHandle, MeetingBasicInfoProp
     return (
       <div className="space-y-6">
         {/* Meeting Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Meeting Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="space-y-4">
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Meeting Details
+          </h3>
             {/* Title */}
             <div className="space-y-2">
               <Label htmlFor="title">
@@ -353,15 +351,15 @@ const MeetingBasicInfo = forwardRef<MeetingBasicInfoHandle, MeetingBasicInfoProp
                 </>
               )}
             </div>
-          </CardContent>
-        </Card>
+        </div>
+
+        <div className="border-t border-border/60" />
 
         {/* Description & Notes */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Additional Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="space-y-4">
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Additional Information
+          </h3>
             {/* Description */}
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
@@ -407,16 +405,17 @@ const MeetingBasicInfo = forwardRef<MeetingBasicInfoHandle, MeetingBasicInfoProp
                 </>
               )}
             </div>
-          </CardContent>
-        </Card>
+        </div>
 
         {/* Metadata (View Mode Only) */}
         {mode === 'view' && meeting && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Metadata</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
+          <>
+            <div className="border-t border-border/60" />
+            <div className="space-y-4">
+              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Metadata
+              </h3>
+              <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Meeting ID:</span>
                 <Badge variant="secondary">{meeting.id}</Badge>
@@ -429,8 +428,9 @@ const MeetingBasicInfo = forwardRef<MeetingBasicInfoHandle, MeetingBasicInfoProp
                 <span className="text-muted-foreground">Last Updated:</span>
                 <span>{formatDateTime(meeting.updated_at)}</span>
               </div>
-            </CardContent>
-          </Card>
+              </div>
+            </div>
+          </>
         )}
       </div>
     );

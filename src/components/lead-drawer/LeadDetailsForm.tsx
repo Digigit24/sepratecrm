@@ -304,9 +304,9 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
       <div className="space-y-6">
         {/* Basic Info Section */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold">Basic Information</h3>
-          </div>
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Basic Information
+          </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Name */}
@@ -731,16 +731,16 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
           )}
         </div>
 
-        <Separator />
+        <div className="border-t border-border/60" />
 
         {/* Address Section - Collapsible */}
         <Collapsible>
-          <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted rounded-lg transition-colors">
+          <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:opacity-80 transition-opacity">
             <div className="flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-muted-foreground" />
-              <h3 className="text-lg font-semibold">Address Information</h3>
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">Address Information</h3>
             </div>
-            <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform duration-200" />
+            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -828,14 +828,14 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
         {/* Custom Fields Section - Collapsible */}
         {customFields.length > 0 && (
           <>
-            <Separator />
+            <div className="border-t border-border/60" />
             <Collapsible>
-              <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted rounded-lg transition-colors">
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:opacity-80 transition-opacity">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-muted-foreground" />
-                  <h3 className="text-lg font-semibold">Custom Fields</h3>
+                  <Sparkles className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">Custom Fields</h3>
                 </div>
-                <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform duration-200" />
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

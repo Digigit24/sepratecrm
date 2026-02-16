@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -166,19 +165,18 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
     return (
       <div className="space-y-6">
         {/* Basic Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Basic Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Phone */}
+        <div className="space-y-4">
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Basic Information
+          </h3>
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number *</Label>
               <Input
                 id="phone"
                 {...register('phone')}
                 placeholder="Enter phone number"
-                disabled={isReadOnly || mode === 'edit'} // Phone can't be changed in edit mode
+                disabled={isReadOnly || mode === 'edit'}
                 className={errors.phone ? 'border-destructive' : ''}
               />
               {errors.phone && (
@@ -186,7 +184,6 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
               )}
             </div>
 
-            {/* Name */}
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
               <Input
@@ -197,7 +194,6 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
               />
             </div>
 
-            {/* Status & Assigned */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
@@ -246,7 +242,6 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
               </div>
             </div>
 
-            {/* Profile Picture URL */}
             <div className="space-y-2">
               <Label htmlFor="profile_pic_url">Profile Picture URL</Label>
               <Input
@@ -257,7 +252,6 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
               />
             </div>
 
-            {/* Business Toggle */}
             <div className="flex items-center space-x-2">
               <Switch
                 id="is_business"
@@ -268,7 +262,6 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
               <Label htmlFor="is_business">Business Contact</Label>
             </div>
 
-            {/* Business Description */}
             {watchedIsBusiness && (
               <div className="space-y-2">
                 <Label htmlFor="business_description">Business Description</Label>
@@ -281,177 +274,149 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
                 />
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        <div className="border-t border-border/60" />
 
         {/* Labels */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Labels</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Current Labels */}
-            {watchedLabels.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {watchedLabels.map((label) => (
-                  <Badge key={label} variant="secondary" className="flex items-center gap-1">
-                    {label}
-                    {!isReadOnly && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-4 w-4 p-0 hover:bg-transparent"
-                        onClick={() => removeLabel(label)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </Badge>
-                ))}
-              </div>
-            )}
+        <div className="space-y-4">
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Labels
+          </h3>
+          {watchedLabels.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {watchedLabels.map((label) => (
+                <Badge key={label} variant="secondary" className="flex items-center gap-1">
+                  {label}
+                  {!isReadOnly && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 w-4 p-0 hover:bg-transparent"
+                      onClick={() => removeLabel(label)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </Badge>
+              ))}
+            </div>
+          )}
+          {!isReadOnly && (
+            <div className="space-y-2">
+              <Label>Add Label</Label>
+              <Input
+                placeholder="Type label and press Enter"
+                onKeyPress={(e) => handleKeyPress(e, 'label')}
+              />
+            </div>
+          )}
+        </div>
 
-            {/* Add Label */}
-            {!isReadOnly && (
-              <div className="space-y-2">
-                <Label>Add Label</Label>
-                <Input
-                  placeholder="Type label and press Enter"
-                  onKeyPress={(e) => handleKeyPress(e, 'label')}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="border-t border-border/60" />
 
         {/* Groups */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Groups</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Current Groups */}
-            {watchedGroups.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {watchedGroups.map((group) => (
-                  <Badge key={group} variant="outline" className="flex items-center gap-1">
-                    {group}
-                    {!isReadOnly && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-4 w-4 p-0 hover:bg-transparent"
-                        onClick={() => removeGroup(group)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </Badge>
-                ))}
-              </div>
-            )}
+        <div className="space-y-4">
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Groups
+          </h3>
+          {watchedGroups.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {watchedGroups.map((group) => (
+                <Badge key={group} variant="outline" className="flex items-center gap-1">
+                  {group}
+                  {!isReadOnly && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 w-4 p-0 hover:bg-transparent"
+                      onClick={() => removeGroup(group)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </Badge>
+              ))}
+            </div>
+          )}
+          {!isReadOnly && (
+            <div className="space-y-2">
+              <Label>Add Group</Label>
+              <Input
+                placeholder="Type group and press Enter"
+                onKeyPress={(e) => handleKeyPress(e, 'group')}
+              />
+            </div>
+          )}
+        </div>
 
-            {/* Add Group */}
-            {!isReadOnly && (
-              <div className="space-y-2">
-                <Label>Add Group</Label>
-                <Input
-                  placeholder="Type group and press Enter"
-                  onKeyPress={(e) => handleKeyPress(e, 'group')}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="border-t border-border/60" />
 
         {/* Notes */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Textarea
-              {...register('notes')}
-              placeholder="Add notes about this contact"
-              disabled={isReadOnly}
-              rows={4}
-            />
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Notes
+          </h3>
+          <Textarea
+            {...register('notes')}
+            placeholder="Add notes about this contact"
+            disabled={isReadOnly}
+            rows={4}
+          />
+        </div>
 
         {/* Contact Metadata (View Mode Only) */}
         {mode === 'view' && contact && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Contact Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <>
+            <div className="border-t border-border/60" />
+            <div className="space-y-4">
+              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Contact Information
+              </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <Label className="text-muted-foreground">Contact ID</Label>
-                  <p className="font-mono">{contact.id}</p>
+                  <Label className="text-muted-foreground text-xs">Contact ID</Label>
+                  <p className="font-mono mt-0.5">{contact.id}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Status</Label>
-                  <p>{contact.status || 'No status'}</p>
+                  <Label className="text-muted-foreground text-xs">Status</Label>
+                  <p className="mt-0.5">{contact.status || 'No status'}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Assigned To</Label>
-                  <p>{assignedUserDisplayName || contact.assigned_to || 'Unassigned'}</p>
+                  <Label className="text-muted-foreground text-xs">Assigned To</Label>
+                  <p className="mt-0.5">{assignedUserDisplayName || contact.assigned_to || 'Unassigned'}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Tenant ID</Label>
-                  <p className="font-mono break-all">{contact.tenant_id}</p>
+                  <Label className="text-muted-foreground text-xs">Last Seen</Label>
+                  <p className="mt-0.5">{contact.last_seen ? new Date(contact.last_seen).toLocaleString() : 'Never'}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Last Seen</Label>
-                  <p>{contact.last_seen ? new Date(contact.last_seen).toLocaleString() : 'Never'}</p>
+                  <Label className="text-muted-foreground text-xs">Created</Label>
+                  <p className="mt-0.5">{new Date(contact.created_at).toLocaleString()}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Last Message From User</Label>
-                  <p>{contact.last_message_from_user ? new Date(contact.last_message_from_user).toLocaleString() : 'No messages yet'}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Created</Label>
-                  <p>{new Date(contact.created_at).toLocaleString()}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Updated</Label>
-                  <p>{contact.updated_at ? new Date(contact.updated_at).toLocaleString() : 'Not available'}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Conversation Window</Label>
-                  <p>
-                    {contact.window_is_open === undefined || contact.window_is_open === null
-                      ? 'No data'
-                      : contact.window_is_open
-                      ? 'Open'
-                      : 'Closed'}
-                  </p>
-                  {contact.conversation_window_expires_at && (
-                    <p className="text-xs text-muted-foreground">
-                      Expires: {new Date(contact.conversation_window_expires_at).toLocaleString()}
-                    </p>
-                  )}
+                  <Label className="text-muted-foreground text-xs">Updated</Label>
+                  <p className="mt-0.5">{contact.updated_at ? new Date(contact.updated_at).toLocaleString() : 'Not available'}</p>
                 </div>
               </div>
 
               {contact.profile_pic_url && (
                 <div>
-                  <Label className="text-muted-foreground">Profile Picture</Label>
+                  <Label className="text-muted-foreground text-xs">Profile Picture</Label>
                   <div className="mt-2">
                     <img
                       src={contact.profile_pic_url}
                       alt="Profile"
-                      className="w-16 h-16 rounded-full object-cover"
+                      className="w-14 h-14 rounded-full object-cover"
                     />
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </>
         )}
       </div>
     );

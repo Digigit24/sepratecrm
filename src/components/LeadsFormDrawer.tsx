@@ -276,32 +276,32 @@ export function LeadsFormDrawer({
   const drawerContent = (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="activities" disabled={currentMode === 'create'}>
+        <TabsList className="w-full h-9 bg-muted/50 p-0.5 rounded-lg">
+          <TabsTrigger value="details" className="flex-1 text-[13px] h-full rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm">Details</TabsTrigger>
+          <TabsTrigger value="activities" className="flex-1 text-[13px] h-full rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm" disabled={currentMode === 'create'}>
             Activities
           </TabsTrigger>
-          <TabsTrigger value="tasks" disabled={currentMode === 'create'}>
+          <TabsTrigger value="tasks" className="flex-1 text-[13px] h-full rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm" disabled={currentMode === 'create'}>
             Tasks
           </TabsTrigger>
-          <TabsTrigger value="meetings" disabled={currentMode === 'create'}>
+          <TabsTrigger value="meetings" className="flex-1 text-[13px] h-full rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm" disabled={currentMode === 'create'}>
             Meetings
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="details" className="mt-6 space-y-6">
+        <TabsContent value="details" className="mt-5">
           <LeadDetailsForm ref={detailsFormRef} lead={lead} mode={currentMode} />
         </TabsContent>
 
-        <TabsContent value="activities" className="mt-6 space-y-6">
+        <TabsContent value="activities" className="mt-5">
           {leadId && <LeadActivities leadId={leadId} />}
         </TabsContent>
 
-        <TabsContent value="tasks" className="mt-6 space-y-6">
+        <TabsContent value="tasks" className="mt-5">
           {leadId && <LeadTasks leadId={leadId} />}
         </TabsContent>
 
-        <TabsContent value="meetings" className="mt-6 space-y-6">
+        <TabsContent value="meetings" className="mt-5">
           {leadId && <LeadMeetings leadId={leadId} />}
         </TabsContent>
       </Tabs>

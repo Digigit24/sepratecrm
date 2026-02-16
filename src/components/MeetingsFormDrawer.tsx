@@ -1,7 +1,6 @@
 // src/components/MeetingsFormDrawer.tsx
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Pencil, Trash2, Calendar, ExternalLink } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import type { Meeting, MeetingCreateData, MeetingUpdateData } from '@/types/meeting.types';
@@ -238,23 +237,13 @@ export default function MeetingsFormDrawer({
   const isLoading = meetingLoading;
 
   const drawerContent = (
-    <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-1">
-          <TabsTrigger value="basic">Meeting Information</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="basic" className="mt-6">
-          <MeetingBasicInfo
-            ref={formRef}
-            meeting={meeting}
-            mode={currentMode}
-            onSuccess={handleSuccess}
-            initialLeadId={initialLeadId}
-          />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <MeetingBasicInfo
+      ref={formRef}
+      meeting={meeting}
+      mode={currentMode}
+      onSuccess={handleSuccess}
+      initialLeadId={initialLeadId}
+    />
   );
 
   return (

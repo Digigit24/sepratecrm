@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -203,88 +202,86 @@ const UserBasicInfo = forwardRef<UserBasicInfoHandle, UserBasicInfoProps>(
         {/* View Mode - Display User Info */}
         {isReadOnly && user && (
           <>
-            {/* User Details Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">User Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">First Name</p>
-                    <p className="text-sm">{user.first_name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Last Name</p>
-                    <p className="text-sm">{user.last_name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Email</p>
-                    <p className="text-sm">{user.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Phone</p>
-                    <p className="text-sm">{user.phone || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Timezone</p>
-                    <p className="text-sm">{user.timezone || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Status</p>
-                    <Badge variant={user.is_active ? 'default' : 'secondary'} className={user.is_active ? 'bg-green-600' : ''}>
-                      {user.is_active ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Roles Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Roles & Permissions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            {/* User Details */}
+            <div className="space-y-4">
+              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                User Details
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-2">Assigned Roles</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(user.roles || []).map((role) => (
-                      <Badge key={role.id} variant="secondary">
-                        {role.name}
-                      </Badge>
-                    ))}
-                    {user.is_super_admin && (
-                      <Badge variant="default" className="bg-purple-600">
-                        Super Admin
-                      </Badge>
-                    )}
-                    {(!user.roles || user.roles.length === 0) && !user.is_super_admin && (
-                      <p className="text-sm text-muted-foreground">No roles assigned</p>
-                    )}
-                  </div>
+                  <p className="text-sm font-medium text-muted-foreground">First Name</p>
+                  <p className="text-sm">{user.first_name}</p>
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Last Name</p>
+                  <p className="text-sm">{user.last_name}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Email</p>
+                  <p className="text-sm">{user.email}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Phone</p>
+                  <p className="text-sm">{user.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Timezone</p>
+                  <p className="text-sm">{user.timezone || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Status</p>
+                  <Badge variant={user.is_active ? 'default' : 'secondary'} className={user.is_active ? 'bg-green-600' : ''}>
+                    {user.is_active ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
+              </div>
+            </div>
 
-            {/* Tenant Info Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Tenant Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Tenant Name</p>
-                    <p className="text-sm">{user.tenant_name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Joined Date</p>
-                    <p className="text-sm">{new Date(user.date_joined).toLocaleDateString()}</p>
-                  </div>
+            <div className="border-t border-border/60" />
+
+            {/* Roles & Permissions */}
+            <div className="space-y-4">
+              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Roles & Permissions
+              </h3>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-2">Assigned Roles</p>
+                <div className="flex flex-wrap gap-2">
+                  {(user.roles || []).map((role) => (
+                    <Badge key={role.id} variant="secondary">
+                      {role.name}
+                    </Badge>
+                  ))}
+                  {user.is_super_admin && (
+                    <Badge variant="default" className="bg-purple-600">
+                      Super Admin
+                    </Badge>
+                  )}
+                  {(!user.roles || user.roles.length === 0) && !user.is_super_admin && (
+                    <p className="text-sm text-muted-foreground">No roles assigned</p>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
+
+            <div className="border-t border-border/60" />
+
+            {/* Tenant Information */}
+            <div className="space-y-4">
+              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Tenant Information
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Tenant Name</p>
+                  <p className="text-sm">{user.tenant_name || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Joined Date</p>
+                  <p className="text-sm">{new Date(user.date_joined).toLocaleDateString()}</p>
+                </div>
+              </div>
+            </div>
           </>
         )}
 
@@ -292,122 +289,122 @@ const UserBasicInfo = forwardRef<UserBasicInfoHandle, UserBasicInfoProps>(
         {!isReadOnly && (
           <>
             {/* Basic Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Basic Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* First Name */}
-                  <div className="space-y-2">
-                    <Label htmlFor="first_name">
-                      First Name <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="first_name"
-                      {...register('first_name')}
-                      placeholder="John"
-                    />
-                    {errors.first_name && (
-                      <p className="text-sm text-destructive">{errors.first_name.message as string}</p>
-                    )}
-                  </div>
-
-                  {/* Last Name */}
-                  <div className="space-y-2">
-                    <Label htmlFor="last_name">
-                      Last Name <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="last_name"
-                      {...register('last_name')}
-                      placeholder="Doe"
-                    />
-                    {errors.last_name && (
-                      <p className="text-sm text-destructive">{errors.last_name.message as string}</p>
-                    )}
-                  </div>
-
-                  {/* Email */}
-                  <div className="space-y-2">
-                    <Label htmlFor="email">
-                      Email <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      {...register('email')}
-                      placeholder="john.doe@example.com"
-                      disabled={!isCreateMode}
-                    />
-                    {errors.email && (
-                      <p className="text-sm text-destructive">{errors.email.message as string}</p>
-                    )}
-                  </div>
-
-                  {/* Phone */}
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input
-                      id="phone"
-                      {...register('phone')}
-                      placeholder="+1234567890"
-                    />
-                    {errors.phone && (
-                      <p className="text-sm text-destructive">{errors.phone.message as string}</p>
-                    )}
-                  </div>
-
-                  {/* Timezone */}
-                  <div className="space-y-2">
-                    <Label htmlFor="timezone">Timezone</Label>
-                    <Select
-                      value={watchedTimezone || 'Asia/Kolkata'}
-                      onValueChange={(value) => setValue('timezone', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select timezone" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIMEZONES.map((tz) => (
-                          <SelectItem key={tz} value={tz}>
-                            {tz}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {errors.timezone && (
-                      <p className="text-sm text-destructive">{errors.timezone.message as string}</p>
-                    )}
-                  </div>
-
-                  {/* Active Status (Edit mode only) */}
-                  {!isCreateMode && (
-                    <div className="space-y-2">
-                      <Label htmlFor="is_active">Active Status</Label>
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          id="is_active"
-                          checked={watchedIsActive}
-                          onCheckedChange={(checked) => setValue('is_active', checked)}
-                        />
-                        <Label htmlFor="is_active" className="font-normal">
-                          {watchedIsActive ? 'Active' : 'Inactive'}
-                        </Label>
-                      </div>
-                    </div>
+            <div className="space-y-4">
+              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Basic Information
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* First Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="first_name">
+                    First Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="first_name"
+                    {...register('first_name')}
+                    placeholder="John"
+                  />
+                  {errors.first_name && (
+                    <p className="text-sm text-destructive">{errors.first_name.message as string}</p>
                   )}
                 </div>
-              </CardContent>
-            </Card>
+
+                {/* Last Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="last_name">
+                    Last Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="last_name"
+                    {...register('last_name')}
+                    placeholder="Doe"
+                  />
+                  {errors.last_name && (
+                    <p className="text-sm text-destructive">{errors.last_name.message as string}</p>
+                  )}
+                </div>
+
+                {/* Email */}
+                <div className="space-y-2">
+                  <Label htmlFor="email">
+                    Email <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    {...register('email')}
+                    placeholder="john.doe@example.com"
+                    disabled={!isCreateMode}
+                  />
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email.message as string}</p>
+                  )}
+                </div>
+
+                {/* Phone */}
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    {...register('phone')}
+                    placeholder="+1234567890"
+                  />
+                  {errors.phone && (
+                    <p className="text-sm text-destructive">{errors.phone.message as string}</p>
+                  )}
+                </div>
+
+                {/* Timezone */}
+                <div className="space-y-2">
+                  <Label htmlFor="timezone">Timezone</Label>
+                  <Select
+                    value={watchedTimezone || 'Asia/Kolkata'}
+                    onValueChange={(value) => setValue('timezone', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select timezone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIMEZONES.map((tz) => (
+                        <SelectItem key={tz} value={tz}>
+                          {tz}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.timezone && (
+                    <p className="text-sm text-destructive">{errors.timezone.message as string}</p>
+                  )}
+                </div>
+
+                {/* Active Status (Edit mode only) */}
+                {!isCreateMode && (
+                  <div className="space-y-2">
+                    <Label htmlFor="is_active">Active Status</Label>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="is_active"
+                        checked={watchedIsActive}
+                        onCheckedChange={(checked) => setValue('is_active', checked)}
+                      />
+                      <Label htmlFor="is_active" className="font-normal">
+                        {watchedIsActive ? 'Active' : 'Inactive'}
+                      </Label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Password Fields (Create mode only) */}
             {isCreateMode && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Account Credentials</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+              <>
+                <div className="border-t border-border/60" />
+
+                <div className="space-y-4">
+                  <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Account Credentials
+                  </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Password */}
                     <div className="space-y-2">
@@ -441,83 +438,83 @@ const UserBasicInfo = forwardRef<UserBasicInfoHandle, UserBasicInfoProps>(
                       )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </>
             )}
 
-            {/* Roles Assignment */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Roles & Permissions</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Assign roles to control user access and permissions
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Selected Roles */}
-                {selectedRoleIds.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>Assigned Roles</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedRoleIds.map((roleId) => {
-                        const role = availableRoles.find((r) => r.id === roleId);
-                        if (!role) return null;
-                        return (
-                          <Badge key={roleId} variant="secondary" className="pr-1">
-                            {role.name}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-4 w-4 p-0 ml-2 hover:bg-transparent"
-                              onClick={() => removeRole(roleId)}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+            <div className="border-t border-border/60" />
 
-                {/* Role Selection */}
+            {/* Roles Assignment */}
+            <div className="space-y-4">
+              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Roles & Permissions
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Assign roles to control user access and permissions
+              </p>
+              {/* Selected Roles */}
+              {selectedRoleIds.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Available Roles</Label>
-                  {rolesLoading ? (
-                    <p className="text-sm text-muted-foreground">Loading roles...</p>
-                  ) : availableRoles.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No active roles available</p>
-                  ) : (
-                    <ScrollArea className="h-48 border rounded-md p-3">
-                      <div className="space-y-2">
-                        {availableRoles.map((role) => (
-                          <div key={role.id} className="flex items-start space-x-3 p-2 hover:bg-muted/50 rounded">
-                            <Checkbox
-                              id={`role-${role.id}`}
-                              checked={selectedRoleIds.includes(role.id)}
-                              onCheckedChange={() => toggleRole(role.id)}
-                            />
-                            <div className="flex-1 space-y-1">
-                              <Label
-                                htmlFor={`role-${role.id}`}
-                                className="text-sm font-medium cursor-pointer"
-                              >
-                                {role.name}
-                              </Label>
-                              {role.description && (
-                                <p className="text-xs text-muted-foreground">
-                                  {role.description}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  )}
+                  <Label>Assigned Roles</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRoleIds.map((roleId) => {
+                      const role = availableRoles.find((r) => r.id === roleId);
+                      if (!role) return null;
+                      return (
+                        <Badge key={roleId} variant="secondary" className="pr-1">
+                          {role.name}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 ml-2 hover:bg-transparent"
+                            onClick={() => removeRole(roleId)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      );
+                    })}
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
+              )}
+
+              {/* Role Selection */}
+              <div className="space-y-2">
+                <Label>Available Roles</Label>
+                {rolesLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading roles...</p>
+                ) : availableRoles.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No active roles available</p>
+                ) : (
+                  <ScrollArea className="h-48 border rounded-md p-3">
+                    <div className="space-y-2">
+                      {availableRoles.map((role) => (
+                        <div key={role.id} className="flex items-start space-x-3 p-2 hover:bg-muted/50 rounded">
+                          <Checkbox
+                            id={`role-${role.id}`}
+                            checked={selectedRoleIds.includes(role.id)}
+                            onCheckedChange={() => toggleRole(role.id)}
+                          />
+                          <div className="flex-1 space-y-1">
+                            <Label
+                              htmlFor={`role-${role.id}`}
+                              className="text-sm font-medium cursor-pointer"
+                            >
+                              {role.name}
+                            </Label>
+                            {role.description && (
+                              <p className="text-xs text-muted-foreground">
+                                {role.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
+            </div>
           </>
         )}
       </div>

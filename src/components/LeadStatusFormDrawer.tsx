@@ -6,9 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Edit, Trash2, Save, X, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
@@ -246,184 +244,187 @@ export function LeadStatusFormDrawer({
 
       <div className="space-y-6">
         {/* Basic Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Basic Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Status Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">Status Name *</Label>
-              {mode === 'view' ? (
-                <div className="flex items-center gap-2">
-                  <ColorPreview color={formData.color_hex || COLOR_OPTIONS[0]} />
-                  <span className="font-medium">{statusData?.name}</span>
-                </div>
-              ) : (
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter status name"
-                  className={errors.name ? 'border-destructive' : ''}
-                />
-              )}
-              {errors.name && (
-                <p className="text-sm text-destructive">{errors.name}</p>
-              )}
-            </div>
+        <div className="space-y-4">
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Basic Information
+          </h3>
 
-            {/* Order Index */}
-            <div className="space-y-2">
-              <Label htmlFor="order_index">Order Index *</Label>
-              {mode === 'view' ? (
-                <span className="text-sm">{statusData?.order_index}</span>
-              ) : (
-                <Input
-                  id="order_index"
-                  type="number"
-                  min="0"
-                  value={formData.order_index}
-                  onChange={(e) => setFormData({ ...formData, order_index: parseInt(e.target.value) || 0 })}
-                  placeholder="Enter order index"
-                  className={errors.order_index ? 'border-destructive' : ''}
-                />
-              )}
-              {errors.order_index && (
-                <p className="text-sm text-destructive">{errors.order_index}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Lower numbers appear first in the pipeline
-              </p>
-            </div>
+          {/* Status Name */}
+          <div className="space-y-2">
+            <Label htmlFor="name">Status Name *</Label>
+            {mode === 'view' ? (
+              <div className="flex items-center gap-2">
+                <ColorPreview color={formData.color_hex || COLOR_OPTIONS[0]} />
+                <span className="font-medium">{statusData?.name}</span>
+              </div>
+            ) : (
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Enter status name"
+                className={errors.name ? 'border-destructive' : ''}
+              />
+            )}
+            {errors.name && (
+              <p className="text-sm text-destructive">{errors.name}</p>
+            )}
+          </div>
 
-            {/* Color Selection */}
-            <div className="space-y-2">
-              <Label>Status Color</Label>
-              {mode === 'view' ? (
-                <div className="flex items-center gap-2">
-                  <ColorPreview color={statusData?.color_hex || COLOR_OPTIONS[0]} />
-                  <span className="text-sm font-mono">{statusData?.color_hex || 'No color set'}</span>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    {COLOR_OPTIONS.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, color_hex: color })}
-                        className={`w-8 h-8 rounded-full border-2 transition-all ${
-                          formData.color_hex === color
-                            ? 'border-foreground scale-110'
-                            : 'border-muted hover:border-muted-foreground'
-                        }`}
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Palette className="h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      value={formData.color_hex || ''}
-                      onChange={(e) => setFormData({ ...formData, color_hex: e.target.value })}
-                      placeholder="#000000"
-                      className="w-24 font-mono text-sm"
+          {/* Order Index */}
+          <div className="space-y-2">
+            <Label htmlFor="order_index">Order Index *</Label>
+            {mode === 'view' ? (
+              <span className="text-sm">{statusData?.order_index}</span>
+            ) : (
+              <Input
+                id="order_index"
+                type="number"
+                min="0"
+                value={formData.order_index}
+                onChange={(e) => setFormData({ ...formData, order_index: parseInt(e.target.value) || 0 })}
+                placeholder="Enter order index"
+                className={errors.order_index ? 'border-destructive' : ''}
+              />
+            )}
+            {errors.order_index && (
+              <p className="text-sm text-destructive">{errors.order_index}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Lower numbers appear first in the pipeline
+            </p>
+          </div>
+
+          {/* Color Selection */}
+          <div className="space-y-2">
+            <Label>Status Color</Label>
+            {mode === 'view' ? (
+              <div className="flex items-center gap-2">
+                <ColorPreview color={statusData?.color_hex || COLOR_OPTIONS[0]} />
+                <span className="text-sm font-mono">{statusData?.color_hex || 'No color set'}</span>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {COLOR_OPTIONS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, color_hex: color })}
+                      className={`w-8 h-8 rounded-full border-2 transition-all ${
+                        formData.color_hex === color
+                          ? 'border-foreground scale-110'
+                          : 'border-muted hover:border-muted-foreground'
+                      }`}
+                      style={{ backgroundColor: color }}
                     />
-                    <span className="text-xs text-muted-foreground">or enter custom hex</span>
-                  </div>
+                  ))}
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                <div className="flex items-center gap-2">
+                  <Palette className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    value={formData.color_hex || ''}
+                    onChange={(e) => setFormData({ ...formData, color_hex: e.target.value })}
+                    placeholder="#000000"
+                    className="w-24 font-mono text-sm"
+                  />
+                  <span className="text-xs text-muted-foreground">or enter custom hex</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-border/60" />
 
         {/* Status Properties */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Status Properties</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Is Won */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Won Status</Label>
-                <p className="text-xs text-muted-foreground">
-                  Mark this status as a winning/successful outcome
-                </p>
-              </div>
-              {mode === 'view' ? (
-                <Badge variant={statusData?.is_won ? 'default' : 'secondary'}>
-                  {statusData?.is_won ? 'Won' : 'Not Won'}
-                </Badge>
-              ) : (
-                <Switch
-                  checked={formData.is_won}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_won: checked })}
-                />
-              )}
+        <div className="space-y-4">
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Status Properties
+          </h3>
+
+          {/* Is Won */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Won Status</Label>
+              <p className="text-xs text-muted-foreground">
+                Mark this status as a winning/successful outcome
+              </p>
             </div>
-            {errors.is_won && (
-              <p className="text-sm text-destructive">{errors.is_won}</p>
+            {mode === 'view' ? (
+              <Badge variant={statusData?.is_won ? 'default' : 'secondary'}>
+                {statusData?.is_won ? 'Won' : 'Not Won'}
+              </Badge>
+            ) : (
+              <Switch
+                checked={formData.is_won}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_won: checked })}
+              />
             )}
+          </div>
+          {errors.is_won && (
+            <p className="text-sm text-destructive">{errors.is_won}</p>
+          )}
 
-            <Separator />
+          <div className="border-t border-border/60" />
 
-            {/* Is Lost */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Lost Status</Label>
-                <p className="text-xs text-muted-foreground">
-                  Mark this status as a losing/unsuccessful outcome
-                </p>
-              </div>
-              {mode === 'view' ? (
-                <Badge variant={statusData?.is_lost ? 'destructive' : 'secondary'}>
-                  {statusData?.is_lost ? 'Lost' : 'Not Lost'}
-                </Badge>
-              ) : (
-                <Switch
-                  checked={formData.is_lost}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_lost: checked })}
-                />
-              )}
+          {/* Is Lost */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Lost Status</Label>
+              <p className="text-xs text-muted-foreground">
+                Mark this status as a losing/unsuccessful outcome
+              </p>
             </div>
-            {errors.is_lost && (
-              <p className="text-sm text-destructive">{errors.is_lost}</p>
+            {mode === 'view' ? (
+              <Badge variant={statusData?.is_lost ? 'destructive' : 'secondary'}>
+                {statusData?.is_lost ? 'Lost' : 'Not Lost'}
+              </Badge>
+            ) : (
+              <Switch
+                checked={formData.is_lost}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_lost: checked })}
+              />
             )}
+          </div>
+          {errors.is_lost && (
+            <p className="text-sm text-destructive">{errors.is_lost}</p>
+          )}
 
-            <Separator />
+          <div className="border-t border-border/60" />
 
-            {/* Is Active */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Active Status</Label>
-                <p className="text-xs text-muted-foreground">
-                  Inactive statuses are hidden from the pipeline
-                </p>
-              </div>
-              {mode === 'view' ? (
-                <Badge variant={statusData?.is_active ? 'default' : 'secondary'}>
-                  {statusData?.is_active ? 'Active' : 'Inactive'}
-                </Badge>
-              ) : (
-                <Switch
-                  checked={formData.is_active}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                />
-              )}
+          {/* Is Active */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Active Status</Label>
+              <p className="text-xs text-muted-foreground">
+                Inactive statuses are hidden from the pipeline
+              </p>
             </div>
-          </CardContent>
-        </Card>
+            {mode === 'view' ? (
+              <Badge variant={statusData?.is_active ? 'default' : 'secondary'}>
+                {statusData?.is_active ? 'Active' : 'Inactive'}
+              </Badge>
+            ) : (
+              <Switch
+                checked={formData.is_active}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+              />
+            )}
+          </div>
+        </div>
 
         {/* Metadata (View mode only) */}
         {mode === 'view' && statusData && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Metadata</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <>
+            <div className="border-t border-border/60" />
+
+            <div className="space-y-4">
+              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Metadata
+              </h3>
+
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <Label className="text-xs text-muted-foreground">Status ID</Label>
@@ -442,8 +443,8 @@ export function LeadStatusFormDrawer({
                   <p>{formatDistanceToNow(new Date(statusData.updated_at), { addSuffix: true })}</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </>
         )}
       </div>
     </SideDrawer>

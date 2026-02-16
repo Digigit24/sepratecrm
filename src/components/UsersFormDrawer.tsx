@@ -1,6 +1,5 @@
 // src/components/UsersFormDrawer.tsx
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Pencil, Trash2, Phone, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -241,22 +240,12 @@ export default function UsersFormDrawer({
   const isLoading = userLoading;
 
   const drawerContent = (
-    <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-1">
-          <TabsTrigger value="basic">User Information</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="basic" className="mt-6 space-y-6">
-          <UserBasicInfo
-            ref={formRef}
-            user={user}
-            mode={currentMode}
-            onSuccess={handleSuccess}
-          />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <UserBasicInfo
+      ref={formRef}
+      user={user}
+      mode={currentMode}
+      onSuccess={handleSuccess}
+    />
   );
 
   return (
