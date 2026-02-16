@@ -227,207 +227,151 @@ const MeetingBasicInfo = forwardRef<MeetingBasicInfoHandle, MeetingBasicInfoProp
     };
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Meeting Details */}
-        <div className="space-y-4">
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
             Meeting Details
           </h3>
+          <div className="divide-y divide-border/40">
             {/* Title */}
-            <div className="space-y-2">
-              <Label htmlFor="title">
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="title" className="text-[13px] text-muted-foreground font-normal">
                 Title <span className="text-red-500">*</span>
               </Label>
               {isReadOnly ? (
-                <p className="text-sm font-medium">{meeting?.title || 'Not set'}</p>
+                <span className="text-sm font-medium">{meeting?.title || 'Not set'}</span>
               ) : (
-                <>
-                  <Input
-                    id="title"
-                    {...register('title')}
-                    placeholder="Enter meeting title"
-                    disabled={isReadOnly}
-                  />
-                  {errors.title && (
-                    <p className="text-sm text-red-500">{errors.title.message as string}</p>
-                  )}
-                </>
+                <div>
+                  <Input id="title" {...register('title')} placeholder="Enter meeting title" disabled={isReadOnly} className="h-9" />
+                  {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title.message as string}</p>}
+                </div>
               )}
             </div>
 
             {/* Start Time */}
-            <div className="space-y-2">
-              <Label htmlFor="start_at">
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="start_at" className="text-[13px] text-muted-foreground font-normal">
                 Start Time <span className="text-red-500">*</span>
               </Label>
               {isReadOnly ? (
-                <p className="text-sm font-medium">{formatDateTime(meeting?.start_at || '')}</p>
+                <span className="text-sm font-medium">{formatDateTime(meeting?.start_at || '')}</span>
               ) : (
-                <>
-                  <Input
-                    id="start_at"
-                    type="datetime-local"
-                    {...register('start_at')}
-                    disabled={isReadOnly}
-                  />
-                  {errors.start_at && (
-                    <p className="text-sm text-red-500">{errors.start_at.message as string}</p>
-                  )}
-                </>
+                <div>
+                  <Input id="start_at" type="datetime-local" {...register('start_at')} disabled={isReadOnly} className="h-9" />
+                  {errors.start_at && <p className="text-xs text-red-500 mt-1">{errors.start_at.message as string}</p>}
+                </div>
               )}
             </div>
 
             {/* End Time */}
-            <div className="space-y-2">
-              <Label htmlFor="end_at">
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="end_at" className="text-[13px] text-muted-foreground font-normal">
                 End Time <span className="text-red-500">*</span>
               </Label>
               {isReadOnly ? (
-                <p className="text-sm font-medium">{formatDateTime(meeting?.end_at || '')}</p>
+                <span className="text-sm font-medium">{formatDateTime(meeting?.end_at || '')}</span>
               ) : (
-                <>
-                  <Input
-                    id="end_at"
-                    type="datetime-local"
-                    {...register('end_at')}
-                    disabled={isReadOnly}
-                  />
-                  {errors.end_at && (
-                    <p className="text-sm text-red-500">{errors.end_at.message as string}</p>
-                  )}
-                </>
+                <div>
+                  <Input id="end_at" type="datetime-local" {...register('end_at')} disabled={isReadOnly} className="h-9" />
+                  {errors.end_at && <p className="text-xs text-red-500 mt-1">{errors.end_at.message as string}</p>}
+                </div>
               )}
             </div>
 
             {/* Lead Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="lead">Associated Lead</Label>
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="lead" className="text-[13px] text-muted-foreground font-normal">Lead</Label>
               {isReadOnly ? (
-                <p className="text-sm font-medium">
-                  {meeting?.lead_name || meeting?.lead || 'No lead associated'}
-                </p>
+                <span className="text-sm font-medium">{meeting?.lead_name || meeting?.lead || 'No lead'}</span>
               ) : (
-                <>
-                  <Select
-                    value={watchedLead?.toString() || 'none'}
-                    onValueChange={(value) => setValue('lead', value === 'none' ? null : Number(value))}
-                    disabled={isReadOnly}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a lead (optional)" />
-                    </SelectTrigger>
+                <div>
+                  <Select value={watchedLead?.toString() || 'none'} onValueChange={(value) => setValue('lead', value === 'none' ? null : Number(value))} disabled={isReadOnly}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select a lead (optional)" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No lead</SelectItem>
                       {leads.map((lead) => (
-                        <SelectItem key={lead.id} value={lead.id.toString()}>
-                          {lead.name} - {lead.phone}
-                        </SelectItem>
+                        <SelectItem key={lead.id} value={lead.id.toString()}>{lead.name} - {lead.phone}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {errors.lead && (
-                    <p className="text-sm text-red-500">{errors.lead.message as string}</p>
-                  )}
-                </>
+                  {errors.lead && <p className="text-xs text-red-500 mt-1">{errors.lead.message as string}</p>}
+                </div>
               )}
             </div>
 
             {/* Location */}
-            <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="location" className="text-[13px] text-muted-foreground font-normal">Location</Label>
               {isReadOnly ? (
-                <p className="text-sm text-muted-foreground">{meeting?.location || 'Not specified'}</p>
+                <span className="text-sm text-muted-foreground">{meeting?.location || 'Not specified'}</span>
               ) : (
-                <>
-                  <Input
-                    id="location"
-                    {...register('location')}
-                    placeholder="Enter meeting location"
-                    disabled={isReadOnly}
-                  />
-                  {errors.location && (
-                    <p className="text-sm text-red-500">{errors.location.message as string}</p>
-                  )}
-                </>
+                <div>
+                  <Input id="location" {...register('location')} placeholder="Enter location" disabled={isReadOnly} className="h-9" />
+                  {errors.location && <p className="text-xs text-red-500 mt-1">{errors.location.message as string}</p>}
+                </div>
               )}
             </div>
+          </div>
         </div>
 
-        <div className="border-t border-border/60" />
+        <div className="border-t border-border/50" />
 
-        {/* Description & Notes */}
-        <div className="space-y-4">
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {/* Additional Information */}
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
             Additional Information
           </h3>
+          <div className="space-y-4">
             {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="description" className="text-[13px] text-muted-foreground font-normal">Description</Label>
               {isReadOnly ? (
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {meeting?.description || 'No description'}
-                </p>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{meeting?.description || 'No description'}</p>
               ) : (
-                <>
-                  <Textarea
-                    id="description"
-                    {...register('description')}
-                    placeholder="Enter meeting description"
-                    rows={3}
-                    disabled={isReadOnly}
-                  />
-                  {errors.description && (
-                    <p className="text-sm text-red-500">{errors.description.message as string}</p>
-                  )}
-                </>
+                <div>
+                  <Textarea id="description" {...register('description')} placeholder="Enter description" rows={3} disabled={isReadOnly} />
+                  {errors.description && <p className="text-xs text-red-500 mt-1">{errors.description.message as string}</p>}
+                </div>
               )}
             </div>
 
             {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="notes" className="text-[13px] text-muted-foreground font-normal">Notes</Label>
               {isReadOnly ? (
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {meeting?.notes || 'No notes'}
-                </p>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{meeting?.notes || 'No notes'}</p>
               ) : (
-                <>
-                  <Textarea
-                    id="notes"
-                    {...register('notes')}
-                    placeholder="Enter meeting notes"
-                    rows={3}
-                    disabled={isReadOnly}
-                  />
-                  {errors.notes && (
-                    <p className="text-sm text-red-500">{errors.notes.message as string}</p>
-                  )}
-                </>
+                <div>
+                  <Textarea id="notes" {...register('notes')} placeholder="Enter notes" rows={3} disabled={isReadOnly} />
+                  {errors.notes && <p className="text-xs text-red-500 mt-1">{errors.notes.message as string}</p>}
+                </div>
               )}
             </div>
+          </div>
         </div>
 
         {/* Metadata (View Mode Only) */}
         {mode === 'view' && meeting && (
           <>
-            <div className="border-t border-border/60" />
-            <div className="space-y-4">
-              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="border-t border-border/50" />
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
                 Metadata
               </h3>
-              <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Meeting ID:</span>
-                <Badge variant="secondary">{meeting.id}</Badge>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Created At:</span>
-                <span>{formatDateTime(meeting.created_at)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Last Updated:</span>
-                <span>{formatDateTime(meeting.updated_at)}</span>
-              </div>
+              <div className="divide-y divide-border/40">
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Meeting ID</span>
+                  <Badge variant="secondary">{meeting.id}</Badge>
+                </div>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Created</span>
+                  <span className="text-sm">{formatDateTime(meeting.created_at)}</span>
+                </div>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Updated</span>
+                  <span className="text-sm">{formatDateTime(meeting.updated_at)}</span>
+                </div>
               </div>
             </div>
           </>

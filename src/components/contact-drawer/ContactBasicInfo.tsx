@@ -163,140 +163,94 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
     };
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Basic Information */}
-        <div className="space-y-4">
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
             Basic Information
           </h3>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number *</Label>
-              <Input
-                id="phone"
-                {...register('phone')}
-                placeholder="Enter phone number"
-                disabled={isReadOnly || mode === 'edit'}
-                className={errors.phone ? 'border-destructive' : ''}
-              />
-              {errors.phone && (
-                <p className="text-sm text-destructive">{errors.phone.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                {...register('name')}
-                placeholder="Enter contact name"
-                disabled={isReadOnly}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Input
-                  id="status"
-                  {...register('status')}
-                  placeholder="e.g. active, blocked"
-                  disabled={isReadOnly}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="assigned_to">Assigned To</Label>
-                <Controller
-                  name="assigned_to"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value || 'unassigned'}
-                      onValueChange={(value) =>
-                        field.onChange(value === 'unassigned' ? '' : value)
-                      }
-                      disabled={isReadOnly || usersLoading}
-                    >
-                      <SelectTrigger id="assigned_to">
-                        <SelectValue placeholder={usersLoading ? 'Loading users...' : 'Select user'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unassigned">Unassigned</SelectItem>
-                        {usersData?.results?.map((user) => {
-                          const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || user.id;
-                          return (
-                            <SelectItem key={user.id} value={user.id}>
-                              <div className="flex items-center gap-2">
-                                <span>{displayName}</span>
-                                {user.email && (
-                                  <span className="text-xs text-muted-foreground">({user.email})</span>
-                                )}
-                              </div>
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
+          <div className="divide-y divide-border/40">
+            {/* Phone */}
+            <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
+              <Label htmlFor="phone" className="text-[13px] text-muted-foreground font-normal pt-2">Phone *</Label>
+              <div>
+                <Input id="phone" {...register('phone')} placeholder="Enter phone number" disabled={isReadOnly || mode === 'edit'} className={`h-9 ${errors.phone ? 'border-destructive' : ''}`} />
+                {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone.message}</p>}
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="profile_pic_url">Profile Picture URL</Label>
-              <Input
-                id="profile_pic_url"
-                {...register('profile_pic_url')}
-                placeholder="https://example.com/avatar.jpg"
-                disabled={isReadOnly}
-              />
+            {/* Name */}
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="name" className="text-[13px] text-muted-foreground font-normal">Name</Label>
+              <Input id="name" {...register('name')} placeholder="Enter contact name" disabled={isReadOnly} className="h-9" />
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="is_business"
-                checked={watchedIsBusiness}
-                onCheckedChange={(checked) => setValue('is_business', checked)}
-                disabled={isReadOnly}
-              />
-              <Label htmlFor="is_business">Business Contact</Label>
+            {/* Status */}
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="status" className="text-[13px] text-muted-foreground font-normal">Status</Label>
+              <Input id="status" {...register('status')} placeholder="e.g. active, blocked" disabled={isReadOnly} className="h-9" />
             </div>
 
+            {/* Assigned To */}
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="assigned_to" className="text-[13px] text-muted-foreground font-normal">Assigned To</Label>
+              <Controller name="assigned_to" control={control} render={({ field }) => (
+                <Select value={field.value || 'unassigned'} onValueChange={(value) => field.onChange(value === 'unassigned' ? '' : value)} disabled={isReadOnly || usersLoading}>
+                  <SelectTrigger id="assigned_to" className="h-9"><SelectValue placeholder={usersLoading ? 'Loading...' : 'Select user'} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {usersData?.results?.map((user) => {
+                      const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || user.id;
+                      return (
+                        <SelectItem key={user.id} value={user.id}>
+                          <div className="flex items-center gap-2">
+                            <span>{displayName}</span>
+                            {user.email && <span className="text-xs text-muted-foreground">({user.email})</span>}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              )} />
+            </div>
+
+            {/* Profile Picture URL */}
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="profile_pic_url" className="text-[13px] text-muted-foreground font-normal">Avatar URL</Label>
+              <Input id="profile_pic_url" {...register('profile_pic_url')} placeholder="https://example.com/avatar.jpg" disabled={isReadOnly} className="h-9" />
+            </div>
+
+            {/* Business Contact Toggle */}
+            <div className="flex items-center justify-between py-2.5">
+              <Label htmlFor="is_business" className="text-[13px] text-muted-foreground font-normal">Business Contact</Label>
+              <Switch id="is_business" checked={watchedIsBusiness} onCheckedChange={(checked) => setValue('is_business', checked)} disabled={isReadOnly} />
+            </div>
+
+            {/* Business Description (conditional) */}
             {watchedIsBusiness && (
-              <div className="space-y-2">
-                <Label htmlFor="business_description">Business Description</Label>
-                <Textarea
-                  id="business_description"
-                  {...register('business_description')}
-                  placeholder="Describe the business"
-                  disabled={isReadOnly}
-                  rows={3}
-                />
+              <div className="py-2.5 space-y-1.5">
+                <Label htmlFor="business_description" className="text-[13px] text-muted-foreground font-normal">Business Description</Label>
+                <Textarea id="business_description" {...register('business_description')} placeholder="Describe the business" disabled={isReadOnly} rows={3} />
               </div>
             )}
           </div>
         </div>
 
-        <div className="border-t border-border/60" />
+        <div className="border-t border-border/50" />
 
         {/* Labels */}
-        <div className="space-y-4">
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
             Labels
           </h3>
           {watchedLabels.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5 mb-2">
               {watchedLabels.map((label) => (
                 <Badge key={label} variant="secondary" className="flex items-center gap-1">
                   {label}
                   {!isReadOnly && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-4 w-4 p-0 hover:bg-transparent"
-                      onClick={() => removeLabel(label)}
-                    >
+                    <Button type="button" variant="ghost" size="sm" className="h-4 w-4 p-0 hover:bg-transparent" onClick={() => removeLabel(label)}>
                       <X className="h-3 w-3" />
                     </Button>
                   )}
@@ -305,36 +259,27 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
             </div>
           )}
           {!isReadOnly && (
-            <div className="space-y-2">
-              <Label>Add Label</Label>
-              <Input
-                placeholder="Type label and press Enter"
-                onKeyPress={(e) => handleKeyPress(e, 'label')}
-              />
-            </div>
+            <Input placeholder="Type label and press Enter" onKeyPress={(e) => handleKeyPress(e, 'label')} className="h-9" />
+          )}
+          {watchedLabels.length === 0 && isReadOnly && (
+            <p className="text-sm text-muted-foreground">No labels</p>
           )}
         </div>
 
-        <div className="border-t border-border/60" />
+        <div className="border-t border-border/50" />
 
         {/* Groups */}
-        <div className="space-y-4">
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
             Groups
           </h3>
           {watchedGroups.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5 mb-2">
               {watchedGroups.map((group) => (
                 <Badge key={group} variant="outline" className="flex items-center gap-1">
                   {group}
                   {!isReadOnly && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-4 w-4 p-0 hover:bg-transparent"
-                      onClick={() => removeGroup(group)}
-                    >
+                    <Button type="button" variant="ghost" size="sm" className="h-4 w-4 p-0 hover:bg-transparent" onClick={() => removeGroup(group)}>
                       <X className="h-3 w-3" />
                     </Button>
                   )}
@@ -343,78 +288,67 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
             </div>
           )}
           {!isReadOnly && (
-            <div className="space-y-2">
-              <Label>Add Group</Label>
-              <Input
-                placeholder="Type group and press Enter"
-                onKeyPress={(e) => handleKeyPress(e, 'group')}
-              />
-            </div>
+            <Input placeholder="Type group and press Enter" onKeyPress={(e) => handleKeyPress(e, 'group')} className="h-9" />
+          )}
+          {watchedGroups.length === 0 && isReadOnly && (
+            <p className="text-sm text-muted-foreground">No groups</p>
           )}
         </div>
 
-        <div className="border-t border-border/60" />
+        <div className="border-t border-border/50" />
 
         {/* Notes */}
-        <div className="space-y-4">
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
             Notes
           </h3>
-          <Textarea
-            {...register('notes')}
-            placeholder="Add notes about this contact"
-            disabled={isReadOnly}
-            rows={4}
-          />
+          {isReadOnly ? (
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{contact?.notes || 'No notes'}</p>
+          ) : (
+            <Textarea {...register('notes')} placeholder="Add notes about this contact" rows={4} />
+          )}
         </div>
 
         {/* Contact Metadata (View Mode Only) */}
         {mode === 'view' && contact && (
           <>
-            <div className="border-t border-border/60" />
-            <div className="space-y-4">
-              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="border-t border-border/50" />
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
                 Contact Information
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <Label className="text-muted-foreground text-xs">Contact ID</Label>
-                  <p className="font-mono mt-0.5">{contact.id}</p>
+              <div className="divide-y divide-border/40">
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Contact ID</span>
+                  <span className="text-sm font-mono">{contact.id}</span>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs">Status</Label>
-                  <p className="mt-0.5">{contact.status || 'No status'}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Status</span>
+                  <span className="text-sm">{contact.status || 'No status'}</span>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs">Assigned To</Label>
-                  <p className="mt-0.5">{assignedUserDisplayName || contact.assigned_to || 'Unassigned'}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Assigned To</span>
+                  <span className="text-sm">{assignedUserDisplayName || contact.assigned_to || 'Unassigned'}</span>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs">Last Seen</Label>
-                  <p className="mt-0.5">{contact.last_seen ? new Date(contact.last_seen).toLocaleString() : 'Never'}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Last Seen</span>
+                  <span className="text-sm">{contact.last_seen ? new Date(contact.last_seen).toLocaleString() : 'Never'}</span>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs">Created</Label>
-                  <p className="mt-0.5">{new Date(contact.created_at).toLocaleString()}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Created</span>
+                  <span className="text-sm">{new Date(contact.created_at).toLocaleString()}</span>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs">Updated</Label>
-                  <p className="mt-0.5">{contact.updated_at ? new Date(contact.updated_at).toLocaleString() : 'Not available'}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Updated</span>
+                  <span className="text-sm">{contact.updated_at ? new Date(contact.updated_at).toLocaleString() : 'N/A'}</span>
                 </div>
-              </div>
-
-              {contact.profile_pic_url && (
-                <div>
-                  <Label className="text-muted-foreground text-xs">Profile Picture</Label>
-                  <div className="mt-2">
-                    <img
-                      src={contact.profile_pic_url}
-                      alt="Profile"
-                      className="w-14 h-14 rounded-full object-cover"
-                    />
+                {contact.profile_pic_url && (
+                  <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                    <span className="text-[13px] text-muted-foreground">Avatar</span>
+                    <img src={contact.profile_pic_url} alt="Profile" className="w-10 h-10 rounded-full object-cover" />
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </>
         )}

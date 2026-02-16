@@ -7,9 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -17,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Edit, Trash2, X, Plus, Minus } from 'lucide-react';
+import { Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import type {
@@ -329,7 +327,7 @@ export function FieldConfigurationFormDrawer({
       footerButtons={footerButtons}
       size="lg"
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         {fetchError && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
             Failed to load field configuration: {fetchError}
@@ -337,353 +335,198 @@ export function FieldConfigurationFormDrawer({
         )}
 
         {/* Basic Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Basic Information</CardTitle>
-            <CardDescription>
-              Configure the basic properties of the field
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Field Type Selection */}
-            <div className="space-y-2">
-              <Label>Field Category</Label>
-              <div className="flex gap-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="is_standard"
-                    checked={formData.is_standard}
-                    onCheckedChange={(checked) =>
-                      setFormData({ ...formData, is_standard: checked })
-                    }
-                    disabled={isViewMode || (mode === 'edit' && configId !== null)}
-                  />
-                  <Label htmlFor="is_standard">
-                    Standard Field
-                    {formData.is_standard && (
-                      <Badge variant="secondary" className="ml-2">
-                        Lead Model Field
-                      </Badge>
-                    )}
-                  </Label>
-                </div>
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
+            Basic Information
+          </h3>
+          <div className="divide-y divide-border/40">
+            {/* Field Category */}
+            <div className="flex items-center justify-between py-2.5">
+              <div>
+                <Label htmlFor="is_standard" className="text-[13px]">Standard Field</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {formData.is_standard ? 'Pre-defined Lead model field' : 'Custom metadata field'}
+                </p>
               </div>
-              <p className="text-sm text-muted-foreground">
-                {formData.is_standard
-                  ? 'Configure visibility and display settings for a pre-defined Lead model field'
-                  : 'Create a custom field that will be stored in Lead metadata'}
-              </p>
+              <div className="flex items-center gap-2">
+                {formData.is_standard && <Badge variant="secondary">Lead Model</Badge>}
+                <Switch id="is_standard" checked={formData.is_standard} onCheckedChange={(checked) => setFormData({ ...formData, is_standard: checked })} disabled={isViewMode || (mode === 'edit' && configId !== null)} />
+              </div>
             </div>
 
-            <Separator />
-
             {/* Field Name */}
-            <div className="space-y-2">
-              <Label htmlFor="field_name">
-                Field Name <span className="text-red-500">*</span>
+            <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
+              <Label htmlFor="field_name" className="text-[13px] text-muted-foreground font-normal pt-2">
+                Name <span className="text-red-500">*</span>
               </Label>
-              {formData.is_standard ? (
-                <Select
-                  value={formData.field_name}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, field_name: value })
-                  }
-                  disabled={isViewMode || (mode === 'edit' && configId !== null)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a standard field" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STANDARD_FIELD_OPTIONS.map((field) => (
-                      <SelectItem key={field.value} value={field.value}>
-                        {field.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  id="field_name"
-                  value={formData.field_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, field_name: e.target.value.toLowerCase() })
-                  }
-                  placeholder="e.g., custom_field_1"
-                  disabled={isViewMode || (mode === 'edit' && configId !== null)}
-                />
-              )}
-              {errors.field_name && (
-                <p className="text-sm text-red-500">{errors.field_name}</p>
-              )}
-              <p className="text-sm text-muted-foreground">
-                Unique identifier for the field (lowercase, no spaces)
-              </p>
+              <div>
+                {formData.is_standard ? (
+                  <Select value={formData.field_name} onValueChange={(value) => setFormData({ ...formData, field_name: value })} disabled={isViewMode || (mode === 'edit' && configId !== null)}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select a standard field" /></SelectTrigger>
+                    <SelectContent>
+                      {STANDARD_FIELD_OPTIONS.map((field) => (
+                        <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input id="field_name" value={formData.field_name} onChange={(e) => setFormData({ ...formData, field_name: e.target.value.toLowerCase() })} placeholder="e.g., custom_field_1" disabled={isViewMode || (mode === 'edit' && configId !== null)} className="h-9" />
+                )}
+                {errors.field_name && <p className="text-xs text-red-500 mt-1">{errors.field_name}</p>}
+                <p className="text-xs text-muted-foreground mt-1">Unique identifier (lowercase, no spaces)</p>
+              </div>
             </div>
 
             {/* Field Label */}
-            <div className="space-y-2">
-              <Label htmlFor="field_label">
-                Field Label <span className="text-red-500">*</span>
+            <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
+              <Label htmlFor="field_label" className="text-[13px] text-muted-foreground font-normal pt-2">
+                Label <span className="text-red-500">*</span>
               </Label>
-              <Input
-                id="field_label"
-                value={formData.field_label}
-                onChange={(e) => {
+              <div>
+                <Input id="field_label" value={formData.field_label} onChange={(e) => {
                   const newLabel = e.target.value;
-
-                  // Auto-generate field_name from field_label in create mode
                   if (mode === 'create') {
-                    const generatedName = newLabel
-                      .toLowerCase()
-                      .replace(/[^a-z0-9]+/g, '_')
-                      .replace(/^_|_$/g, '');
+                    const generatedName = newLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
                     setFormData({ ...formData, field_label: newLabel, field_name: generatedName });
                   } else {
                     setFormData({ ...formData, field_label: newLabel });
                   }
-                }}
-                placeholder="e.g., Custom Field 1"
-                disabled={isViewMode}
-              />
-              {errors.field_label && (
-                <p className="text-sm text-red-500">{errors.field_label}</p>
-              )}
-              <p className="text-sm text-muted-foreground">
-                Display name shown in the UI
-              </p>
+                }} placeholder="e.g., Custom Field 1" disabled={isViewMode} className="h-9" />
+                {errors.field_label && <p className="text-xs text-red-500 mt-1">{errors.field_label}</p>}
+              </div>
             </div>
 
-            {/* Field Type (for custom fields only) */}
+            {/* Field Type (custom fields only) */}
             {!formData.is_standard && (
-              <div className="space-y-2">
-                <Label htmlFor="field_type">
-                  Field Type <span className="text-red-500">*</span>
+              <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
+                <Label htmlFor="field_type" className="text-[13px] text-muted-foreground font-normal pt-2">
+                  Type <span className="text-red-500">*</span>
                 </Label>
-                <Select
-                  value={formData.field_type}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, field_type: value as FieldTypeEnum })
-                  }
-                  disabled={isViewMode}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select field type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FIELD_TYPE_OPTIONS.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.field_type && (
-                  <p className="text-sm text-red-500">{errors.field_type}</p>
-                )}
-                <p className="text-sm text-muted-foreground">
-                  Data type for the custom field
-                </p>
+                <div>
+                  <Select value={formData.field_type} onValueChange={(value) => setFormData({ ...formData, field_type: value as FieldTypeEnum })} disabled={isViewMode}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select field type" /></SelectTrigger>
+                    <SelectContent>
+                      {FIELD_TYPE_OPTIONS.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.field_type && <p className="text-xs text-red-500 mt-1">{errors.field_type}</p>}
+                </div>
               </div>
             )}
 
             {/* Display Order */}
-            <div className="space-y-2">
-              <Label htmlFor="display_order">Display Order</Label>
-              <Input
-                id="display_order"
-                type="number"
-                min="0"
-                value={formData.display_order}
-                onChange={(e) =>
-                  setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })
-                }
-                disabled={isViewMode}
-              />
-              {errors.display_order && (
-                <p className="text-sm text-red-500">{errors.display_order}</p>
-              )}
-              <p className="text-sm text-muted-foreground">
-                Order in which the field appears (lower numbers appear first)
-              </p>
+            <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
+              <Label htmlFor="display_order" className="text-[13px] text-muted-foreground font-normal pt-2">Order</Label>
+              <div>
+                <Input id="display_order" type="number" min="0" value={formData.display_order} onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })} disabled={isViewMode} className="h-9" />
+                {errors.display_order && <p className="text-xs text-red-500 mt-1">{errors.display_order}</p>}
+                <p className="text-xs text-muted-foreground mt-1">Lower numbers appear first</p>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Field Options (for dropdown/multiselect) */}
         {!formData.is_standard && (formData.field_type === 'DROPDOWN' || formData.field_type === 'MULTISELECT') && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Field Options</CardTitle>
-              <CardDescription>
-                Define the available options for this {formData.field_type.toLowerCase()} field
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="options">
-                  Options <span className="text-red-500">*</span>
-                </Label>
-                <Textarea
-                  id="options"
-                  value={optionsInput}
-                  onChange={(e) => setOptionsInput(e.target.value)}
-                  placeholder="Enter one option per line&#10;Option 1&#10;Option 2&#10;Option 3"
-                  rows={6}
-                  disabled={isViewMode}
-                />
-                {errors.options && (
-                  <p className="text-sm text-red-500">{errors.options}</p>
-                )}
-                <p className="text-sm text-muted-foreground">
-                  Enter one option per line
-                </p>
+          <>
+            <div className="border-t border-border/50" />
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
+                Field Options
+              </h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Define options for this {formData.field_type.toLowerCase()} field
+              </p>
+              <div>
+                <Textarea id="options" value={optionsInput} onChange={(e) => setOptionsInput(e.target.value)} placeholder="Enter one option per line&#10;Option 1&#10;Option 2&#10;Option 3" rows={6} disabled={isViewMode} />
+                {errors.options && <p className="text-xs text-red-500 mt-1">{errors.options}</p>}
+                <p className="text-xs text-muted-foreground mt-1">Enter one option per line</p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </>
         )}
 
+        <div className="border-t border-border/50" />
+
         {/* Field Configuration */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Field Configuration</CardTitle>
-            <CardDescription>
-              Configure field behavior and validation
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
+            Field Configuration
+          </h3>
+          <div className="divide-y divide-border/40">
             {/* Placeholder */}
-            <div className="space-y-2">
-              <Label htmlFor="placeholder">Placeholder Text</Label>
-              <Input
-                id="placeholder"
-                value={formData.placeholder || ''}
-                onChange={(e) =>
-                  setFormData({ ...formData, placeholder: e.target.value })
-                }
-                placeholder="e.g., Enter value..."
-                disabled={isViewMode}
-              />
-              <p className="text-sm text-muted-foreground">
-                Placeholder text shown in empty fields
-              </p>
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="placeholder" className="text-[13px] text-muted-foreground font-normal">Placeholder</Label>
+              <Input id="placeholder" value={formData.placeholder || ''} onChange={(e) => setFormData({ ...formData, placeholder: e.target.value })} placeholder="e.g., Enter value..." disabled={isViewMode} className="h-9" />
             </div>
 
             {/* Help Text */}
-            <div className="space-y-2">
-              <Label htmlFor="help_text">Help Text</Label>
-              <Textarea
-                id="help_text"
-                value={formData.help_text || ''}
-                onChange={(e) =>
-                  setFormData({ ...formData, help_text: e.target.value })
-                }
-                placeholder="Provide additional guidance for this field"
-                rows={3}
-                disabled={isViewMode}
-              />
-              <p className="text-sm text-muted-foreground">
-                Additional information to help users fill this field
-              </p>
+            <div className="py-2.5 space-y-1.5">
+              <Label htmlFor="help_text" className="text-[13px] text-muted-foreground font-normal">Help Text</Label>
+              <Textarea id="help_text" value={formData.help_text || ''} onChange={(e) => setFormData({ ...formData, help_text: e.target.value })} placeholder="Additional guidance for this field" rows={2} disabled={isViewMode} />
             </div>
 
             {/* Default Value */}
-            <div className="space-y-2">
-              <Label htmlFor="default_value">Default Value</Label>
-              <Input
-                id="default_value"
-                value={formData.default_value || ''}
-                onChange={(e) =>
-                  setFormData({ ...formData, default_value: e.target.value })
-                }
-                placeholder="Default value for new records"
-                disabled={isViewMode}
-              />
-              <p className="text-sm text-muted-foreground">
-                Default value when creating new leads
-              </p>
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="default_value" className="text-[13px] text-muted-foreground font-normal">Default</Label>
+              <Input id="default_value" value={formData.default_value || ''} onChange={(e) => setFormData({ ...formData, default_value: e.target.value })} placeholder="Default value" disabled={isViewMode} className="h-9" />
             </div>
 
-            <Separator />
-
-            {/* Field Flags */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="is_visible">Visible</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Show this field in the UI
-                  </p>
-                </div>
-                <Switch
-                  id="is_visible"
-                  checked={formData.is_visible}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, is_visible: checked })
-                  }
-                  disabled={isViewMode}
-                />
+            {/* Visible toggle */}
+            <div className="flex items-center justify-between py-2.5">
+              <div>
+                <Label htmlFor="is_visible" className="text-[13px]">Visible</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Show this field in the UI</p>
               </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="is_required">Required</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Make this field mandatory
-                  </p>
-                </div>
-                <Switch
-                  id="is_required"
-                  checked={formData.is_required}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, is_required: checked })
-                  }
-                  disabled={isViewMode}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="is_active">Active</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Enable this field configuration
-                  </p>
-                </div>
-                <Switch
-                  id="is_active"
-                  checked={formData.is_active}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, is_active: checked })
-                  }
-                  disabled={isViewMode}
-                />
-              </div>
+              <Switch id="is_visible" checked={formData.is_visible} onCheckedChange={(checked) => setFormData({ ...formData, is_visible: checked })} disabled={isViewMode} />
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Metadata (for view mode) */}
+            {/* Required toggle */}
+            <div className="flex items-center justify-between py-2.5">
+              <div>
+                <Label htmlFor="is_required" className="text-[13px]">Required</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Make this field mandatory</p>
+              </div>
+              <Switch id="is_required" checked={formData.is_required} onCheckedChange={(checked) => setFormData({ ...formData, is_required: checked })} disabled={isViewMode} />
+            </div>
+
+            {/* Active toggle */}
+            <div className="flex items-center justify-between py-2.5">
+              <div>
+                <Label htmlFor="is_active" className="text-[13px]">Active</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Enable this field configuration</p>
+              </div>
+              <Switch id="is_active" checked={formData.is_active} onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })} disabled={isViewMode} />
+            </div>
+          </div>
+        </div>
+
+        {/* Metadata (view mode) */}
         {mode === 'view' && configData && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Metadata</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Created:</span>
-                <span>{formatDistanceToNow(new Date(configData.created_at), { addSuffix: true })}</span>
+          <>
+            <div className="border-t border-border/50" />
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
+                Metadata
+              </h3>
+              <div className="divide-y divide-border/40">
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Created</span>
+                  <span className="text-sm">{formatDistanceToNow(new Date(configData.created_at), { addSuffix: true })}</span>
+                </div>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Updated</span>
+                  <span className="text-sm">{formatDistanceToNow(new Date(configData.updated_at), { addSuffix: true })}</span>
+                </div>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Category</span>
+                  <Badge variant={configData.is_standard ? 'default' : 'secondary'}>{configData.is_standard ? 'Standard' : 'Custom'}</Badge>
+                </div>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Updated:</span>
-                <span>{formatDistanceToNow(new Date(configData.updated_at), { addSuffix: true })}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Category:</span>
-                <Badge variant={configData.is_standard ? 'default' : 'secondary'}>
-                  {configData.is_standard ? 'Standard' : 'Custom'}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </>
         )}
       </div>
     </SideDrawer>

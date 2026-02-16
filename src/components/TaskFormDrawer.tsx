@@ -251,82 +251,83 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
       onClose={handleClose}
     >
       <div className="space-y-5">
-        {/* Title */}
-        <div className="space-y-2">
-          <Label htmlFor="title">
-            Title <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            disabled={isViewMode || isSubmitting}
-            placeholder="Enter task title..."
-          />
+        {/* Task Details Section */}
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
+            Task Details
+          </h3>
+          <div className="divide-y divide-border/40">
+            {/* Title row */}
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="title" className="text-[13px] text-muted-foreground font-normal">
+                Title <span className="text-destructive">*</span>
+              </Label>
+              {isViewMode ? (
+                <span className="text-sm font-medium">{title || 'Untitled'}</span>
+              ) : (
+                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} disabled={isSubmitting} placeholder="Enter task title..." className="h-9" />
+              )}
+            </div>
+
+            {/* Priority row */}
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="priority" className="text-[13px] text-muted-foreground font-normal">Priority</Label>
+              {isViewMode ? (
+                <span className="text-sm font-medium">{priority}</span>
+              ) : (
+                <Select value={priority} onValueChange={(value) => setPriority(value as PriorityEnum)} disabled={isSubmitting}>
+                  <SelectTrigger id="priority" className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOW">Low</SelectItem>
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+                    <SelectItem value="HIGH">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Status row */}
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="status" className="text-[13px] text-muted-foreground font-normal">Status</Label>
+              {isViewMode ? (
+                <span className="text-sm font-medium">{status}</span>
+              ) : (
+                <Select value={status} onValueChange={(value) => setStatus(value as TaskStatusEnum)} disabled={isSubmitting}>
+                  <SelectTrigger id="status" className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TODO">To Do</SelectItem>
+                    <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                    <SelectItem value="DONE">Done</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Due Date row */}
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="dueDate" className="text-[13px] text-muted-foreground font-normal">Due Date</Label>
+              {isViewMode ? (
+                <span className="text-sm font-medium">{dueDate || 'Not set'}</span>
+              ) : (
+                <Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={isSubmitting} className="h-9" />
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Description */}
-        <div className="space-y-2">
-          <Label htmlFor="description">Description</Label>
-          <Textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            disabled={isViewMode || isSubmitting}
-            placeholder="Enter task description..."
-            rows={4}
-          />
-        </div>
+        <div className="border-t border-border/50" />
 
-        {/* Priority */}
-        <div className="space-y-2">
-          <Label htmlFor="priority">Priority</Label>
-          <Select
-            value={priority}
-            onValueChange={(value) => setPriority(value as PriorityEnum)}
-            disabled={isViewMode || isSubmitting}
-          >
-            <SelectTrigger id="priority">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="LOW">Low</SelectItem>
-              <SelectItem value="MEDIUM">Medium</SelectItem>
-              <SelectItem value="HIGH">High</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Status */}
-        <div className="space-y-2">
-          <Label htmlFor="status">Status</Label>
-          <Select
-            value={status}
-            onValueChange={(value) => setStatus(value as TaskStatusEnum)}
-            disabled={isViewMode || isSubmitting}
-          >
-            <SelectTrigger id="status">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="TODO">To Do</SelectItem>
-              <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-              <SelectItem value="DONE">Done</SelectItem>
-              <SelectItem value="CANCELLED">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Due Date */}
-        <div className="space-y-2">
-          <Label htmlFor="dueDate">Due Date</Label>
-          <Input
-            id="dueDate"
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            disabled={isViewMode || isSubmitting}
-          />
+        {/* Description Section */}
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
+            Description
+          </h3>
+          {isViewMode ? (
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{description || 'No description'}</p>
+          ) : (
+            <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} disabled={isSubmitting} placeholder="Enter task description..." rows={4} />
+          )}
         </div>
       </div>
     </SideDrawer>

@@ -242,205 +242,139 @@ export function LeadStatusFormDrawer({
         </div>
       )}
 
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Basic Information */}
-        <div className="space-y-4">
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
             Basic Information
           </h3>
-
-          {/* Status Name */}
-          <div className="space-y-2">
-            <Label htmlFor="name">Status Name *</Label>
-            {mode === 'view' ? (
-              <div className="flex items-center gap-2">
-                <ColorPreview color={formData.color_hex || COLOR_OPTIONS[0]} />
-                <span className="font-medium">{statusData?.name}</span>
-              </div>
-            ) : (
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter status name"
-                className={errors.name ? 'border-destructive' : ''}
-              />
-            )}
-            {errors.name && (
-              <p className="text-sm text-destructive">{errors.name}</p>
-            )}
-          </div>
-
-          {/* Order Index */}
-          <div className="space-y-2">
-            <Label htmlFor="order_index">Order Index *</Label>
-            {mode === 'view' ? (
-              <span className="text-sm">{statusData?.order_index}</span>
-            ) : (
-              <Input
-                id="order_index"
-                type="number"
-                min="0"
-                value={formData.order_index}
-                onChange={(e) => setFormData({ ...formData, order_index: parseInt(e.target.value) || 0 })}
-                placeholder="Enter order index"
-                className={errors.order_index ? 'border-destructive' : ''}
-              />
-            )}
-            {errors.order_index && (
-              <p className="text-sm text-destructive">{errors.order_index}</p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Lower numbers appear first in the pipeline
-            </p>
-          </div>
-
-          {/* Color Selection */}
-          <div className="space-y-2">
-            <Label>Status Color</Label>
-            {mode === 'view' ? (
-              <div className="flex items-center gap-2">
-                <ColorPreview color={statusData?.color_hex || COLOR_OPTIONS[0]} />
-                <span className="text-sm font-mono">{statusData?.color_hex || 'No color set'}</span>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {COLOR_OPTIONS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, color_hex: color })}
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${
-                        formData.color_hex === color
-                          ? 'border-foreground scale-110'
-                          : 'border-muted hover:border-muted-foreground'
-                      }`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
+          <div className="divide-y divide-border/40">
+            {/* Status Name */}
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="name" className="text-[13px] text-muted-foreground font-normal">Name *</Label>
+              {mode === 'view' ? (
                 <div className="flex items-center gap-2">
-                  <Palette className="h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    value={formData.color_hex || ''}
-                    onChange={(e) => setFormData({ ...formData, color_hex: e.target.value })}
-                    placeholder="#000000"
-                    className="w-24 font-mono text-sm"
-                  />
-                  <span className="text-xs text-muted-foreground">or enter custom hex</span>
+                  <ColorPreview color={formData.color_hex || COLOR_OPTIONS[0]} />
+                  <span className="text-sm font-medium">{statusData?.name}</span>
                 </div>
-              </div>
-            )}
+              ) : (
+                <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Enter status name" className={`h-9 ${errors.name ? 'border-destructive' : ''}`} />
+              )}
+            </div>
+            {errors.name && <p className="text-xs text-destructive px-0.5 pb-1">{errors.name}</p>}
+
+            {/* Order Index */}
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="order_index" className="text-[13px] text-muted-foreground font-normal">Order *</Label>
+              {mode === 'view' ? (
+                <span className="text-sm font-medium">{statusData?.order_index}</span>
+              ) : (
+                <Input id="order_index" type="number" min="0" value={formData.order_index} onChange={(e) => setFormData({ ...formData, order_index: parseInt(e.target.value) || 0 })} placeholder="Enter order index" className={`h-9 ${errors.order_index ? 'border-destructive' : ''}`} />
+              )}
+            </div>
+            {errors.order_index && <p className="text-xs text-destructive px-0.5 pb-1">{errors.order_index}</p>}
+            <p className="text-xs text-muted-foreground px-0.5 pb-1">Lower numbers appear first in the pipeline</p>
+
+            {/* Color Selection */}
+            <div className="py-2.5">
+              <Label className="text-[13px] text-muted-foreground font-normal">Color</Label>
+              {mode === 'view' ? (
+                <div className="flex items-center gap-2 mt-2">
+                  <ColorPreview color={statusData?.color_hex || COLOR_OPTIONS[0]} />
+                  <span className="text-sm font-mono">{statusData?.color_hex || 'No color set'}</span>
+                </div>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {COLOR_OPTIONS.map((color) => (
+                      <button key={color} type="button" onClick={() => setFormData({ ...formData, color_hex: color })} className={`w-7 h-7 rounded-full border-2 transition-all ${formData.color_hex === color ? 'border-foreground scale-110' : 'border-muted hover:border-muted-foreground'}`} style={{ backgroundColor: color }} />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Palette className="h-4 w-4 text-muted-foreground" />
+                    <Input type="text" value={formData.color_hex || ''} onChange={(e) => setFormData({ ...formData, color_hex: e.target.value })} placeholder="#000000" className="w-24 font-mono text-sm h-8" />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="border-t border-border/60" />
+        <div className="border-t border-border/50" />
 
         {/* Status Properties */}
-        <div className="space-y-4">
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
             Status Properties
           </h3>
-
-          {/* Is Won */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Won Status</Label>
-              <p className="text-xs text-muted-foreground">
-                Mark this status as a winning/successful outcome
-              </p>
+          <div className="divide-y divide-border/40">
+            {/* Is Won */}
+            <div className="flex items-center justify-between py-2.5">
+              <div>
+                <Label className="text-[13px]">Won Status</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Mark as a winning outcome</p>
+              </div>
+              {mode === 'view' ? (
+                <Badge variant={statusData?.is_won ? 'default' : 'secondary'}>{statusData?.is_won ? 'Won' : 'Not Won'}</Badge>
+              ) : (
+                <Switch checked={formData.is_won} onCheckedChange={(checked) => setFormData({ ...formData, is_won: checked })} />
+              )}
             </div>
-            {mode === 'view' ? (
-              <Badge variant={statusData?.is_won ? 'default' : 'secondary'}>
-                {statusData?.is_won ? 'Won' : 'Not Won'}
-              </Badge>
-            ) : (
-              <Switch
-                checked={formData.is_won}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_won: checked })}
-              />
-            )}
-          </div>
-          {errors.is_won && (
-            <p className="text-sm text-destructive">{errors.is_won}</p>
-          )}
+            {errors.is_won && <p className="text-xs text-destructive px-0.5 pb-1">{errors.is_won}</p>}
 
-          <div className="border-t border-border/60" />
-
-          {/* Is Lost */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Lost Status</Label>
-              <p className="text-xs text-muted-foreground">
-                Mark this status as a losing/unsuccessful outcome
-              </p>
+            {/* Is Lost */}
+            <div className="flex items-center justify-between py-2.5">
+              <div>
+                <Label className="text-[13px]">Lost Status</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Mark as a losing outcome</p>
+              </div>
+              {mode === 'view' ? (
+                <Badge variant={statusData?.is_lost ? 'destructive' : 'secondary'}>{statusData?.is_lost ? 'Lost' : 'Not Lost'}</Badge>
+              ) : (
+                <Switch checked={formData.is_lost} onCheckedChange={(checked) => setFormData({ ...formData, is_lost: checked })} />
+              )}
             </div>
-            {mode === 'view' ? (
-              <Badge variant={statusData?.is_lost ? 'destructive' : 'secondary'}>
-                {statusData?.is_lost ? 'Lost' : 'Not Lost'}
-              </Badge>
-            ) : (
-              <Switch
-                checked={formData.is_lost}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_lost: checked })}
-              />
-            )}
-          </div>
-          {errors.is_lost && (
-            <p className="text-sm text-destructive">{errors.is_lost}</p>
-          )}
+            {errors.is_lost && <p className="text-xs text-destructive px-0.5 pb-1">{errors.is_lost}</p>}
 
-          <div className="border-t border-border/60" />
-
-          {/* Is Active */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Active Status</Label>
-              <p className="text-xs text-muted-foreground">
-                Inactive statuses are hidden from the pipeline
-              </p>
+            {/* Is Active */}
+            <div className="flex items-center justify-between py-2.5">
+              <div>
+                <Label className="text-[13px]">Active</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Inactive statuses are hidden</p>
+              </div>
+              {mode === 'view' ? (
+                <Badge variant={statusData?.is_active ? 'default' : 'secondary'}>{statusData?.is_active ? 'Active' : 'Inactive'}</Badge>
+              ) : (
+                <Switch checked={formData.is_active} onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })} />
+              )}
             </div>
-            {mode === 'view' ? (
-              <Badge variant={statusData?.is_active ? 'default' : 'secondary'}>
-                {statusData?.is_active ? 'Active' : 'Inactive'}
-              </Badge>
-            ) : (
-              <Switch
-                checked={formData.is_active}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-              />
-            )}
           </div>
         </div>
 
         {/* Metadata (View mode only) */}
         {mode === 'view' && statusData && (
           <>
-            <div className="border-t border-border/60" />
-
-            <div className="space-y-4">
-              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="border-t border-border/50" />
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
                 Metadata
               </h3>
-
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Status ID</Label>
-                  <p className="font-mono">{statusData.id}</p>
+              <div className="divide-y divide-border/40">
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Status ID</span>
+                  <span className="text-sm font-mono">{statusData.id}</span>
                 </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">Tenant ID</Label>
-                  <p className="font-mono text-xs">{statusData.tenant_id}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Tenant ID</span>
+                  <span className="text-sm font-mono text-xs">{statusData.tenant_id}</span>
                 </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">Created</Label>
-                  <p>{formatDistanceToNow(new Date(statusData.created_at), { addSuffix: true })}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Created</span>
+                  <span className="text-sm">{formatDistanceToNow(new Date(statusData.created_at), { addSuffix: true })}</span>
                 </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">Last Updated</Label>
-                  <p>{formatDistanceToNow(new Date(statusData.updated_at), { addSuffix: true })}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Updated</span>
+                  <span className="text-sm">{formatDistanceToNow(new Date(statusData.updated_at), { addSuffix: true })}</span>
                 </div>
               </div>
             </div>

@@ -78,126 +78,97 @@ const RoleBasicInfo = forwardRef<RoleBasicInfoHandle, RoleBasicInfoProps>(
     const isEditMode = mode === 'edit' || mode === 'create';
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Basic Information */}
-        <div className="space-y-4">
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
             Basic Information
           </h3>
-
-          {/* Role Name */}
-          <div className="space-y-2">
-            <Label htmlFor="name">
-              Role Name <span className="text-destructive">*</span>
-            </Label>
-            {isViewMode ? (
-              <p className="text-sm font-medium">{role?.name}</p>
-            ) : (
-              <Input
-                id="name"
-                placeholder="e.g., Sales Manager, Team Lead"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                required
-              />
-            )}
-          </div>
-
-          {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            {isViewMode ? (
-              <p className="text-sm text-muted-foreground">
-                {role?.description || 'No description provided'}
-              </p>
-            ) : (
-              <Textarea
-                id="description"
-                placeholder="Describe the purpose and responsibilities of this role"
-                value={formData.description}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                rows={3}
-              />
-            )}
-          </div>
-
-          {/* Active Status */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Active Status</Label>
-              <p className="text-sm text-muted-foreground">
-                Inactive roles cannot be assigned to users
-              </p>
+          <div className="divide-y divide-border/40">
+            {/* Role Name */}
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="name" className="text-[13px] text-muted-foreground font-normal">
+                Name <span className="text-destructive">*</span>
+              </Label>
+              {isViewMode ? (
+                <span className="text-sm font-medium">{role?.name}</span>
+              ) : (
+                <Input id="name" placeholder="e.g., Sales Manager" value={formData.name} onChange={(e) => handleInputChange('name', e.target.value)} className="h-9" />
+              )}
             </div>
-            {isViewMode ? (
-              <Badge variant={role?.is_active ? 'default' : 'secondary'}>
-                {role?.is_active ? 'Active' : 'Inactive'}
-              </Badge>
-            ) : (
-              <Switch
-                checked={formData.is_active}
-                onCheckedChange={(checked) => handleInputChange('is_active', checked)}
-              />
-            )}
-          </div>
 
-          {/* View Mode Only: Metadata */}
-          {isViewMode && role && (
-            <>
-              <div className="pt-4 border-t space-y-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Created By</Label>
-                  <p className="text-sm">{role.created_by_email || role.created_by}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">Members</Label>
-                  <p className="text-sm font-medium">{role.member_count || 0} users</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Created</Label>
-                    <p className="text-sm">
-                      {new Date(role.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Updated</Label>
-                    <p className="text-sm">
-                      {new Date(role.updated_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
+            {/* Description */}
+            <div className="py-2.5 space-y-1.5">
+              <Label htmlFor="description" className="text-[13px] text-muted-foreground font-normal">Description</Label>
+              {isViewMode ? (
+                <p className="text-sm text-muted-foreground">{role?.description || 'No description provided'}</p>
+              ) : (
+                <Textarea id="description" placeholder="Describe the purpose and responsibilities" value={formData.description} onChange={(e) => handleInputChange('description', e.target.value)} rows={3} />
+              )}
+            </div>
+
+            {/* Active Status */}
+            <div className="flex items-center justify-between py-2.5">
+              <div>
+                <Label className="text-[13px]">Active</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Inactive roles cannot be assigned</p>
               </div>
-            </>
-          )}
+              {isViewMode ? (
+                <Badge variant={role?.is_active ? 'default' : 'secondary'}>{role?.is_active ? 'Active' : 'Inactive'}</Badge>
+              ) : (
+                <Switch checked={formData.is_active} onCheckedChange={(checked) => handleInputChange('is_active', checked)} />
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="border-t border-border/60" />
+        {/* View Mode Only: Metadata */}
+        {isViewMode && role && (
+          <>
+            <div className="border-t border-border/50" />
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
+                Metadata
+              </h3>
+              <div className="divide-y divide-border/40">
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Created By</span>
+                  <span className="text-sm">{role.created_by_email || role.created_by}</span>
+                </div>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Members</span>
+                  <span className="text-sm font-medium">{role.member_count || 0} users</span>
+                </div>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Created</span>
+                  <span className="text-sm">{new Date(role.created_at).toLocaleDateString()}</span>
+                </div>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Updated</span>
+                  <span className="text-sm">{new Date(role.updated_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="border-t border-border/50" />
 
         {/* Permissions */}
-        <div className="space-y-4">
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
             Permissions
           </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Configure what this role can access and do in the system
-          </p>
+          <p className="text-xs text-muted-foreground mb-3">Configure what this role can access and do</p>
 
           {schemaLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : permissionsSchema ? (
-            <PermissionsEditor
-              schema={permissionsSchema}
-              value={formData.permissions}
-              onChange={(permissions) => handleInputChange('permissions', permissions)}
-              disabled={isViewMode}
-            />
+            <PermissionsEditor schema={permissionsSchema} value={formData.permissions} onChange={(permissions) => handleInputChange('permissions', permissions)} disabled={isViewMode} />
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              Failed to load permissions schema
-            </div>
+            <div className="text-center py-8 text-muted-foreground">Failed to load permissions schema</div>
           )}
         </div>
       </div>

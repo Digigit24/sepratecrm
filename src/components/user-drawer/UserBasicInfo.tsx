@@ -198,38 +198,38 @@ const UserBasicInfo = forwardRef<UserBasicInfoHandle, UserBasicInfoProps>(
     }));
 
     return (
-      <div className="space-y-6">
-        {/* View Mode - Display User Info */}
+      <div className="space-y-5">
+        {/* View Mode */}
         {isReadOnly && user && (
           <>
             {/* User Details */}
-            <div className="space-y-4">
-              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
                 User Details
               </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">First Name</p>
-                  <p className="text-sm">{user.first_name}</p>
+              <div className="divide-y divide-border/40">
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+                  <span className="text-[13px] text-muted-foreground">First Name</span>
+                  <span className="text-sm font-medium">{user.first_name}</span>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Last Name</p>
-                  <p className="text-sm">{user.last_name}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+                  <span className="text-[13px] text-muted-foreground">Last Name</span>
+                  <span className="text-sm font-medium">{user.last_name}</span>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Email</p>
-                  <p className="text-sm">{user.email}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+                  <span className="text-[13px] text-muted-foreground">Email</span>
+                  <span className="text-sm">{user.email}</span>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Phone</p>
-                  <p className="text-sm">{user.phone || 'N/A'}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+                  <span className="text-[13px] text-muted-foreground">Phone</span>
+                  <span className="text-sm">{user.phone || 'N/A'}</span>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Timezone</p>
-                  <p className="text-sm">{user.timezone || 'N/A'}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+                  <span className="text-[13px] text-muted-foreground">Timezone</span>
+                  <span className="text-sm">{user.timezone || 'N/A'}</span>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Status</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+                  <span className="text-[13px] text-muted-foreground">Status</span>
                   <Badge variant={user.is_active ? 'default' : 'secondary'} className={user.is_active ? 'bg-green-600' : ''}>
                     {user.is_active ? 'Active' : 'Inactive'}
                   </Badge>
@@ -237,159 +237,121 @@ const UserBasicInfo = forwardRef<UserBasicInfoHandle, UserBasicInfoProps>(
               </div>
             </div>
 
-            <div className="border-t border-border/60" />
+            <div className="border-t border-border/50" />
 
             {/* Roles & Permissions */}
-            <div className="space-y-4">
-              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
                 Roles & Permissions
               </h3>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-2">Assigned Roles</p>
-                <div className="flex flex-wrap gap-2">
-                  {(user.roles || []).map((role) => (
-                    <Badge key={role.id} variant="secondary">
-                      {role.name}
-                    </Badge>
-                  ))}
-                  {user.is_super_admin && (
-                    <Badge variant="default" className="bg-purple-600">
-                      Super Admin
-                    </Badge>
-                  )}
-                  {(!user.roles || user.roles.length === 0) && !user.is_super_admin && (
-                    <p className="text-sm text-muted-foreground">No roles assigned</p>
-                  )}
-                </div>
+              <div className="flex flex-wrap gap-1.5">
+                {(user.roles || []).map((role) => (
+                  <Badge key={role.id} variant="secondary">{role.name}</Badge>
+                ))}
+                {user.is_super_admin && (
+                  <Badge variant="default" className="bg-purple-600">Super Admin</Badge>
+                )}
+                {(!user.roles || user.roles.length === 0) && !user.is_super_admin && (
+                  <p className="text-sm text-muted-foreground">No roles assigned</p>
+                )}
               </div>
             </div>
 
-            <div className="border-t border-border/60" />
+            <div className="border-t border-border/50" />
 
             {/* Tenant Information */}
-            <div className="space-y-4">
-              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
                 Tenant Information
               </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Tenant Name</p>
-                  <p className="text-sm">{user.tenant_name || 'N/A'}</p>
+              <div className="divide-y divide-border/40">
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Tenant</span>
+                  <span className="text-sm">{user.tenant_name || 'N/A'}</span>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Joined Date</p>
-                  <p className="text-sm">{new Date(user.date_joined).toLocaleDateString()}</p>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
+                  <span className="text-[13px] text-muted-foreground">Joined</span>
+                  <span className="text-sm">{new Date(user.date_joined).toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
           </>
         )}
 
-        {/* Edit/Create Mode - Form Fields */}
+        {/* Edit/Create Mode */}
         {!isReadOnly && (
           <>
             {/* Basic Information */}
-            <div className="space-y-4">
-              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
                 Basic Information
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="divide-y divide-border/40">
                 {/* First Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="first_name">
+                <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
+                  <Label htmlFor="first_name" className="text-[13px] text-muted-foreground font-normal pt-2">
                     First Name <span className="text-destructive">*</span>
                   </Label>
-                  <Input
-                    id="first_name"
-                    {...register('first_name')}
-                    placeholder="John"
-                  />
-                  {errors.first_name && (
-                    <p className="text-sm text-destructive">{errors.first_name.message as string}</p>
-                  )}
+                  <div>
+                    <Input id="first_name" {...register('first_name')} placeholder="John" className="h-9" />
+                    {errors.first_name && <p className="text-xs text-destructive mt-1">{errors.first_name.message as string}</p>}
+                  </div>
                 </div>
 
                 {/* Last Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="last_name">
+                <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
+                  <Label htmlFor="last_name" className="text-[13px] text-muted-foreground font-normal pt-2">
                     Last Name <span className="text-destructive">*</span>
                   </Label>
-                  <Input
-                    id="last_name"
-                    {...register('last_name')}
-                    placeholder="Doe"
-                  />
-                  {errors.last_name && (
-                    <p className="text-sm text-destructive">{errors.last_name.message as string}</p>
-                  )}
+                  <div>
+                    <Input id="last_name" {...register('last_name')} placeholder="Doe" className="h-9" />
+                    {errors.last_name && <p className="text-xs text-destructive mt-1">{errors.last_name.message as string}</p>}
+                  </div>
                 </div>
 
                 {/* Email */}
-                <div className="space-y-2">
-                  <Label htmlFor="email">
+                <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
+                  <Label htmlFor="email" className="text-[13px] text-muted-foreground font-normal pt-2">
                     Email <span className="text-destructive">*</span>
                   </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    {...register('email')}
-                    placeholder="john.doe@example.com"
-                    disabled={!isCreateMode}
-                  />
-                  {errors.email && (
-                    <p className="text-sm text-destructive">{errors.email.message as string}</p>
-                  )}
+                  <div>
+                    <Input id="email" type="email" {...register('email')} placeholder="john@example.com" disabled={!isCreateMode} className="h-9" />
+                    {errors.email && <p className="text-xs text-destructive mt-1">{errors.email.message as string}</p>}
+                  </div>
                 </div>
 
                 {/* Phone */}
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    {...register('phone')}
-                    placeholder="+1234567890"
-                  />
-                  {errors.phone && (
-                    <p className="text-sm text-destructive">{errors.phone.message as string}</p>
-                  )}
+                <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
+                  <Label htmlFor="phone" className="text-[13px] text-muted-foreground font-normal pt-2">Phone</Label>
+                  <div>
+                    <Input id="phone" {...register('phone')} placeholder="+1234567890" className="h-9" />
+                    {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone.message as string}</p>}
+                  </div>
                 </div>
 
                 {/* Timezone */}
-                <div className="space-y-2">
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select
-                    value={watchedTimezone || 'Asia/Kolkata'}
-                    onValueChange={(value) => setValue('timezone', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select timezone" />
-                    </SelectTrigger>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+                  <Label htmlFor="timezone" className="text-[13px] text-muted-foreground font-normal">Timezone</Label>
+                  <Select value={watchedTimezone || 'Asia/Kolkata'} onValueChange={(value) => setValue('timezone', value)}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select timezone" /></SelectTrigger>
                     <SelectContent>
                       {TIMEZONES.map((tz) => (
-                        <SelectItem key={tz} value={tz}>
-                          {tz}
-                        </SelectItem>
+                        <SelectItem key={tz} value={tz}>{tz}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {errors.timezone && (
-                    <p className="text-sm text-destructive">{errors.timezone.message as string}</p>
-                  )}
                 </div>
 
                 {/* Active Status (Edit mode only) */}
                 {!isCreateMode && (
-                  <div className="space-y-2">
-                    <Label htmlFor="is_active">Active Status</Label>
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="is_active"
-                        checked={watchedIsActive}
-                        onCheckedChange={(checked) => setValue('is_active', checked)}
-                      />
-                      <Label htmlFor="is_active" className="font-normal">
-                        {watchedIsActive ? 'Active' : 'Inactive'}
-                      </Label>
+                  <div className="flex items-center justify-between py-2.5">
+                    <div>
+                      <Label className="text-[13px]">Active</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">Deactivate to revoke access</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{watchedIsActive ? 'Active' : 'Inactive'}</span>
+                      <Switch id="is_active" checked={watchedIsActive} onCheckedChange={(checked) => setValue('is_active', checked)} />
                     </div>
                   </div>
                 )}
@@ -399,121 +361,82 @@ const UserBasicInfo = forwardRef<UserBasicInfoHandle, UserBasicInfoProps>(
             {/* Password Fields (Create mode only) */}
             {isCreateMode && (
               <>
-                <div className="border-t border-border/60" />
-
-                <div className="space-y-4">
-                  <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="border-t border-border/50" />
+                <div>
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
                     Account Credentials
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Password */}
-                    <div className="space-y-2">
-                      <Label htmlFor="password">
+                  <div className="divide-y divide-border/40">
+                    <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
+                      <Label htmlFor="password" className="text-[13px] text-muted-foreground font-normal pt-2">
                         Password <span className="text-destructive">*</span>
                       </Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        {...register('password')}
-                        placeholder="••••••••"
-                      />
-                      {errors.password && (
-                        <p className="text-sm text-destructive">{errors.password.message as string}</p>
-                      )}
+                      <div>
+                        <Input id="password" type="password" {...register('password')} placeholder="••••••••" className="h-9" />
+                        {errors.password && <p className="text-xs text-destructive mt-1">{errors.password.message as string}</p>}
+                      </div>
                     </div>
-
-                    {/* Confirm Password */}
-                    <div className="space-y-2">
-                      <Label htmlFor="password_confirm">
-                        Confirm Password <span className="text-destructive">*</span>
+                    <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
+                      <Label htmlFor="password_confirm" className="text-[13px] text-muted-foreground font-normal pt-2">
+                        Confirm <span className="text-destructive">*</span>
                       </Label>
-                      <Input
-                        id="password_confirm"
-                        type="password"
-                        {...register('password_confirm')}
-                        placeholder="••••••••"
-                      />
-                      {errors.password_confirm && (
-                        <p className="text-sm text-destructive">{errors.password_confirm.message as string}</p>
-                      )}
+                      <div>
+                        <Input id="password_confirm" type="password" {...register('password_confirm')} placeholder="••••••••" className="h-9" />
+                        {errors.password_confirm && <p className="text-xs text-destructive mt-1">{errors.password_confirm.message as string}</p>}
+                      </div>
                     </div>
                   </div>
                 </div>
               </>
             )}
 
-            <div className="border-t border-border/60" />
+            <div className="border-t border-border/50" />
 
             {/* Roles Assignment */}
-            <div className="space-y-4">
-              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
                 Roles & Permissions
               </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Assign roles to control user access and permissions
-              </p>
+              <p className="text-xs text-muted-foreground mb-3">Assign roles to control user access</p>
+
               {/* Selected Roles */}
               {selectedRoleIds.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Assigned Roles</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedRoleIds.map((roleId) => {
-                      const role = availableRoles.find((r) => r.id === roleId);
-                      if (!role) return null;
-                      return (
-                        <Badge key={roleId} variant="secondary" className="pr-1">
-                          {role.name}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-4 w-4 p-0 ml-2 hover:bg-transparent"
-                            onClick={() => removeRole(roleId)}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </Badge>
-                      );
-                    })}
-                  </div>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {selectedRoleIds.map((roleId) => {
+                    const role = availableRoles.find((r) => r.id === roleId);
+                    if (!role) return null;
+                    return (
+                      <Badge key={roleId} variant="secondary" className="pr-1">
+                        {role.name}
+                        <Button variant="ghost" size="sm" className="h-4 w-4 p-0 ml-2 hover:bg-transparent" onClick={() => removeRole(roleId)}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </Badge>
+                    );
+                  })}
                 </div>
               )}
 
               {/* Role Selection */}
-              <div className="space-y-2">
-                <Label>Available Roles</Label>
-                {rolesLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading roles...</p>
-                ) : availableRoles.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No active roles available</p>
-                ) : (
-                  <ScrollArea className="h-48 border rounded-md p-3">
-                    <div className="space-y-2">
-                      {availableRoles.map((role) => (
-                        <div key={role.id} className="flex items-start space-x-3 p-2 hover:bg-muted/50 rounded">
-                          <Checkbox
-                            id={`role-${role.id}`}
-                            checked={selectedRoleIds.includes(role.id)}
-                            onCheckedChange={() => toggleRole(role.id)}
-                          />
-                          <div className="flex-1 space-y-1">
-                            <Label
-                              htmlFor={`role-${role.id}`}
-                              className="text-sm font-medium cursor-pointer"
-                            >
-                              {role.name}
-                            </Label>
-                            {role.description && (
-                              <p className="text-xs text-muted-foreground">
-                                {role.description}
-                              </p>
-                            )}
-                          </div>
+              {rolesLoading ? (
+                <p className="text-sm text-muted-foreground">Loading roles...</p>
+              ) : availableRoles.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No active roles available</p>
+              ) : (
+                <ScrollArea className="h-48 border rounded-md p-3">
+                  <div className="space-y-1">
+                    {availableRoles.map((role) => (
+                      <div key={role.id} className="flex items-start space-x-3 p-2 hover:bg-muted/50 rounded">
+                        <Checkbox id={`role-${role.id}`} checked={selectedRoleIds.includes(role.id)} onCheckedChange={() => toggleRole(role.id)} />
+                        <div className="flex-1 space-y-0.5">
+                          <Label htmlFor={`role-${role.id}`} className="text-sm font-medium cursor-pointer">{role.name}</Label>
+                          {role.description && <p className="text-xs text-muted-foreground">{role.description}</p>}
                         </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-              </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
             </div>
           </>
         )}
