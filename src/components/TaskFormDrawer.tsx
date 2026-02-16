@@ -1,15 +1,7 @@
 // src/components/TaskFormDrawer.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,9 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Task, TaskStatusEnum, PriorityEnum } from '@/types/crmTypes';
+import { SideDrawer, type DrawerActionButton, type DrawerHeaderAction } from '@/components/SideDrawer';
 
 interface TaskFormDrawerProps {
   open: boolean;
@@ -55,7 +48,6 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
   const [status, setStatus] = useState<TaskStatusEnum>('TODO');
   const [dueDate, setDueDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch task data if editing/viewing
   const { data: task, isLoading: taskLoading } = useTask(
@@ -71,7 +63,6 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
       setStatus(task.status || 'TODO');
       setDueDate(task.due_date ? task.due_date.split('T')[0] : '');
     } else if (mode === 'create') {
-      // Reset form for create mode
       setTitle('');
       setDescription('');
       setPriority('MEDIUM');
@@ -80,10 +71,28 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
     }
   }, [task, mode]);
 
-  // Handle submit
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleClose = useCallback(() => {
+    onOpenChange(false);
+  }, [onOpenChange]);
 
+  const handleSwitchToEdit = useCallback(() => {
+    onModeChange?.('edit');
+  }, [onModeChange]);
+
+  const handleSwitchToView = useCallback(() => {
+    onModeChange?.('view');
+    // Reset form to original values
+    if (task) {
+      setTitle(task.title || '');
+      setDescription(task.description || '');
+      setPriority(task.priority || 'MEDIUM');
+      setStatus(task.status || 'TODO');
+      setDueDate(task.due_date ? task.due_date.split('T')[0] : '');
+    }
+  }, [onModeChange, task]);
+
+  // Handle submit
+  const handleSubmit = useCallback(async () => {
     if (!title.trim()) {
       toast.error('Task title is required');
       return;
@@ -128,10 +137,10 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [title, description, priority, status, dueDate, mode, leadId, taskId, user?.id, createTask, updateTask, onSuccess, onOpenChange]);
 
   // Handle delete
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!taskId) return;
 
     const confirmed = window.confirm(
@@ -141,7 +150,7 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
     if (!confirmed) return;
 
     try {
-      setIsDeleting(true);
+      setIsSubmitting(true);
       await deleteTask(taskId);
       toast.success('Task deleted successfully');
       onDelete?.(taskId);
@@ -149,211 +158,178 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete task');
     } finally {
-      setIsDeleting(false);
+      setIsSubmitting(false);
     }
-  };
-
-  // Handle mode change
-  const handleEdit = () => {
-    onModeChange?.('edit');
-  };
-
-  const handleCancelEdit = () => {
-    onModeChange?.('view');
-    // Reset form to original values
-    if (task) {
-      setTitle(task.title || '');
-      setDescription(task.description || '');
-      setPriority(task.priority || 'MEDIUM');
-      setStatus(task.status || 'TODO');
-      setDueDate(task.due_date ? task.due_date.split('T')[0] : '');
-    }
-  };
+  }, [taskId, deleteTask, onDelete, onOpenChange]);
 
   const isViewMode = mode === 'view';
-  const isEditMode = mode === 'edit';
-  const isCreateMode = mode === 'create';
+
+  const drawerTitle =
+    mode === 'create'
+      ? 'Create New Task'
+      : mode === 'edit'
+      ? 'Edit Task'
+      : 'Task Details';
+
+  const drawerDescription =
+    mode !== 'create' && task
+      ? `${task.priority} priority • ${task.status}`
+      : undefined;
+
+  const headerActions: DrawerHeaderAction[] =
+    mode === 'view' && task
+      ? [
+          {
+            icon: Pencil,
+            onClick: handleSwitchToEdit,
+            label: 'Edit task',
+            variant: 'ghost',
+          },
+          {
+            icon: Trash2,
+            onClick: handleDelete,
+            label: 'Delete task',
+            variant: 'ghost',
+          },
+        ]
+      : [];
+
+  const footerButtons: DrawerActionButton[] =
+    mode === 'view'
+      ? [
+          {
+            label: 'Close',
+            onClick: handleClose,
+            variant: 'outline',
+          },
+        ]
+      : mode === 'edit'
+      ? [
+          {
+            label: 'Cancel',
+            onClick: handleSwitchToView,
+            variant: 'outline',
+            disabled: isSubmitting,
+          },
+          {
+            label: 'Save Changes',
+            onClick: handleSubmit,
+            variant: 'default',
+            loading: isSubmitting,
+          },
+        ]
+      : [
+          {
+            label: 'Cancel',
+            onClick: handleClose,
+            variant: 'outline',
+            disabled: isSubmitting,
+          },
+          {
+            label: 'Create Task',
+            onClick: handleSubmit,
+            variant: 'default',
+            loading: isSubmitting,
+          },
+        ];
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>
-            {isCreateMode && 'Create New Task'}
-            {isViewMode && 'Task Details'}
-            {isEditMode && 'Edit Task'}
-          </SheetTitle>
-          <SheetDescription>
-            {isCreateMode && 'Add a new task for this lead'}
-            {isViewMode && 'View task details'}
-            {isEditMode && 'Update task information'}
-          </SheetDescription>
-        </SheetHeader>
+    <SideDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title={drawerTitle}
+      description={drawerDescription}
+      mode={mode}
+      headerActions={headerActions}
+      isLoading={taskLoading && mode !== 'create'}
+      loadingText="Loading task details..."
+      size="md"
+      footerButtons={footerButtons}
+      footerAlignment="right"
+      resizable={true}
+      storageKey="task-drawer-width"
+      onClose={handleClose}
+    >
+      <div className="space-y-5">
+        {/* Title */}
+        <div className="space-y-2">
+          <Label htmlFor="title">
+            Title <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            disabled={isViewMode || isSubmitting}
+            placeholder="Enter task title..."
+          />
+        </div>
 
-        {taskLoading && !isCreateMode ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-6 mt-6">
-            {/* Title */}
-            <div className="space-y-2">
-              <Label htmlFor="title">
-                Title <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                disabled={isViewMode || isSubmitting}
-                placeholder="Enter task title..."
-                required
-              />
-            </div>
+        {/* Description */}
+        <div className="space-y-2">
+          <Label htmlFor="description">Description</Label>
+          <Textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={isViewMode || isSubmitting}
+            placeholder="Enter task description..."
+            rows={4}
+          />
+        </div>
 
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={isViewMode || isSubmitting}
-                placeholder="Enter task description..."
-                rows={4}
-              />
-            </div>
+        {/* Priority */}
+        <div className="space-y-2">
+          <Label htmlFor="priority">Priority</Label>
+          <Select
+            value={priority}
+            onValueChange={(value) => setPriority(value as PriorityEnum)}
+            disabled={isViewMode || isSubmitting}
+          >
+            <SelectTrigger id="priority">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="LOW">Low</SelectItem>
+              <SelectItem value="MEDIUM">Medium</SelectItem>
+              <SelectItem value="HIGH">High</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-            {/* Priority */}
-            <div className="space-y-2">
-              <Label htmlFor="priority">Priority</Label>
-              <Select
-                value={priority}
-                onValueChange={(value) => setPriority(value as PriorityEnum)}
-                disabled={isViewMode || isSubmitting}
-              >
-                <SelectTrigger id="priority">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LOW">Low</SelectItem>
-                  <SelectItem value="MEDIUM">Medium</SelectItem>
-                  <SelectItem value="HIGH">High</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Status */}
+        <div className="space-y-2">
+          <Label htmlFor="status">Status</Label>
+          <Select
+            value={status}
+            onValueChange={(value) => setStatus(value as TaskStatusEnum)}
+            disabled={isViewMode || isSubmitting}
+          >
+            <SelectTrigger id="status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TODO">To Do</SelectItem>
+              <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+              <SelectItem value="DONE">Done</SelectItem>
+              <SelectItem value="CANCELLED">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-            {/* Status */}
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={status}
-                onValueChange={(value) => setStatus(value as TaskStatusEnum)}
-                disabled={isViewMode || isSubmitting}
-              >
-                <SelectTrigger id="status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="TODO">To Do</SelectItem>
-                  <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                  <SelectItem value="DONE">Done</SelectItem>
-                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Due Date */}
-            <div className="space-y-2">
-              <Label htmlFor="dueDate">Due Date</Label>
-              <Input
-                id="dueDate"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                disabled={isViewMode || isSubmitting}
-              />
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-4">
-              {isViewMode && (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={handleEdit}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                  >
-                    {isDeleting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      'Delete'
-                    )}
-                  </Button>
-                </>
-              )}
-
-              {isEditMode && (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={handleCancelEdit}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="flex-1" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      'Save Changes'
-                    )}
-                  </Button>
-                </>
-              )}
-
-              {isCreateMode && (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => onOpenChange(false)}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="flex-1" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      'Create Task'
-                    )}
-                  </Button>
-                </>
-              )}
-            </div>
-          </form>
-        )}
-      </SheetContent>
-    </Sheet>
+        {/* Due Date */}
+        <div className="space-y-2">
+          <Label htmlFor="dueDate">Due Date</Label>
+          <Input
+            id="dueDate"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            disabled={isViewMode || isSubmitting}
+          />
+        </div>
+      </div>
+    </SideDrawer>
   );
 };
 

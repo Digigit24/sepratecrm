@@ -42,6 +42,9 @@
     --sidebar-accent-foreground: 220 14% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 220 14% 10%;
+
+    --sidebar-active-bg: 220 14% 95%;
+    --sidebar-active-border: 221 83% 53%;
   }
 
   .dark {
@@ -81,6 +84,9 @@
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217 19% 14%;
     --sidebar-ring: 212 27% 84%;
+
+    --sidebar-active-bg: 217 19% 16%;
+    --sidebar-active-border: 213 94% 68%;
   }
 }
 
@@ -92,5 +98,16 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer utilities {
+  .sidebar-active {
+    background-color: hsl(var(--sidebar-active-bg));
+    border-left: 2px solid hsl(var(--sidebar-active-border));
+  }
+
+  .sidebar-active-icon {
+    color: hsl(var(--sidebar-active-border));
   }
 }
