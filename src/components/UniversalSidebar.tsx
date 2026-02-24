@@ -305,7 +305,7 @@ export function UniversalSidebar({
               <img
                 src={tenantLogo}
                 alt={`${tenantName} logo`}
-                className="w-16 h-16 object-contain rounded-lg"
+                className="h-8 w-auto max-w-[120px] object-contain rounded-lg"
                 onError={handleLogoError}
               />
             ) : (

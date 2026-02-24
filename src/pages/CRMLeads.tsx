@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, RefreshCw, Building2, Phone, Mail, IndianRupee, LayoutGrid, List, Download, Upload, FileSpreadsheet, ChevronDown, MessageCircle, Trash2, FileText, CalendarClock, MoreVertical, Eye, EyeOff } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import type { Lead, LeadsQueryParams, PriorityEnum, LeadStatus } from '@/types/crmTypes';
@@ -703,7 +704,7 @@ export const CRMLeads: React.FC = () => {
         header: 'Contact',
         key: 'contact',
         cell: (lead) => (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1.5 text-xs">
               <Phone className="h-3 w-3 text-muted-foreground" />
               <span>{lead.phone}</span>
@@ -711,48 +712,9 @@ export const CRMLeads: React.FC = () => {
             {lead.email && standardFieldsMap.has('email') && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Mail className="h-3 w-3" />
-                <span className="truncate">{lead.email}</span>
+                <span className="truncate max-w-[140px]">{lead.email}</span>
               </div>
             )}
-            <div className="flex items-center gap-1 mt-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-xs gap-1"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCallLead(lead);
-                }}
-              >
-                <Phone className="h-3 w-3" />
-                Call
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-xs gap-1 text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleWhatsAppLead(lead);
-                }}
-              >
-                <MessageCircle className="h-3 w-3" />
-                WhatsApp
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-xs gap-1 text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleWhatsAppTemplateLead(lead);
-                }}
-                title="Send WhatsApp Template"
-              >
-                <FileText className="h-3 w-3" />
-                Template
-              </Button>
-            </div>
           </div>
         ),
         sortable: true,
@@ -980,38 +942,25 @@ export const CRMLeads: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 px-3 text-xs gap-1.5 flex-1"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCallLead(lead);
-                }}
-              >
-                <Phone className="h-3.5 w-3.5" />
-                Call
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 px-3 text-xs gap-1.5 flex-1 text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700"
+                className="h-7 px-2.5 text-xs gap-1 flex-1 text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleWhatsAppLead(lead);
                 }}
               >
-                <MessageCircle className="h-3.5 w-3.5" />
+                <MessageCircle className="h-3 w-3" />
                 WhatsApp
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 px-3 text-xs gap-1.5 flex-1 text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                className="h-7 px-2.5 text-xs gap-1 flex-1 text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleWhatsAppTemplateLead(lead);
                 }}
-                title="Send WhatsApp Template"
               >
-                <FileText className="h-3.5 w-3.5" />
+                <FileText className="h-3 w-3" />
                 Template
               </Button>
             </div>
@@ -1233,6 +1182,40 @@ export const CRMLeads: React.FC = () => {
             onView={handleViewLead}
             onEdit={handleEditLead}
             onDelete={handleDeleteLead}
+            renderInlineActions={(lead) => (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50"
+                      onClick={() => handleWhatsAppLead(lead)}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs">Send WhatsApp Message</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      onClick={() => handleWhatsAppTemplateLead(lead)}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs">Send Template Message</p>
+                  </TooltipContent>
+                </Tooltip>
+              </>
+            )}
             emptyTitle="No leads found"
             emptySubtitle="Get started by creating your first lead"
           />

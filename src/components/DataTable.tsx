@@ -109,6 +109,9 @@ export interface DataTableProps<T> {
   /** optional: extra action items you want in dropdown */
   extraActions?: (row: T) => React.ReactNode;
 
+  /** optional: inline icon buttons rendered before the 3-dots menu (visible on row hover) */
+  renderInlineActions?: (row: T) => React.ReactNode;
+
   /** empty state text */
   emptyTitle?: string;
   emptySubtitle?: string;
@@ -143,6 +146,7 @@ export function DataTable<T>({
   onConsultation,
   onBilling,
   extraActions,
+  renderInlineActions,
   emptyTitle = 'No records found',
   emptySubtitle = 'Try adjusting your filters or search criteria',
 }: DataTableProps<T>) {
@@ -610,7 +614,7 @@ export function DataTable<T>({
               ))}
 
               {/* Actions header */}
-              {(onView || onEdit || onDelete || onConsultation || onBilling || extraActions) && (
+              {(onView || onEdit || onDelete || onConsultation || onBilling || extraActions || renderInlineActions) && (
                 <TableHead className="text-right p-0">
                   <div className="px-3 py-1.5 h-8 flex items-center justify-end">
                     <span className="text-xs font-medium text-muted-foreground">Actions</span>
@@ -657,12 +661,12 @@ export function DataTable<T>({
                     </TableCell>
                   ))}
 
-                  {(onView || onEdit || onDelete || onConsultation || onBilling || extraActions) && (
+                  {(onView || onEdit || onDelete || onConsultation || onBilling || extraActions || renderInlineActions) && (
                     <TableCell
                       className="text-right py-1.5 px-3"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1">
                         {/* Consultation Button */}
                         {onConsultation && (
                           <Button
@@ -685,6 +689,13 @@ export function DataTable<T>({
                             <IndianRupee className="h-4 w-4 mr-1" />
                             Billing
                           </Button>
+                        )}
+
+                        {/* Inline action icons (visible on row hover) */}
+                        {renderInlineActions && (
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {renderInlineActions(row)}
+                          </div>
                         )}
 
                         {/* Dropdown Menu */}
