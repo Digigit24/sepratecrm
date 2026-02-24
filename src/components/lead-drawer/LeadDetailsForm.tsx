@@ -301,80 +301,76 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
     }));
 
     return (
-      <div className="space-y-5">
+      <div className="space-y-4">
         {/* Basic Info Section */}
         <div>
-          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2.5">
             Basic Information
           </h3>
-          <div className="divide-y divide-border/40">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
             {/* Name */}
             {isFieldVisible('name') && (
-              <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
-                <Label htmlFor="name" className={`text-[13px] text-muted-foreground font-normal pt-2 ${errors.name ? 'text-destructive' : ''}`}>
+              <div className="space-y-1">
+                <Label htmlFor="name" className={`text-xs text-muted-foreground font-normal ${errors.name ? 'text-destructive' : ''}`}>
                   Name <span className="text-destructive">*</span>
                 </Label>
-                <div>
-                  <Controller name="name" control={control} render={({ field }) => (
-                    <Input {...field} id="name" placeholder="John Doe" disabled={isReadOnly} className={`h-9 ${errors.name ? 'border-destructive' : ''}`} />
-                  )} />
-                  {errors.name && <p className="text-xs text-destructive mt-1">{errors.name.message}</p>}
-                </div>
+                <Controller name="name" control={control} render={({ field }) => (
+                  <Input {...field} id="name" placeholder="John Doe" disabled={isReadOnly} className={`h-8 text-sm ${errors.name ? 'border-destructive' : ''}`} />
+                )} />
+                {errors.name && <p className="text-[11px] text-destructive">{errors.name.message}</p>}
               </div>
             )}
 
             {/* Phone */}
             {isFieldVisible('phone') && (
-              <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
-                <Label htmlFor="phone" className={`text-[13px] text-muted-foreground font-normal pt-2 ${errors.phone ? 'text-destructive' : ''}`}>
+              <div className="space-y-1">
+                <Label htmlFor="phone" className={`text-xs text-muted-foreground font-normal ${errors.phone ? 'text-destructive' : ''}`}>
                   Phone <span className="text-destructive">*</span>
                 </Label>
-                <div>
-                  <Controller name="phone" control={control} render={({ field: { onChange, onBlur, value, name, ref } }) => (
-                    <Input id="phone" name={name} ref={ref} value={value || ''} onChange={onChange} onBlur={onBlur} type="text" inputMode="numeric" placeholder="9876543210" minLength={10} maxLength={10} disabled={isReadOnly} className={`h-9 ${errors.phone ? 'border-destructive' : ''}`} />
-                  )} />
-                  {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone.message}</p>}
-                </div>
+                <Controller name="phone" control={control} render={({ field: { onChange, onBlur, value, name, ref } }) => (
+                  <Input id="phone" name={name} ref={ref} value={value || ''} onChange={onChange} onBlur={onBlur} type="text" inputMode="numeric" placeholder="9876543210" minLength={10} maxLength={10} disabled={isReadOnly} className={`h-8 text-sm ${errors.phone ? 'border-destructive' : ''}`} />
+                )} />
+                {errors.phone && <p className="text-[11px] text-destructive">{errors.phone.message}</p>}
               </div>
             )}
 
             {/* Email */}
             {isFieldVisible('email') && (
-              <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                <Label htmlFor="email" className="text-[13px] text-muted-foreground font-normal">Email</Label>
+              <div className="space-y-1">
+                <Label htmlFor="email" className="text-xs text-muted-foreground font-normal">Email</Label>
                 <Controller name="email" control={control} render={({ field: { onChange, onBlur, value, name, ref } }) => (
-                  <Input id="email" name={name} ref={ref} value={value || ''} onChange={onChange} onBlur={onBlur} type="email" placeholder="john@example.com" disabled={isReadOnly} className="h-9" />
+                  <Input id="email" name={name} ref={ref} value={value || ''} onChange={onChange} onBlur={onBlur} type="email" placeholder="john@example.com" disabled={isReadOnly} className="h-8 text-sm" />
                 )} />
               </div>
             )}
 
             {/* Company */}
             {isFieldVisible('company') && (
-              <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                <Label htmlFor="company" className="text-[13px] text-muted-foreground font-normal">Company</Label>
+              <div className="space-y-1">
+                <Label htmlFor="company" className="text-xs text-muted-foreground font-normal">Company</Label>
                 <Controller name="company" control={control} render={({ field }) => (
-                  <Input {...field} id="company" placeholder="Acme Inc." disabled={isReadOnly} className="h-9" />
+                  <Input {...field} id="company" placeholder="Acme Inc." disabled={isReadOnly} className="h-8 text-sm" />
                 )} />
               </div>
             )}
 
             {/* Title */}
             {isFieldVisible('title') && (
-              <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                <Label htmlFor="title" className="text-[13px] text-muted-foreground font-normal">Title</Label>
+              <div className="space-y-1">
+                <Label htmlFor="title" className="text-xs text-muted-foreground font-normal">Title</Label>
                 <Controller name="title" control={control} render={({ field }) => (
-                  <Input {...field} id="title" placeholder="CEO" disabled={isReadOnly} className="h-9" />
+                  <Input {...field} id="title" placeholder="CEO" disabled={isReadOnly} className="h-8 text-sm" />
                 )} />
               </div>
             )}
 
             {/* Status */}
             {isFieldVisible('status') && (
-              <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                <Label htmlFor="status" className="text-[13px] text-muted-foreground font-normal">Status</Label>
+              <div className="space-y-1">
+                <Label htmlFor="status" className="text-xs text-muted-foreground font-normal">Status</Label>
                 <Controller name="status" control={control} render={({ field }) => (
                   <Select value={field.value?.toString()} onValueChange={(value) => field.onChange(parseInt(value, 10))} disabled={isReadOnly || statusesLoading}>
-                    <SelectTrigger id="status" className="h-9"><SelectValue placeholder="Select status" /></SelectTrigger>
+                    <SelectTrigger id="status" className="h-8 text-sm"><SelectValue placeholder="Select status" /></SelectTrigger>
                     <SelectContent>
                       {statusesData?.results.map((status) => (
                         <SelectItem key={status.id} value={status.id.toString()}>{status.name}</SelectItem>
@@ -387,11 +383,11 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
 
             {/* Priority */}
             {isFieldVisible('priority') && (
-              <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                <Label htmlFor="priority" className="text-[13px] text-muted-foreground font-normal">Priority</Label>
+              <div className="space-y-1">
+                <Label htmlFor="priority" className="text-xs text-muted-foreground font-normal">Priority</Label>
                 <Controller name="priority" control={control} render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange} disabled={isReadOnly}>
-                    <SelectTrigger id="priority" className="h-9"><SelectValue placeholder="Select priority" /></SelectTrigger>
+                    <SelectTrigger id="priority" className="h-8 text-sm"><SelectValue placeholder="Select priority" /></SelectTrigger>
                     <SelectContent>
                       {PRIORITY_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
@@ -404,24 +400,21 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
 
             {/* Lead Score */}
             {isFieldVisible('lead_score') && (
-              <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
-                <Label htmlFor="lead_score" className="text-[13px] text-muted-foreground font-normal pt-2">Score</Label>
-                <div>
-                  <Controller name="lead_score" control={control} render={({ field }) => (
-                    <LeadScoreSlider score={field.value || 0} onSave={async (score) => { field.onChange(score); return Promise.resolve(); }} leadName="" size="md" />
-                  )} />
-                  <p className="text-xs text-muted-foreground mt-1">Drag to adjust (0-100)</p>
-                </div>
+              <div className="space-y-1">
+                <Label htmlFor="lead_score" className="text-xs text-muted-foreground font-normal">Score</Label>
+                <Controller name="lead_score" control={control} render={({ field }) => (
+                  <LeadScoreSlider score={field.value || 0} onSave={async (score) => { field.onChange(score); return Promise.resolve(); }} leadName="" size="sm" />
+                )} />
               </div>
             )}
 
             {/* Assigned To */}
             {isFieldVisible('assigned_to') && (
-              <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                <Label htmlFor="assigned_to" className="text-[13px] text-muted-foreground font-normal">Assigned To</Label>
+              <div className="space-y-1">
+                <Label htmlFor="assigned_to" className="text-xs text-muted-foreground font-normal">Assigned To</Label>
                 <Controller name="assigned_to" control={control} render={({ field }) => (
                   <Select value={field.value || 'unassigned'} onValueChange={(value) => field.onChange(value === 'unassigned' ? '' : value)} disabled={isReadOnly || usersLoading}>
-                    <SelectTrigger id="assigned_to" className="h-9"><SelectValue placeholder="Select user" /></SelectTrigger>
+                    <SelectTrigger id="assigned_to" className="h-8 text-sm"><SelectValue placeholder="Select user" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="unassigned">No assignment</SelectItem>
                       {usersData?.results?.map((user) => (
@@ -435,38 +428,38 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
 
             {/* Value Amount */}
             {isFieldVisible('value_amount') && (
-              <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                <Label htmlFor="value_amount" className="text-[13px] text-muted-foreground font-normal">Deal Value</Label>
+              <div className="space-y-1">
+                <Label htmlFor="value_amount" className="text-xs text-muted-foreground font-normal">Deal Value</Label>
                 <Controller name="value_amount" control={control} render={({ field }) => (
-                  <Input {...field} id="value_amount" type="number" step="0.01" placeholder="10000.00" disabled={isReadOnly} className="h-9" />
+                  <Input {...field} id="value_amount" type="number" step="0.01" placeholder="10000.00" disabled={isReadOnly} className="h-8 text-sm" />
                 )} />
               </div>
             )}
 
             {/* Currency */}
             {isFieldVisible('value_currency') && (
-              <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                <Label htmlFor="value_currency" className="text-[13px] text-muted-foreground font-normal">Currency</Label>
+              <div className="space-y-1">
+                <Label htmlFor="value_currency" className="text-xs text-muted-foreground font-normal">Currency</Label>
                 <Controller name="value_currency" control={control} render={({ field }) => (
-                  <Input {...field} id="value_currency" placeholder="USD" maxLength={3} disabled={isReadOnly} className="h-9" />
+                  <Input {...field} id="value_currency" placeholder="USD" maxLength={3} disabled={isReadOnly} className="h-8 text-sm" />
                 )} />
               </div>
             )}
 
             {/* Source */}
             {isFieldVisible('source') && (
-              <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                <Label htmlFor="source" className="text-[13px] text-muted-foreground font-normal">Source</Label>
+              <div className="space-y-1">
+                <Label htmlFor="source" className="text-xs text-muted-foreground font-normal">Source</Label>
                 <Controller name="source" control={control} render={({ field }) => (
-                  <Input {...field} id="source" placeholder="Website, Referral, etc." disabled={isReadOnly} className="h-9" />
+                  <Input {...field} id="source" placeholder="Website, Referral, etc." disabled={isReadOnly} className="h-8 text-sm" />
                 )} />
               </div>
             )}
 
-            {/* Next Follow-up */}
+            {/* Next Follow-up - spans full row on lg */}
             {isFieldVisible('next_follow_up_at') && (
-              <div className="grid grid-cols-[110px_1fr] items-start gap-3 py-2.5">
-                <Label htmlFor="next_follow_up_at" className="text-[13px] text-muted-foreground font-normal pt-2">Follow-up</Label>
+              <div className="space-y-1 lg:col-span-2">
+                <Label htmlFor="next_follow_up_at" className="text-xs text-muted-foreground font-normal">Follow-up</Label>
                 <Controller name="next_follow_up_at" control={control} render={({ field }) => {
                   const selectedDate = field.value ? new Date(field.value) : undefined;
                   const selectedTime = selectedDate ? `${selectedDate.getHours().toString().padStart(2, '0')}:${selectedDate.getMinutes().toString().padStart(2, '0')}` : '';
@@ -498,8 +491,8 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
                     <div className="flex gap-2 flex-wrap">
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn('flex-1 justify-start text-left font-normal h-9', !field.value && 'text-muted-foreground')} disabled={isReadOnly}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
+                          <Button variant="outline" className={cn('flex-1 justify-start text-left font-normal h-8 text-sm', !field.value && 'text-muted-foreground')} disabled={isReadOnly}>
+                            <CalendarIcon className="mr-2 h-3.5 w-3.5" />
                             {field.value ? format(new Date(field.value), 'PPP') : 'Pick a date'}
                           </Button>
                         </PopoverTrigger>
@@ -509,7 +502,7 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
                       </Popover>
                       {field.value && (
                         <Select value={selectedTime} onValueChange={handleTimeSelect} disabled={isReadOnly}>
-                          <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="Time" /></SelectTrigger>
+                          <SelectTrigger className="w-[110px] h-8 text-sm"><SelectValue placeholder="Time" /></SelectTrigger>
                           <SelectContent>
                             {[
                               { value: '09:00', label: '9:00 AM' }, { value: '09:30', label: '9:30 AM' },
@@ -530,9 +523,9 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
                         </Select>
                       )}
                       {field.value && !isReadOnly && (
-                        <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive" onClick={() => field.onChange('')} type="button">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => field.onChange('')} type="button">
                           <span className="sr-only">Clear</span>
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                         </Button>
                       )}
                     </div>
@@ -544,10 +537,10 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
 
           {/* Notes - full width */}
           {isFieldVisible('notes') && (
-            <div className="mt-3 space-y-1.5">
-              <Label htmlFor="notes" className="text-[13px] text-muted-foreground font-normal">Notes</Label>
+            <div className="mt-3 space-y-1">
+              <Label htmlFor="notes" className="text-xs text-muted-foreground font-normal">Notes</Label>
               <Controller name="notes" control={control} render={({ field }) => (
-                <Textarea {...field} id="notes" placeholder="Add notes..." rows={3} disabled={isReadOnly} />
+                <Textarea {...field} id="notes" placeholder="Add notes..." rows={2} disabled={isReadOnly} className="text-sm" />
               )} />
             </div>
           )}
@@ -557,60 +550,60 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
 
         {/* Address Section - Collapsible */}
         <Collapsible>
-          <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:opacity-80 transition-opacity">
+          <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 hover:opacity-80 transition-opacity">
             <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
               <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">Address Information</h3>
             </div>
-            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200" />
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-2">
-            <div className="divide-y divide-border/40">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
               {isFieldVisible('address_line1') && (
-                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                  <Label htmlFor="address_line1" className="text-[13px] text-muted-foreground font-normal">Address 1</Label>
+                <div className="space-y-1 lg:col-span-2">
+                  <Label htmlFor="address_line1" className="text-xs text-muted-foreground font-normal">Address 1</Label>
                   <Controller name="address_line1" control={control} render={({ field }) => (
-                    <Input {...field} id="address_line1" placeholder="123 Main St" disabled={isReadOnly} className="h-9" />
+                    <Input {...field} id="address_line1" placeholder="123 Main St" disabled={isReadOnly} className="h-8 text-sm" />
                   )} />
                 </div>
               )}
               {isFieldVisible('address_line2') && (
-                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                  <Label htmlFor="address_line2" className="text-[13px] text-muted-foreground font-normal">Address 2</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="address_line2" className="text-xs text-muted-foreground font-normal">Address 2</Label>
                   <Controller name="address_line2" control={control} render={({ field }) => (
-                    <Input {...field} id="address_line2" placeholder="Apt 4B" disabled={isReadOnly} className="h-9" />
+                    <Input {...field} id="address_line2" placeholder="Apt 4B" disabled={isReadOnly} className="h-8 text-sm" />
                   )} />
                 </div>
               )}
               {isFieldVisible('city') && (
-                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                  <Label htmlFor="city" className="text-[13px] text-muted-foreground font-normal">City</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="city" className="text-xs text-muted-foreground font-normal">City</Label>
                   <Controller name="city" control={control} render={({ field }) => (
-                    <Input {...field} id="city" placeholder="New York" disabled={isReadOnly} className="h-9" />
+                    <Input {...field} id="city" placeholder="New York" disabled={isReadOnly} className="h-8 text-sm" />
                   )} />
                 </div>
               )}
               {isFieldVisible('state') && (
-                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                  <Label htmlFor="state" className="text-[13px] text-muted-foreground font-normal">State</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="state" className="text-xs text-muted-foreground font-normal">State</Label>
                   <Controller name="state" control={control} render={({ field }) => (
-                    <Input {...field} id="state" placeholder="NY" disabled={isReadOnly} className="h-9" />
+                    <Input {...field} id="state" placeholder="NY" disabled={isReadOnly} className="h-8 text-sm" />
                   )} />
                 </div>
               )}
               {isFieldVisible('country') && (
-                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                  <Label htmlFor="country" className="text-[13px] text-muted-foreground font-normal">Country</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="country" className="text-xs text-muted-foreground font-normal">Country</Label>
                   <Controller name="country" control={control} render={({ field }) => (
-                    <Input {...field} id="country" placeholder="USA" disabled={isReadOnly} className="h-9" />
+                    <Input {...field} id="country" placeholder="USA" disabled={isReadOnly} className="h-8 text-sm" />
                   )} />
                 </div>
               )}
               {isFieldVisible('postal_code') && (
-                <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-                  <Label htmlFor="postal_code" className="text-[13px] text-muted-foreground font-normal">Postal Code</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="postal_code" className="text-xs text-muted-foreground font-normal">Postal Code</Label>
                   <Controller name="postal_code" control={control} render={({ field }) => (
-                    <Input {...field} id="postal_code" placeholder="10001" disabled={isReadOnly} className="h-9" />
+                    <Input {...field} id="postal_code" placeholder="10001" disabled={isReadOnly} className="h-8 text-sm" />
                   )} />
                 </div>
               )}
@@ -623,17 +616,17 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
           <>
             <div className="border-t border-border/50" />
             <Collapsible>
-              <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:opacity-80 transition-opacity">
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 hover:opacity-80 transition-opacity">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-muted-foreground" />
+                  <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
                   <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">Custom Fields</h3>
                 </div>
-                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200" />
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-2">
-                <div className="divide-y divide-border/40">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
                   {customFields.map((field) => (
-                    <div key={field.id} className="py-2.5">
+                    <div key={field.id}>
                       <DynamicFieldRenderer field={field} control={control} fieldName={`custom_${field.field_name}` as any} disabled={isReadOnly} error={errors[`custom_${field.field_name}` as keyof typeof errors]?.message as string} />
                     </div>
                   ))}

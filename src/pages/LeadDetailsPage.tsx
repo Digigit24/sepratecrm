@@ -273,7 +273,7 @@ export const LeadDetailsPage = () => {
   }
 
   return (
-    <div className="p-4 max-w-6xl mx-auto space-y-3">
+    <div className="p-4 space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">
