@@ -341,63 +341,46 @@ export const AdminSettings: React.FC = () => {
   // Show error if no tenant ID is found
   if (!tenantId) {
     return (
-      <div className="container mx-auto p-4 sm:p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Admin Settings</h1>
-            <p className="text-muted-foreground text-sm sm:text-base">
-              Tenant Configuration & System Information
-            </p>
+      <div className="p-4 space-y-3">
+        <h1 className="text-base font-semibold">Admin Settings</h1>
+        <div className="border border-destructive rounded-lg p-4">
+          <div className="flex items-center gap-2 text-destructive mb-1">
+            <AlertCircle className="h-4 w-4" />
+            <span className="text-sm font-medium">No Tenant Found</span>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Unable to retrieve tenant information. Please try logging in again.
+          </p>
         </div>
-
-        <Card className="border-destructive">
-          <CardHeader>
-            <CardTitle className="text-lg text-destructive flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              No Tenant Found
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm">
-              Unable to retrieve tenant information from your session. Please try logging in again.
-            </p>
-          </CardContent>
-        </Card>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 space-y-6">
+    <div className="p-4 space-y-3">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Admin Settings</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Tenant Configuration & System Information
-          </p>
-        </div>
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <h1 className="text-base font-semibold">Settings</h1>
           {tenantData && (
-            <Badge variant={tenantData.is_active ? 'default' : 'destructive'} className="w-fit">
+            <Badge variant={tenantData.is_active ? 'default' : 'destructive'} className="text-[10px]">
               {tenantData.is_active ? 'Active' : 'Inactive'}
             </Badge>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => mutate()}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            Refresh
-          </Button>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => mutate()}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5" />
+          )}
+        </Button>
       </div>
 
       {/* Error State */}
@@ -432,20 +415,20 @@ export const AdminSettings: React.FC = () => {
 
       {/* Tenant Settings Forms */}
       {tenantData && (
-        <Tabs defaultValue="tenant" className="w-full max-w-6xl">
-          <TabsList className="grid w-full grid-cols-4 max-w-3xl">
-            <TabsTrigger value="tenant">Tenant Settings</TabsTrigger>
-            <TabsTrigger value="currency">
-              <IndianRupee className="h-4 w-4 mr-2" />
+        <Tabs defaultValue="tenant" className="w-full">
+          <TabsList className="h-8">
+            <TabsTrigger value="tenant" className="text-xs h-6 px-2.5">Tenant</TabsTrigger>
+            <TabsTrigger value="currency" className="text-xs h-6 px-2.5 gap-1">
+              <IndianRupee className="h-3 w-3" />
               Currency
             </TabsTrigger>
-            <TabsTrigger value="whatsapp" onClick={() => fetchUserPreferences()}>
-              <MessageSquare className="h-4 w-4 mr-2" />
+            <TabsTrigger value="whatsapp" className="text-xs h-6 px-2.5 gap-1" onClick={() => fetchUserPreferences()}>
+              <MessageSquare className="h-3 w-3" />
               WhatsApp
             </TabsTrigger>
-            <TabsTrigger value="user" onClick={() => fetchUserPreferences()}>
-              <User className="h-4 w-4 mr-2" />
-              User Preferences
+            <TabsTrigger value="user" className="text-xs h-6 px-2.5 gap-1" onClick={() => fetchUserPreferences()}>
+              <User className="h-3 w-3" />
+              Preferences
             </TabsTrigger>
           </TabsList>
 

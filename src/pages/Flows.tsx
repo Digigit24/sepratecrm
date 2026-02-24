@@ -169,174 +169,138 @@ export default function Flows() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
-      {/* Header Section */}
-      <div className="border-b bg-background sticky top-0 z-10">
-        <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-4">
-          <div className="flex items-center gap-3">
-            {isMobile && (
-              <Button variant="ghost" size="icon" className="md:hidden">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            )}
-            <div>
-              <h1 className="text-xl md:text-2xl font-semibold">WhatsApp Flows</h1>
-              <p className="text-xs md:text-sm text-muted-foreground">
-                {total} total flow{total === 1 ? '' : 's'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={handleRefresh}
-              variant="outline"
-              size={isMobile ? 'sm' : 'default'}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''} ${!isMobile ? 'mr-2' : ''}`} />
-              {!isMobile && 'Refresh'}
-            </Button>
-            <Button onClick={handleCreate} size={isMobile ? 'sm' : 'default'}>
-              <Plus className="h-4 w-4 mr-2" />
-              {isMobile ? 'New' : 'New Flow'}
-            </Button>
-          </div>
+    <div className="p-4 space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h1 className="text-base font-semibold">Flows</h1>
+          <span className="text-xs text-muted-foreground">{total} total</span>
         </div>
-
-        {/* Stats Bar */}
-        {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 pb-3 md:px-6">
-            <div className="bg-muted/50 rounded-lg p-3">
-              <div className="text-xs text-muted-foreground">Total</div>
-              <div className="text-lg font-semibold">{stats.total_flows}</div>
-            </div>
-            <div className="bg-yellow-100 dark:bg-yellow-900/20 rounded-lg p-3">
-              <div className="text-xs text-muted-foreground">Draft</div>
-              <div className="text-lg font-semibold">{stats.draft_flows}</div>
-            </div>
-            <div className="bg-green-100 dark:bg-green-900/20 rounded-lg p-3">
-              <div className="text-xs text-muted-foreground">Published</div>
-              <div className="text-lg font-semibold">{stats.published_flows}</div>
-            </div>
-            <div className="bg-blue-100 dark:bg-blue-900/20 rounded-lg p-3">
-              <div className="text-xs text-muted-foreground">Active</div>
-              <div className="text-lg font-semibold">{stats.active_flows}</div>
-            </div>
-          </div>
-        )}
-
-        {/* Search & Filter Bar */}
-        <div className="px-4 pb-3 md:px-6 md:pb-4">
-          <div className="flex gap-2 flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search flows by name..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                className="pl-9 pr-9"
-              />
-              {searchQuery && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7"
-                  onClick={handleClearSearch}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-
-            <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Status</SelectItem>
-                <SelectItem value="DRAFT">Draft</SelectItem>
-                <SelectItem value="PUBLISHED">Published</SelectItem>
-                <SelectItem value="DEPRECATED">Deprecated</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={categoryFilter} onValueChange={(value: any) => setCategoryFilter(value)}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Categories</SelectItem>
-                <SelectItem value="SIGN_UP">Sign Up</SelectItem>
-                <SelectItem value="SIGN_IN">Sign In</SelectItem>
-                <SelectItem value="APPOINTMENT_BOOKING">Appointment</SelectItem>
-                <SelectItem value="LEAD_GENERATION">Lead Gen</SelectItem>
-                <SelectItem value="CONTACT_US">Contact Us</SelectItem>
-                <SelectItem value="CUSTOMER_SUPPORT">Support</SelectItem>
-                <SelectItem value="SURVEY">Survey</SelectItem>
-                <SelectItem value="OTHER">Other</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex items-center gap-1.5">
+          <Button
+            onClick={handleRefresh}
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button onClick={handleCreate} size="sm" className="h-7 text-xs">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            New Flow
+          </Button>
         </div>
       </div>
 
-      {/* Table Section */}
-      <div className="flex-1 overflow-auto">
+      {/* Search & Filters */}
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search flows..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            className="pl-8 pr-8 h-8 text-xs"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-0.5 top-1/2 transform -translate-y-1/2 h-6 w-6"
+              onClick={handleClearSearch}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+
+        <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+          <SelectTrigger className="w-[110px] h-8 text-xs">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All Status</SelectItem>
+            <SelectItem value="DRAFT">Draft</SelectItem>
+            <SelectItem value="PUBLISHED">Published</SelectItem>
+            <SelectItem value="DEPRECATED">Deprecated</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={categoryFilter} onValueChange={(value: any) => setCategoryFilter(value)}>
+          <SelectTrigger className="w-[130px] h-8 text-xs">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All Categories</SelectItem>
+            <SelectItem value="SIGN_UP">Sign Up</SelectItem>
+            <SelectItem value="SIGN_IN">Sign In</SelectItem>
+            <SelectItem value="APPOINTMENT_BOOKING">Appointment</SelectItem>
+            <SelectItem value="LEAD_GENERATION">Lead Gen</SelectItem>
+            <SelectItem value="CONTACT_US">Contact Us</SelectItem>
+            <SelectItem value="CUSTOMER_SUPPORT">Support</SelectItem>
+            <SelectItem value="SURVEY">Survey</SelectItem>
+            <SelectItem value="OTHER">Other</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Table */}
+      <div className="border rounded-lg overflow-hidden">
         {flows.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <div className="text-muted-foreground mb-4">No flows found</div>
-              <Button onClick={handleCreate}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Flow
+              <div className="text-xs text-muted-foreground mb-3">No flows found</div>
+              <Button onClick={handleCreate} size="sm" className="h-7 text-xs">
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Create Flow
               </Button>
             </div>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted/50 sticky top-0">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
                 <tr>
-                  <th className="text-left px-4 py-3 text-sm font-medium">Name</th>
-                  <th className="text-left px-4 py-3 text-sm font-medium">Category</th>
-                  <th className="text-left px-4 py-3 text-sm font-medium">Status</th>
-                  <th className="text-left px-4 py-3 text-sm font-medium">Screens</th>
-                  <th className="text-left px-4 py-3 text-sm font-medium">Updated</th>
-                  <th className="text-right px-4 py-3 text-sm font-medium">Actions</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium">Name</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium">Category</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium">Status</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium">Screens</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium">Updated</th>
+                  <th className="text-right px-3 py-2 text-xs font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {flows.map((flow) => (
                   <tr key={flow.id} className="border-t hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{flow.name}</div>
+                    <td className="px-3 py-2">
+                      <div className="text-sm font-medium">{flow.name}</div>
                       {flow.description && (
-                        <div className="text-xs text-muted-foreground mt-1">{flow.description}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{flow.description}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3">
-                      <Badge variant="secondary" className="text-xs">
+                    <td className="px-3 py-2">
+                      <Badge variant="secondary" className="text-[10px]">
                         {getCategoryLabel(flow.category)}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3">
-                      <Badge className={`text-xs ${getStatusColor(flow.status)}`}>
+                    <td className="px-3 py-2">
+                      <Badge className={`text-[10px] ${getStatusColor(flow.status)}`}>
                         {flow.status}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-sm">
+                    <td className="px-3 py-2 text-xs">
                       {flow.flow_json.screens.length}
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                    <td className="px-3 py-2 text-xs text-muted-foreground">
                       {new Date(flow.updated_at).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-2 text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreVertical className="h-4 w-4" />
+                          <Button variant="ghost" size="icon" className="h-6 w-6">
+                            <MoreVertical className="h-3.5 w-3.5" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -379,34 +343,36 @@ export default function Flows() {
             </table>
           </div>
         )}
-      </div>
 
-      {/* Pagination */}
-      {total > pageSize && (
-        <div className="border-t px-4 py-3 flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, total)} of {total} flows
+        {/* Pagination */}
+        {total > pageSize && (
+          <div className="px-4 py-2 border-t bg-muted/30 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)} of {total}
+            </span>
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => setPage(page - 1)}
+                disabled={page === 1}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => setPage(page + 1)}
+                disabled={page * pageSize >= total}
+              >
+                Next
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage(page - 1)}
-              disabled={page === 1}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage(page + 1)}
-              disabled={page * pageSize >= total}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

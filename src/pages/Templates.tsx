@@ -1,10 +1,9 @@
 // src/pages/Templates.tsx
 import { useEffect, useMemo, useState } from 'react';
-import { Filter, Plus, Search, X, RefreshCw, RefreshCcw, FileText, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { Filter, Plus, Search, X, RefreshCw, RefreshCcw } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-is-mobile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 
 import { useTemplates } from '@/hooks/whatsapp/useTemplates';
@@ -198,192 +197,122 @@ export default function Templates() {
     );
   }
 
-  // Calculate stats for display
-  const approvedCount = templates.filter(t => t.status === 'APPROVED').length;
-  const pendingCount = templates.filter(t => t.status === 'PENDING').length;
-  const rejectedCount = templates.filter(t => t.status === 'REJECTED').length;
-
   // Filter templates based on search query
   const filteredTemplates = searchQuery
     ? templates.filter((t) => t.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : templates;
 
   return (
-    <div className="p-6 max-w-8xl mx-auto space-y-6">
+    <div className="p-4 space-y-3">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">WhatsApp Templates</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Manage your WhatsApp message templates
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h1 className="text-base font-semibold">Templates</h1>
+          <span className="text-xs text-muted-foreground">{total} total</span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1">
           <Button
             onClick={handleSyncAll}
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
             disabled={isLoading}
             title="Sync all templates with Meta API"
           >
-            <RefreshCcw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Sync All
+            <RefreshCcw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
           <Button
             onClick={handleRefresh}
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
             disabled={isLoading}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
-          <Button onClick={handleCreateTemplate} size="default" className="w-full sm:w-auto">
-            <Plus className="h-4 w-4 mr-2" />
+          <Button onClick={handleCreateTemplate} size="sm" className="h-7 text-xs">
+            <Plus className="h-3.5 w-3.5 mr-1" />
             New Template
           </Button>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <FileText className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Total Templates</p>
-                <p className="text-xl sm:text-2xl font-bold">{total}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Search & Filters */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search templates by name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={handleKeyPress}
+            className="pl-9 pr-9"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7"
+              onClick={handleClearSearch}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
 
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Approved</p>
-                <p className="text-xl sm:text-2xl font-bold">{approvedCount}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <Clock className="h-5 w-5 text-yellow-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Pending</p>
-                <p className="text-xl sm:text-2xl font-bold">{pendingCount}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 rounded-lg">
-                <XCircle className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Rejected</p>
-                <p className="text-xl sm:text-2xl font-bold">{rejectedCount}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => setIsFiltersOpen(true)}
+        >
+          <Filter className="h-3.5 w-3.5" />
+          {!isMobile && <span className="ml-1">Filters</span>}
+        </Button>
       </div>
 
-      {/* Search & Filters Card */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search templates by name..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={handleKeyPress}
-                className="pl-9 pr-9"
-              />
-              {searchQuery && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7"
-                  onClick={handleClearSearch}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
+      {/* Active filter tags */}
+      {(filters.status || filters.category || filters.language) && (
+        <div className="flex flex-wrap gap-2">
+          {filters.status && (
+            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-primary/10 text-primary">
+              Status: {filters.status}
+            </span>
+          )}
+          {filters.category && (
+            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+              Category: {filters.category}
+            </span>
+          )}
+          {filters.language && (
+            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
+              Language: {filters.language}
+            </span>
+          )}
+        </div>
+      )}
 
-            <Button
-              variant="outline"
-              onClick={() => setIsFiltersOpen(true)}
-            >
-              <Filter className="h-4 w-4" />
-              {!isMobile && <span className="ml-2">Filters</span>}
-            </Button>
+      {/* Table */}
+      <div className="border rounded-lg overflow-hidden">
+        <TemplatesTable
+          templates={filteredTemplates}
+          isLoading={isLoading}
+          onView={handleViewTemplate}
+          onEdit={handleEditTemplate}
+          onDelete={handleDeleteTemplate}
+          onSync={handleSyncTemplate}
+          onViewAnalytics={handleViewAnalytics}
+          onSend={handleSendTemplate}
+        />
+
+        {!isLoading && total > 0 && (
+          <div className="flex items-center justify-between px-4 py-2 border-t bg-muted/30">
+            <p className="text-xs text-muted-foreground">
+              {filteredTemplates.length} of {total}
+            </p>
           </div>
-
-          {/* Active filter tags */}
-          {(filters.status || filters.category || filters.language) && (
-            <div className="flex flex-wrap gap-2 mt-3">
-              {filters.status && (
-                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-primary/10 text-primary">
-                  Status: {filters.status}
-                </span>
-              )}
-              {filters.category && (
-                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                  Category: {filters.category}
-                </span>
-              )}
-              {filters.language && (
-                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
-                  Language: {filters.language}
-                </span>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Table Card */}
-      <Card>
-        <CardContent className="p-0">
-          <TemplatesTable
-            templates={filteredTemplates}
-            isLoading={isLoading}
-            onView={handleViewTemplate}
-            onEdit={handleEditTemplate}
-            onDelete={handleDeleteTemplate}
-            onSync={handleSyncTemplate}
-            onViewAnalytics={handleViewAnalytics}
-            onSend={handleSendTemplate}
-          />
-
-          {!isLoading && total > 0 && (
-            <div className="flex items-center justify-between px-6 py-4 border-t">
-              <p className="text-sm text-muted-foreground">
-                Showing {filteredTemplates.length} of {total} template(s)
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
       {/* Filters Drawer */}
       <TemplatesFiltersDrawer

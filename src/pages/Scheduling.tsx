@@ -5,7 +5,7 @@ import { SchedulingDashboard } from '@/components/scheduling';
 
 export default function Scheduling() {
   return (
-    <div className="container mx-auto py-6 px-4 md:px-6">
+    <div className="p-4">
       <SchedulingDashboard />
     </div>
   );

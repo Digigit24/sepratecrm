@@ -197,124 +197,94 @@ export default function QRCodes() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
-      {/* Header Section */}
-      <div className="border-b bg-background sticky top-0 z-10">
-        <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-4">
-          <div>
-            <h1 className="text-xl md:text-2xl font-semibold">WhatsApp QR Codes</h1>
-            <p className="text-xs md:text-sm text-muted-foreground">{total} total QR codes</p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={handleRefresh}
-              variant="outline"
-              size={isMobile ? 'sm' : 'default'}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''} ${!isMobile ? 'mr-2' : ''}`} />
-              {!isMobile && 'Refresh'}
-            </Button>
-            <Button
-              onClick={handleFetchFromWhatsApp}
-              variant="outline"
-              size={isMobile ? 'sm' : 'default'}
-            >
-              <Download className={`h-4 w-4 ${!isMobile ? 'mr-2' : ''}`} />
-              {!isMobile && 'Sync from WhatsApp'}
-            </Button>
-            <Button onClick={handleCreateNew} size={isMobile ? 'sm' : 'default'}>
-              <Plus className="h-4 w-4 mr-2" />
-              {!isMobile && 'Create QR Code'}
-            </Button>
-          </div>
+    <div className="p-4 space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h1 className="text-base font-semibold">QR Codes</h1>
+          <span className="text-xs text-muted-foreground">{total} total</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Button
+            onClick={handleRefresh}
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button
+            onClick={handleFetchFromWhatsApp}
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+          >
+            <Download className="h-3.5 w-3.5 mr-1" />
+            Sync
+          </Button>
+          <Button onClick={handleCreateNew} size="sm" className="h-7 text-xs">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            New QR Code
+          </Button>
         </div>
       </div>
 
       {/* QR Codes Grid */}
-      <div className="flex-1 overflow-auto p-4 md:p-6">
-        {qrCodes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full">
-            <QrCodeIcon className="h-16 w-16 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No QR Codes Yet</h3>
-            <p className="text-muted-foreground text-center mb-4 max-w-md">
-              Create your first QR code to allow customers to start WhatsApp conversations with prefilled messages.
-            </p>
-            <Button onClick={handleCreateNew}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create First QR Code
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {qrCodes.map((qrCode) => (
-              <Card key={qrCode.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="text-sm font-mono">{qrCode.code}</CardTitle>
-                  <CardDescription className="text-xs">
-                    {qrCode.image_type} • Created {new Date(qrCode.created_at).toLocaleDateString()}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {qrCode.image_url ? (
-                      <div className="flex items-center justify-center p-4 bg-white rounded-lg border-2 border-muted">
-                        <img
-                          src={qrCode.image_url}
-                          alt={`QR Code ${qrCode.code}`}
-                          className="w-40 h-40 object-contain cursor-pointer hover:scale-105 transition-transform"
-                          onClick={() => handleView(qrCode)}
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center p-4 bg-muted rounded-lg h-48">
-                        <div className="text-center text-muted-foreground">
-                          <QrCodeIcon className="h-12 w-12 mx-auto mb-2" />
-                          <p className="text-xs">No image available</p>
-                          <p className="text-xs">Click "Sync from WhatsApp" to fetch</p>
-                        </div>
-                      </div>
-                    )}
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Prefilled Message</Label>
-                      <p className="text-sm mt-1 line-clamp-2">{qrCode.prefilled_message}</p>
-                    </div>
+      {qrCodes.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16">
+          <QrCodeIcon className="h-10 w-10 text-muted-foreground mb-3" />
+          <h3 className="text-sm font-medium mb-1">No QR Codes Yet</h3>
+          <p className="text-xs text-muted-foreground text-center mb-3 max-w-sm">
+            Create your first QR code to allow customers to start WhatsApp conversations.
+          </p>
+          <Button onClick={handleCreateNew} size="sm" className="h-7 text-xs">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Create QR Code
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {qrCodes.map((qrCode) => (
+            <div key={qrCode.id} className="border rounded-lg p-3 hover:shadow-sm transition-shadow">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-mono text-muted-foreground">{qrCode.code}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {qrCode.image_type}
+                </span>
+              </div>
+              {qrCode.image_url ? (
+                <div className="flex items-center justify-center p-3 bg-white rounded border mb-2 cursor-pointer" onClick={() => handleView(qrCode)}>
+                  <img
+                    src={qrCode.image_url}
+                    alt={`QR Code ${qrCode.code}`}
+                    className="w-32 h-32 object-contain hover:scale-105 transition-transform"
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center p-3 bg-muted rounded mb-2 h-36">
+                  <div className="text-center text-muted-foreground">
+                    <QrCodeIcon className="h-8 w-8 mx-auto mb-1" />
+                    <p className="text-[10px]">No image - click Sync</p>
                   </div>
-                </CardContent>
-                <CardFooter className="flex gap-2">
-                  <Button
-                    onClick={() => handleView(qrCode)}
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                  >
-                    <QrCodeIcon className="h-4 w-4 mr-2" />
-                    View
-                  </Button>
-                  <Button
-                    onClick={() => handleEdit(qrCode)}
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </Button>
-                  <Button
-                    onClick={() => handleDeleteClick(qrCode)}
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+                </div>
+              )}
+              <p className="text-xs line-clamp-2 mb-2">{qrCode.prefilled_message}</p>
+              <div className="flex gap-1">
+                <Button onClick={() => handleView(qrCode)} variant="ghost" size="sm" className="h-6 text-[11px] flex-1 px-1">
+                  View
+                </Button>
+                <Button onClick={() => handleEdit(qrCode)} variant="ghost" size="sm" className="h-6 text-[11px] flex-1 px-1">
+                  Edit
+                </Button>
+                <Button onClick={() => handleDeleteClick(qrCode)} variant="ghost" size="sm" className="h-6 text-[11px] px-1 text-destructive hover:text-destructive">
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

@@ -286,189 +286,119 @@ export const CRMTasks: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-8xl mx-auto space-y-6">
+    <div className="p-4 space-y-3">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-            <CheckSquare className="h-6 w-6 sm:h-8 sm:w-8" />
-            CRM Tasks
-          </h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Manage and track your CRM tasks
-          </p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h1 className="text-base font-semibold">Tasks</h1>
+          {tasksData && (
+            <span className="text-xs text-muted-foreground">{tasksData.count} total</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
+            className="h-7 w-7"
             onClick={() => mutate()}
             disabled={isLoading}
-            className="h-9 w-9"
             title="Refresh"
           >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
-          <Button onClick={() => handleCreate()} size="default" className="w-full sm:w-auto">
-            <Plus className="h-4 w-4 mr-2" />
+          <Button onClick={() => handleCreate()} size="sm" className="h-7 text-xs">
+            <Plus className="h-3.5 w-3.5 mr-1" />
             New Task
           </Button>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      {tasksData && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <CheckSquare className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Total Tasks</p>
-                  <p className="text-xl sm:text-2xl font-bold">{tasksData.count}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gray-100 rounded-lg">
-                  <List className="h-5 w-5 text-gray-600" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">To Do</p>
-                  <p className="text-xl sm:text-2xl font-bold">{todoCount}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Clock className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">In Progress</p>
-                  <p className="text-xl sm:text-2xl font-bold">{inProgressCount}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <CircleCheck className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Done</p>
-                  <p className="text-xl sm:text-2xl font-bold">{doneCount}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* View Mode Toggle */}
-      <Card>
-        <CardContent className="p-4">
-          <Tabs value={viewMode} onValueChange={(value) => handleViewModeChange(value as ViewMode)}>
-            <TabsList className="grid w-full grid-cols-2 max-w-xs">
-              <TabsTrigger value="kanban" className="flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4" />
-                Kanban Board
-              </TabsTrigger>
-              <TabsTrigger value="list" className="flex items-center gap-2">
-                <List className="h-4 w-4" />
-                List View
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardContent>
-      </Card>
+      <Tabs value={viewMode} onValueChange={(value) => handleViewModeChange(value as ViewMode)}>
+        <TabsList className="h-8">
+          <TabsTrigger value="kanban" className="text-xs h-6 px-2.5 gap-1.5">
+            <LayoutGrid className="h-3.5 w-3.5" />
+            Kanban
+          </TabsTrigger>
+          <TabsTrigger value="list" className="text-xs h-6 px-2.5 gap-1.5">
+            <List className="h-3.5 w-3.5" />
+            List
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Content */}
       {viewMode === 'kanban' ? (
-        <Card>
-          <CardContent className="p-4">
-            <TaskKanbanBoard
-              tasks={tasks}
-              onViewTask={handleView}
-              onEditTask={handleEdit}
-              onCreateTask={handleCreate}
-              onUpdateTaskStatus={handleUpdateTaskStatus}
-              isLoading={isLoading}
-            />
-          </CardContent>
-        </Card>
+        <div className="border rounded-lg overflow-hidden p-4">
+          <TaskKanbanBoard
+            tasks={tasks}
+            onViewTask={handleView}
+            onEditTask={handleEdit}
+            onCreateTask={handleCreate}
+            onUpdateTaskStatus={handleUpdateTaskStatus}
+            isLoading={isLoading}
+          />
+        </div>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            {error ? (
-              <div className="p-8 text-center">
-                <div className="text-destructive">
-                  <p className="font-semibold">Failed to load tasks</p>
-                  <p className="text-sm mt-2">{error}</p>
-                </div>
+        <div className="border rounded-lg overflow-hidden">
+          {error ? (
+            <div className="p-8 text-center">
+              <div className="text-destructive">
+                <p className="font-semibold">Failed to load tasks</p>
+                <p className="text-sm mt-2">{error}</p>
               </div>
-            ) : (
-              <>
-                <DataTable
-                  rows={tasks}
-                  isLoading={isLoading}
-                  columns={columns}
-                  renderMobileCard={renderMobileCard}
-                  getRowId={(task) => task.id}
-                  getRowLabel={(task) => task.title}
-                  onView={handleView}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  emptyTitle="No tasks found"
-                  emptySubtitle="Create a new task to get started"
-                />
+            </div>
+          ) : (
+            <>
+              <DataTable
+                rows={tasks}
+                isLoading={isLoading}
+                columns={columns}
+                renderMobileCard={renderMobileCard}
+                getRowId={(task) => task.id}
+                getRowLabel={(task) => task.title}
+                onView={handleView}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                emptyTitle="No tasks found"
+                emptySubtitle="Create a new task to get started"
+              />
 
-                {/* Pagination */}
-                {!isLoading && tasksData && tasksData.count > 0 && (
-                  <div className="flex items-center justify-between px-6 py-4 border-t">
-                    <p className="text-sm text-muted-foreground">
-                      Showing {tasks.length} of {tasksData.count} task(s)
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!tasksData.previous}
-                        onClick={() =>
-                          setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) - 1 }))
-                        }
-                      >
-                        Previous
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!tasksData.next}
-                        onClick={() =>
-                          setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) + 1 }))
-                        }
-                      >
-                        Next
-                      </Button>
-                    </div>
+              {/* Pagination */}
+              {!isLoading && tasksData && tasksData.count > 0 && (
+                <div className="flex items-center justify-between px-4 py-2 border-t bg-muted/30">
+                  <p className="text-xs text-muted-foreground">
+                    {tasks.length} of {tasksData.count}
+                  </p>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs"
+                      disabled={!tasksData.previous}
+                      onClick={() =>
+                        setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) - 1 }))
+                      }
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs"
+                      disabled={!tasksData.next}
+                      onClick={() =>
+                        setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) + 1 }))
+                      }
+                    >
+                      Next
+                    </Button>
                   </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       )}
 
       {/* Drawer */}

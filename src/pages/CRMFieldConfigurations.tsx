@@ -325,117 +325,106 @@ export const CRMFieldConfigurations: React.FC = () => {
   }, [configurationsData?.results]);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="p-4 space-y-3">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Settings2 className="w-8 h-8" />
-            Field Configurations
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Manage lead fields and custom field configurations
-          </p>
-        </div>
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <h1 className="text-base font-semibold">Field Configurations</h1>
+          <span className="text-xs text-muted-foreground">{stats.total} fields</span>
+        </div>
+        <div className="flex items-center gap-1.5">
           {pendingReorder && (
             <>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
+                className="h-7 text-xs"
                 onClick={handleCancelReorder}
                 disabled={isSavingOrder}
               >
                 Cancel
               </Button>
               <Button
-                variant="default"
                 size="sm"
+                className="h-7 text-xs"
                 onClick={handleSaveOrder}
                 disabled={isSavingOrder}
               >
                 {isSavingOrder ? (
                   <>
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" />
                     Saving...
                   </>
                 ) : (
                   <>
-                    <Save className="w-4 h-4 mr-2" />
+                    <Save className="w-3.5 h-3.5 mr-1" />
                     Save Order
                   </>
                 )}
               </Button>
             </>
           )}
-          <Button variant="outline" size="sm" onClick={handleRefresh}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefresh}>
+            <RefreshCw className="w-3.5 h-3.5" />
           </Button>
-          <Button onClick={handleCreateConfiguration}>
-            <Plus className="w-4 h-4 mr-2" />
+          <Button onClick={handleCreateConfiguration} size="sm" className="h-7 text-xs">
+            <Plus className="w-3.5 h-3.5 mr-1" />
             Create Field
           </Button>
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-sm text-muted-foreground">Total Fields</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">{stats.standard}</div>
-            <p className="text-sm text-muted-foreground">Standard Fields</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-purple-600">{stats.custom}</div>
-            <p className="text-sm text-muted-foreground">Custom Fields</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">{stats.visible}</div>
-            <p className="text-sm text-muted-foreground">Visible</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-red-600">{stats.required}</div>
-            <p className="text-sm text-muted-foreground">Required</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
-          <TabsTrigger value="all">
-            All Fields ({stats.total})
+        <TabsList className="h-8">
+          <TabsTrigger value="all" className="text-xs h-6 px-2.5">
+            All ({stats.total})
           </TabsTrigger>
-          <TabsTrigger value="standard">
+          <TabsTrigger value="standard" className="text-xs h-6 px-2.5">
             Standard ({stats.standard})
           </TabsTrigger>
-          <TabsTrigger value="custom">
+          <TabsTrigger value="custom" className="text-xs h-6 px-2.5">
             Custom ({stats.custom})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="all" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>All Field Configurations</CardTitle>
-              <CardDescription>
-                Drag and drop to reorder fields. Changes will be saved when you click "Save Order".
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+        <TabsContent value="all" className="mt-3">
+          <div className="border rounded-lg overflow-hidden">
+            <SortableFieldConfigTable
+              fields={pendingReorder || filteredConfigurations}
+              onReorder={handleReorder}
+              onView={handleViewConfiguration}
+              onEdit={handleEditConfiguration}
+              onDelete={handleDeleteConfiguration}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="standard" className="mt-3">
+          <div className="border rounded-lg overflow-hidden">
+            <SortableFieldConfigTable
+              fields={pendingReorder || filteredConfigurations}
+              onReorder={handleReorder}
+              onView={handleViewConfiguration}
+              onEdit={handleEditConfiguration}
+              onDelete={handleDeleteConfiguration}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="custom" className="mt-3">
+          {filteredConfigurations.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-xs text-muted-foreground mb-3">
+                No custom fields configured yet.
+              </p>
+              <Button onClick={handleCreateConfiguration} variant="outline" size="sm" className="h-7 text-xs">
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Create Custom Field
+              </Button>
+            </div>
+          ) : (
+            <div className="border rounded-lg overflow-hidden">
               <SortableFieldConfigTable
                 fields={pendingReorder || filteredConfigurations}
                 onReorder={handleReorder}
@@ -443,60 +432,8 @@ export const CRMFieldConfigurations: React.FC = () => {
                 onEdit={handleEditConfiguration}
                 onDelete={handleDeleteConfiguration}
               />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="standard" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Standard Fields</CardTitle>
-              <CardDescription>
-                Pre-defined Lead model fields with configurable visibility and display settings. Drag to reorder.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SortableFieldConfigTable
-                fields={pendingReorder || filteredConfigurations}
-                onReorder={handleReorder}
-                onView={handleViewConfiguration}
-                onEdit={handleEditConfiguration}
-                onDelete={handleDeleteConfiguration}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="custom" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Custom Fields</CardTitle>
-              <CardDescription>
-                Dynamic fields stored in Lead metadata for custom data collection. Drag to reorder.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {filteredConfigurations.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground mb-4">
-                    No custom fields configured yet. Get started by creating your first custom field.
-                  </p>
-                  <Button onClick={handleCreateConfiguration} variant="outline">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Custom Field
-                  </Button>
-                </div>
-              ) : (
-                <SortableFieldConfigTable
-                  fields={pendingReorder || filteredConfigurations}
-                  onReorder={handleReorder}
-                  onView={handleViewConfiguration}
-                  onEdit={handleEditConfiguration}
-                  onDelete={handleDeleteConfiguration}
-                />
-              )}
-            </CardContent>
-          </Card>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 

@@ -1058,34 +1058,34 @@ export const CRMLeads: React.FC = () => {
   );
 
   return (
-    <div className="p-6 max-w-8xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">CRM Leads</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Manage your sales leads and pipeline
-          </p>
+    <div className="p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-base font-semibold">Leads</h1>
+          {leadsData && (
+            <span className="text-xs text-muted-foreground">{leadsData.count} total</span>
+          )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Bulk Actions - shown when leads are selected */}
           {selectedLeadIds.size > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg">
-              <span className="text-sm font-medium">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-muted rounded-md">
+              <span className="text-xs font-medium">
                 {selectedLeadIds.size} selected
               </span>
-              <div className="w-px h-4 bg-border" />
+              <div className="w-px h-3 bg-border" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
                     disabled={isBulkUpdatingStatus}
-                    className="h-7"
+                    className="h-6 text-xs px-1.5"
                   >
                     {isBulkUpdatingStatus ? (
-                      <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                     ) : (
-                      <ChevronDown className="h-3.5 w-3.5 mr-1.5" />
+                      <ChevronDown className="h-3 w-3 mr-1" />
                     )}
                     Status
                   </Button>
@@ -1099,7 +1099,7 @@ export const CRMLeads: React.FC = () => {
                     >
                       <div className="flex items-center gap-2">
                         <div
-                          className="w-3 h-3 rounded-full border"
+                          className="w-2.5 h-2.5 rounded-full border"
                           style={{
                             backgroundColor: status.color_hex || '#6B7280',
                             borderColor: status.color_hex || '#6B7280',
@@ -1116,35 +1116,33 @@ export const CRMLeads: React.FC = () => {
                 size="sm"
                 onClick={handleBulkDelete}
                 disabled={isDeleting}
-                className="h-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                className="h-6 text-xs px-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
               >
                 {isDeleting ? (
-                  <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                 ) : (
-                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  <Trash2 className="h-3 w-3 mr-1" />
                 )}
                 Delete
               </Button>
             </div>
           )}
 
-          {/* Quick Actions */}
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={() => mutate()}
             disabled={isLoading}
-            className="h-9 w-9"
+            className="h-7 w-7"
             title="Refresh"
           >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
 
-          {/* More Actions Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9" title="More actions">
-                <MoreVertical className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="More actions">
+                <MoreVertical className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
@@ -1183,9 +1181,8 @@ export const CRMLeads: React.FC = () => {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Primary Action */}
-          <Button onClick={handleCreateLeadClick} size="default">
-            <Plus className="h-4 w-4 mr-2" />
+          <Button onClick={handleCreateLeadClick} size="sm" className="h-7 text-xs">
+            <Plus className="h-3.5 w-3.5 mr-1" />
             New Lead
           </Button>
         </div>
@@ -1199,88 +1196,24 @@ export const CRMLeads: React.FC = () => {
         className="hidden"
       />
 
-      {leadsData && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Building2 className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Total Leads</p>
-                  <p className="text-xl sm:text-2xl font-bold">{leadsData.count}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <RefreshCw className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">This Page</p>
-                  <p className="text-xl sm:text-2xl font-bold">{leadsData.results.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <LayoutGrid className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Total Pages</p>
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {Math.ceil(leadsData.count / (queryParams.page_size || 20))}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <List className="h-5 w-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Current Page</p>
-                  <p className="text-xl sm:text-2xl font-bold">{queryParams.page || 1}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      <Card>
-        <CardContent className="p-4">
-          <Tabs value={viewMode} onValueChange={(value) => handleViewModeChange(value as ViewMode)}>
-            <TabsList className="grid w-full grid-cols-3 max-w-lg">
-              <TabsTrigger value="list" className="flex items-center gap-2">
-                <List className="h-4 w-4" />
-                List View
-              </TabsTrigger>
-              <TabsTrigger value="kanban" className="flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4" />
-                Kanban Board
-              </TabsTrigger>
-              <TabsTrigger value="followups" className="flex items-center gap-2">
-                <CalendarClock className="h-4 w-4" />
-                Follow-ups
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardContent>
-      </Card>
+      <div className="flex items-center gap-2">
+        <Tabs value={viewMode} onValueChange={(value) => handleViewModeChange(value as ViewMode)}>
+          <TabsList className="h-8">
+            <TabsTrigger value="list" className="text-xs h-6 px-2.5 gap-1.5">
+              <List className="h-3 w-3" />
+              List
+            </TabsTrigger>
+            <TabsTrigger value="kanban" className="text-xs h-6 px-2.5 gap-1.5">
+              <LayoutGrid className="h-3 w-3" />
+              Kanban
+            </TabsTrigger>
+            <TabsTrigger value="followups" className="text-xs h-6 px-2.5 gap-1.5">
+              <CalendarClock className="h-3 w-3" />
+              Follow-ups
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
       {viewMode === 'followups' ? (
         <FollowupsContent
@@ -1289,72 +1222,68 @@ export const CRMLeads: React.FC = () => {
           onMutate={mutate}
         />
       ) : viewMode === 'list' ? (
-        <Card>
-          <CardContent className="p-0">
-            <DataTable
-              rows={filteredLeads}
-              isLoading={isLoading}
-              columns={columns}
-              renderMobileCard={renderMobileCard}
-              getRowId={(lead) => lead.id}
-              getRowLabel={(lead) => lead.name}
-              onView={handleViewLead}
-              onEdit={handleEditLead}
-              onDelete={handleDeleteLead}
-              emptyTitle="No leads found"
-              emptySubtitle="Get started by creating your first lead"
-            />
+        <div className="border rounded-lg overflow-hidden">
+          <DataTable
+            rows={filteredLeads}
+            isLoading={isLoading}
+            columns={columns}
+            renderMobileCard={renderMobileCard}
+            getRowId={(lead) => lead.id}
+            getRowLabel={(lead) => lead.name}
+            onView={handleViewLead}
+            onEdit={handleEditLead}
+            onDelete={handleDeleteLead}
+            emptyTitle="No leads found"
+            emptySubtitle="Get started by creating your first lead"
+          />
 
-            {!isLoading && leadsData && leadsData.count > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
-                <p className="text-sm text-muted-foreground">
-                  Showing {leadsData.results.length} of {leadsData.count} lead(s)
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!leadsData.previous}
-                    onClick={() =>
-                      setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) - 1 }))
-                    }
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!leadsData.next}
-                    onClick={() =>
-                      setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) + 1 }))
-                    }
-                  >
-                    Next
-                  </Button>
-                </div>
+          {!isLoading && leadsData && leadsData.count > 0 && (
+            <div className="flex items-center justify-between px-4 py-2 border-t bg-muted/30">
+              <p className="text-xs text-muted-foreground">
+                {leadsData.results.length} of {leadsData.count}
+              </p>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs"
+                  disabled={!leadsData.previous}
+                  onClick={() =>
+                    setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) - 1 }))
+                  }
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs"
+                  disabled={!leadsData.next}
+                  onClick={() =>
+                    setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) + 1 }))
+                  }
+                >
+                  Next
+                </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          )}
+        </div>
       ) : (
-        <Card>
-          <CardContent className="p-4">
-            <KanbanBoard
-              leads={filteredLeads}
-              statuses={statusesData?.results || []}
-              onViewLead={handleViewLead}
-              onCallLead={handleCallLead}
-              onWhatsAppLead={handleWhatsAppLead}
-              onCreateLead={handleCreateLead}
-              onEditStatus={handleEditStatus}
-              onDeleteStatus={handleDeleteStatus}
-              onCreateStatus={handleCreateStatus}
-              onMoveStatus={handleMoveStatus}
-              onUpdateLeadStatus={handleUpdateLeadStatus}
-              isLoading={isLoading}
-            />
-          </CardContent>
-        </Card>
+        <KanbanBoard
+          leads={filteredLeads}
+          statuses={statusesData?.results || []}
+          onViewLead={handleViewLead}
+          onCallLead={handleCallLead}
+          onWhatsAppLead={handleWhatsAppLead}
+          onCreateLead={handleCreateLead}
+          onEditStatus={handleEditStatus}
+          onDeleteStatus={handleDeleteStatus}
+          onCreateStatus={handleCreateStatus}
+          onMoveStatus={handleMoveStatus}
+          onUpdateLeadStatus={handleUpdateLeadStatus}
+          isLoading={isLoading}
+        />
       )}
 
       <LeadsFormDrawer

@@ -233,55 +233,68 @@ export function SchedulingDashboard({
   return (
     <div className={className}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Message Scheduling</h1>
-          <p className="text-muted-foreground">
-            Schedule and manage WhatsApp messages and reminders
-          </p>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-base font-semibold">Scheduling</h1>
+          {queueStats && (
+            <span className="text-xs text-muted-foreground">{queueStats.total} total</span>
+          )}
         </div>
-        <Button variant="outline" onClick={handleRefresh} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefresh} disabled={loading}>
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
 
-      {/* Stats Overview */}
-      <div className="space-y-4 mb-6">
-        <QueueStatsDisplay stats={queueStats} loading={loading && !queueStats} />
-        <div className="grid gap-4 md:grid-cols-2">
-          <HealthStatusDisplay health={healthStatus} loading={loading && !healthStatus} />
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {loading && !queueStats ? (
-                <Skeleton className="h-8 w-20" />
-              ) : (
-                <div className="text-2xl font-bold">{queueStats?.total ?? 0}</div>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">All time messages processed</p>
-            </CardContent>
-          </Card>
+      {/* Inline Stats */}
+      <div className="flex items-center gap-4 mb-3">
+        <div className="flex items-center gap-1.5">
+          <Clock className="h-3 w-3 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Scheduled</span>
+          <span className="text-xs font-semibold">{queueStats?.scheduled ?? 0}</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <CheckCircle className="h-3 w-3 text-green-500" />
+          <span className="text-xs text-muted-foreground">Sent</span>
+          <span className="text-xs font-semibold">{queueStats?.sent ?? 0}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <XCircle className="h-3 w-3 text-red-500" />
+          <span className="text-xs text-muted-foreground">Failed</span>
+          <span className="text-xs font-semibold">{queueStats?.failed ?? 0}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Ban className="h-3 w-3 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Cancelled</span>
+          <span className="text-xs font-semibold">{queueStats?.cancelled ?? 0}</span>
+        </div>
+        {healthStatus && (
+          <div className="flex items-center gap-1.5 ml-auto">
+            {healthStatus.status === 'healthy' ? (
+              <CheckCircle className="h-3 w-3 text-green-500" />
+            ) : healthStatus.status === 'degraded' ? (
+              <AlertTriangle className="h-3 w-3 text-yellow-500" />
+            ) : (
+              <XCircle className="h-3 w-3 text-red-500" />
+            )}
+            <span className="text-xs text-muted-foreground capitalize">{healthStatus.status}</span>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue={defaultTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="messages" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
+      <Tabs defaultValue={defaultTab} className="space-y-3">
+        <TabsList className="h-8">
+          <TabsTrigger value="messages" className="text-xs h-6 px-2.5 gap-1.5">
+            <MessageSquare className="h-3 w-3" />
             Messages
           </TabsTrigger>
-          <TabsTrigger value="events" className="gap-2">
-            <Calendar className="h-4 w-4" />
+          <TabsTrigger value="events" className="text-xs h-6 px-2.5 gap-1.5">
+            <Calendar className="h-3 w-3" />
             Events
           </TabsTrigger>
-          <TabsTrigger value="configs" className="gap-2">
-            <Settings className="h-4 w-4" />
-            Configurations
+          <TabsTrigger value="configs" className="text-xs h-6 px-2.5 gap-1.5">
+            <Settings className="h-3 w-3" />
+            Configs
           </TabsTrigger>
         </TabsList>
 

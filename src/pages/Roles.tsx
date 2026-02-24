@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useRoles } from '@/hooks/useRoles';
 import { useAuth } from '@/hooks/useAuth';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -13,8 +13,6 @@ import {
   Plus,
   Search,
   Shield,
-  ShieldCheck,
-  ShieldX,
   Users
 } from 'lucide-react';
 import { RoleListParams, Role } from '@/types/user.types';
@@ -207,175 +205,110 @@ export const Roles: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-8xl mx-auto space-y-6">
+    <div className="p-4 space-y-3">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Roles</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Manage roles and permissions
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h1 className="text-base font-semibold">Roles</h1>
+          <span className="text-xs text-muted-foreground">{totalCount} total</span>
+          {rolesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
         </div>
-        <Button onClick={handleCreate} size="default" className="w-full sm:w-auto">
-          <Plus className="h-4 w-4 mr-2" />
+        <Button onClick={handleCreate} size="sm" className="h-7 text-xs">
+          <Plus className="h-3 w-3 mr-1" />
           Add Role
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Shield className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Total Roles</p>
-                <p className="text-xl sm:text-2xl font-bold">{totalCount}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <ShieldCheck className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Active</p>
-                <p className="text-xl sm:text-2xl font-bold">
-                  {roles.filter((r) => r.is_active).length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <ShieldX className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Inactive</p>
-                <p className="text-xl sm:text-2xl font-bold">
-                  {roles.filter((r) => !r.is_active).length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Search & Filters */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search roles by name, description..."
+            value={searchTerm}
+            onChange={handleSearch}
+            className="pl-10"
+          />
+        </div>
+        <Button
+          variant={activeFilter === '' ? 'default' : 'outline'}
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => handleActiveFilter('')}
+        >
+          All
+        </Button>
+        <Button
+          variant={activeFilter === true ? 'default' : 'outline'}
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => handleActiveFilter(true)}
+        >
+          Active
+        </Button>
+        <Button
+          variant={activeFilter === false ? 'default' : 'outline'}
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => handleActiveFilter(false)}
+        >
+          Inactive
+        </Button>
       </div>
 
-      {/* Filters & Search */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            {/* Search */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search roles by name, description..."
-                value={searchTerm}
-                onChange={handleSearch}
-                className="pl-10"
-              />
-            </div>
-
-            {/* Status Filter */}
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant={activeFilter === '' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleActiveFilter('')}
-              >
-                All
-              </Button>
-              <Button
-                variant={activeFilter === true ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleActiveFilter(true)}
-              >
-                Active
-              </Button>
-              <Button
-                variant={activeFilter === false ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleActiveFilter(false)}
-              >
-                Inactive
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Roles Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Roles List</CardTitle>
-            {rolesLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+      <div className="border rounded-lg overflow-hidden">
+        {rolesError ? (
+          <div className="p-8 text-center">
+            <p className="text-destructive">{rolesError.message}</p>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {rolesError ? (
-            <div className="p-8 text-center">
-              <p className="text-destructive">{rolesError.message}</p>
-            </div>
-          ) : (
-            <>
-              <DataTable
-                rows={roles}
-                isLoading={rolesLoading}
-                columns={columns}
-                renderMobileCard={renderMobileCard}
-                getRowId={(role) => role.id}
-                getRowLabel={(role) => role.name}
-                onView={handleView}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                emptyTitle="No roles found"
-                emptySubtitle="Try adjusting your search or filters, or add a new role"
-              />
+        ) : (
+          <>
+            <DataTable
+              rows={roles}
+              isLoading={rolesLoading}
+              columns={columns}
+              renderMobileCard={renderMobileCard}
+              getRowId={(role) => role.id}
+              getRowLabel={(role) => role.name}
+              onView={handleView}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              emptyTitle="No roles found"
+              emptySubtitle="Try adjusting your search or filters, or add a new role"
+            />
 
-              {/* Pagination */}
-              {!rolesLoading && roles.length > 0 && (
-                <div className="flex items-center justify-between px-6 py-4 border-t">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {roles.length} of {totalCount} role(s)
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!hasPrevious}
-                      onClick={() => setCurrentPage((p) => p - 1)}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!hasNext}
-                      onClick={() => setCurrentPage((p) => p + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
+            {/* Pagination */}
+            {!rolesLoading && roles.length > 0 && (
+              <div className="flex items-center justify-between px-4 py-2 border-t bg-muted/30">
+                <p className="text-xs text-muted-foreground">
+                  Showing {roles.length} of {totalCount} role(s)
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs"
+                    disabled={!hasPrevious}
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs"
+                    disabled={!hasNext}
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                  >
+                    Next
+                  </Button>
                 </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Drawer */}
       <RolesFormDrawer

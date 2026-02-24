@@ -1,6 +1,6 @@
 // src/pages/Campaigns.tsx
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, RefreshCw, Phone, Send, AlertTriangle, Calendar, Clock, Users, FileText, ChevronRight, ChevronLeft, Search, X, CheckCircle, XCircle, Megaphone } from 'lucide-react';
+import { Plus, RefreshCw, Phone, Send, AlertTriangle, Calendar, Clock, Users, FileText, ChevronRight, ChevronLeft, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,7 +13,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Card, CardContent } from '@/components/ui/card';
 import { useIsMobile } from '@/hooks/use-is-mobile';
 import { toast } from 'sonner';
 
@@ -813,11 +812,6 @@ export default function Campaigns() {
     }
   };
 
-  // Calculate stats
-  const totalSent = campaigns.reduce((sum, c) => sum + (c.sent_count ?? 0), 0);
-  const totalFailed = campaigns.reduce((sum, c) => sum + (c.failed_count ?? 0), 0);
-  const totalRecipients = campaigns.reduce((sum, c) => sum + (c.total_recipients ?? 0), 0);
-
   // Loading state
   if (isLoading && campaigns.length === 0) {
     return (
@@ -847,113 +841,50 @@ export default function Campaigns() {
   }
 
   return (
-    <div className="p-6 max-w-8xl mx-auto space-y-6">
+    <div className="p-4 space-y-3">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">WhatsApp Campaigns</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Manage your WhatsApp broadcast campaigns
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h1 className="text-base font-semibold">Campaigns</h1>
+          <span className="text-xs text-muted-foreground">{total} total</span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1">
           <Button
             onClick={handleRefresh}
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
             disabled={isLoading}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
-          <Button onClick={openCreate} size="default" className="w-full sm:w-auto">
-            <Plus className="h-4 w-4 mr-2" />
+          <Button onClick={openCreate} size="sm" className="h-7 text-xs">
+            <Plus className="h-3.5 w-3.5 mr-1" />
             New Campaign
           </Button>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Megaphone className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Total Campaigns</p>
-                <p className="text-xl sm:text-2xl font-bold">{total}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Users className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Total Recipients</p>
-                <p className="text-xl sm:text-2xl font-bold">{totalRecipients}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Sent</p>
-                <p className="text-xl sm:text-2xl font-bold">{totalSent}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 rounded-lg">
-                <XCircle className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Failed</p>
-                <p className="text-xl sm:text-2xl font-bold">{totalFailed}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Error banner */}
       {error && (
-        <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 text-destructive px-4 py-3 text-sm">
-          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+        <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 text-destructive px-3 py-2 text-xs">
+          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Table Card */}
-      <Card>
-        <CardContent className="p-0">
-          <CampaignsTable campaigns={campaigns} isLoading={isLoading} onView={onView} />
+      {/* Table */}
+      <div className="border rounded-lg overflow-hidden">
+        <CampaignsTable campaigns={campaigns} isLoading={isLoading} onView={onView} />
 
-          {!isLoading && total > 0 && (
-            <div className="flex items-center justify-between px-6 py-4 border-t">
-              <p className="text-sm text-muted-foreground">
-                Showing {campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {!isLoading && total > 0 && (
+          <div className="flex items-center justify-between px-4 py-2 border-t bg-muted/30">
+            <p className="text-xs text-muted-foreground">
+              {campaigns.length} of {total}
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Create Campaign Drawer with Steps */}
       <SideDrawer

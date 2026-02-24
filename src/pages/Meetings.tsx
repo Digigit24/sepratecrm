@@ -34,10 +34,6 @@ export const Meetings: React.FC = () => {
   const [timeFilter, setTimeFilter] = useState<'all' | 'upcoming' | 'past' | 'today'>('all');
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Debug logging
-  console.log('Meetings component rendering...');
-  console.log('CRM Access:', hasCRMAccess);
-
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedMeetingId, setSelectedMeetingId] = useState<number | null>(null);
@@ -86,9 +82,6 @@ export const Meetings: React.FC = () => {
   const hasNext = !!meetingsData?.next;
   const hasPrevious = !!meetingsData?.previous;
 
-  // Debug logging
-  console.log('Meetings data:', { meetings, totalCount, isLoading: meetingsLoading, error: meetingsError });
-
   // Calculate statistics
   const upcomingCount = meetings.filter(m => isFuture(new Date(m.start_at))).length;
   const todayCount = meetings.filter(m => isToday(new Date(m.start_at))).length;
@@ -128,7 +121,7 @@ export const Meetings: React.FC = () => {
       await deleteMeeting(meeting.id);
       mutateMeetings();
     } catch (error: any) {
-      console.error('Delete failed:', error);
+      // Delete failed
     }
   };
 
@@ -303,192 +296,120 @@ export const Meetings: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-8xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Meetings</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Manage and schedule meetings
-          </p>
+    <div className="p-4 space-y-3">
+      {/* Header with inline search and filters */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h1 className="text-base font-semibold">Meetings</h1>
+          <span className="text-xs text-muted-foreground">{totalCount} total</span>
         </div>
-        <Button onClick={handleCreate} size="default" className="w-full sm:w-auto">
-          <Plus className="h-4 w-4 mr-2" />
+        <Button onClick={handleCreate} size="sm" className="h-7 text-xs">
+          <Plus className="h-3.5 w-3.5 mr-1" />
           New Meeting
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Calendar className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Total</p>
-                <p className="text-xl sm:text-2xl font-bold">{totalCount}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <CalendarClock className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Upcoming</p>
-                <p className="text-xl sm:text-2xl font-bold">{upcomingCount}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <CalendarCheck className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Today</p>
-                <p className="text-xl sm:text-2xl font-bold">{todayCount}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <Clock className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Past</p>
-                <p className="text-xl sm:text-2xl font-bold">{pastCount}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Search & Filter Bar */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search meetings..."
+            value={searchTerm}
+            onChange={handleSearch}
+            className="pl-8 h-7 text-xs"
+          />
+        </div>
+        <div className="flex gap-1">
+          <Button
+            variant={timeFilter === 'all' ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => handleTimeFilter('all')}
+          >
+            All
+          </Button>
+          <Button
+            variant={timeFilter === 'upcoming' ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => handleTimeFilter('upcoming')}
+          >
+            Upcoming
+          </Button>
+          <Button
+            variant={timeFilter === 'today' ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => handleTimeFilter('today')}
+          >
+            Today
+          </Button>
+          <Button
+            variant={timeFilter === 'past' ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => handleTimeFilter('past')}
+          >
+            Past
+          </Button>
+        </div>
+        {meetingsLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       </div>
 
-      {/* Filters & Search */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            {/* Search */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by title, location, or description..."
-                value={searchTerm}
-                onChange={handleSearch}
-                className="pl-10"
-              />
-            </div>
-
-            {/* Time Filter */}
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant={timeFilter === 'all' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleTimeFilter('all')}
-              >
-                All
-              </Button>
-              <Button
-                variant={timeFilter === 'upcoming' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleTimeFilter('upcoming')}
-              >
-                Upcoming
-              </Button>
-              <Button
-                variant={timeFilter === 'today' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleTimeFilter('today')}
-              >
-                Today
-              </Button>
-              <Button
-                variant={timeFilter === 'past' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleTimeFilter('past')}
-              >
-                Past
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Meetings Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Meetings List</CardTitle>
-            {meetingsLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+      <div className="border rounded-lg overflow-hidden">
+        {meetingsError ? (
+          <div className="p-8 text-center">
+            <p className="text-destructive">{meetingsError.message}</p>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {meetingsError ? (
-            <div className="p-8 text-center">
-              <p className="text-destructive">{meetingsError.message}</p>
-            </div>
-          ) : (
-            <>
-              <DataTable
-                rows={meetings}
-                isLoading={meetingsLoading}
-                columns={columns}
-                renderMobileCard={renderMobileCard}
-                getRowId={(meeting) => meeting.id}
-                getRowLabel={(meeting) => meeting.title}
-                onView={handleView}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                emptyTitle="No meetings found"
-                emptySubtitle="Try adjusting your search or filters, or create a new meeting"
-              />
+        ) : (
+          <>
+            <DataTable
+              rows={meetings}
+              isLoading={meetingsLoading}
+              columns={columns}
+              renderMobileCard={renderMobileCard}
+              getRowId={(meeting) => meeting.id}
+              getRowLabel={(meeting) => meeting.title}
+              onView={handleView}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              emptyTitle="No meetings found"
+              emptySubtitle="Try adjusting your search or filters, or create a new meeting"
+            />
 
-              {/* Pagination */}
-              {!meetingsLoading && meetings.length > 0 && (
-                <div className="flex items-center justify-between px-6 py-4 border-t">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {meetings.length} of {totalCount} meeting(s)
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!hasPrevious}
-                      onClick={() => setCurrentPage((p) => p - 1)}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!hasNext}
-                      onClick={() => setCurrentPage((p) => p + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
+            {/* Pagination */}
+            {!meetingsLoading && meetings.length > 0 && (
+              <div className="flex items-center justify-between px-4 py-2 border-t bg-muted/30">
+                <p className="text-xs text-muted-foreground">
+                  {meetings.length} of {totalCount}
+                </p>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs"
+                    disabled={!hasPrevious}
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs"
+                    disabled={!hasNext}
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                  >
+                    Next
+                  </Button>
                 </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Drawer */}
       <MeetingsFormDrawer
