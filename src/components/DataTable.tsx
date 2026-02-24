@@ -691,9 +691,9 @@ export function DataTable<T>({
                           </Button>
                         )}
 
-                        {/* Inline action icons (visible on row hover) */}
+                        {/* Inline action icons (always visible) */}
                         {renderInlineActions && (
-                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-0.5">
                             {renderInlineActions(row)}
                           </div>
                         )}

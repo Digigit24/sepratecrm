@@ -294,9 +294,9 @@ export function UniversalSidebar({
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo Area */}
-      <div className="h-14 flex items-center justify-between px-4 border-b border-border/40">
+      <div className="h-14 flex items-center justify-center px-4 border-b border-border/40 relative">
         {!collapsed && (
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-center flex-1">
             {isTenantLoading ? (
               <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
@@ -336,7 +336,7 @@ export function UniversalSidebar({
         {mobileOpen && setMobileOpen && (
           <button
             onClick={() => setMobileOpen(false)}
-            className="lg:hidden p-1.5 rounded-md hover:bg-accent"
+            className="lg:hidden absolute right-3 p-1.5 rounded-md hover:bg-accent"
           >
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
