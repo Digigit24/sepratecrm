@@ -534,7 +534,7 @@ export function DataTable<T>({
                 >
                   <div className="flex flex-col">
                     {/* Header row with sort and filter */}
-                    <div className="flex items-center gap-1 px-4 py-3 h-10">
+                    <div className="flex items-center gap-1 px-3 py-1.5 h-8">
                       {/* Header content */}
                       {typeof col.header === 'string' ? (
                         <button
@@ -612,7 +612,7 @@ export function DataTable<T>({
               {/* Actions header */}
               {(onView || onEdit || onDelete || onConsultation || onBilling || extraActions) && (
                 <TableHead className="text-right p-0">
-                  <div className="px-4 py-3 h-10 flex items-center justify-end">
+                  <div className="px-3 py-1.5 h-8 flex items-center justify-end">
                     <span className="text-xs font-medium text-muted-foreground">Actions</span>
                   </div>
                 </TableHead>
@@ -648,18 +648,18 @@ export function DataTable<T>({
               return (
                 <TableRow
                   key={id}
-                  className={`group hover:bg-muted/50 transition-colors align-top border-b border-border/50 ${isRowClickable ? 'cursor-pointer' : ''} ${isSelected ? 'bg-muted/70 border-l-4 border-l-primary' : ''}`}
+                  className={`group hover:bg-muted/50 transition-colors border-b border-border/50 ${isRowClickable ? 'cursor-pointer' : ''} ${isSelected ? 'bg-muted/70 border-l-4 border-l-primary' : ''}`}
                   onClick={isRowClickable ? handleRowClick : undefined}
                 >
                   {columns.map((col) => (
-                    <TableCell key={col.key} className={`py-2.5 px-4 text-sm ${col.className || ''}`}>
+                    <TableCell key={col.key} className={`py-1.5 px-3 text-xs ${col.className || ''}`}>
                       {col.cell(row)}
                     </TableCell>
                   ))}
 
                   {(onView || onEdit || onDelete || onConsultation || onBilling || extraActions) && (
                     <TableCell
-                      className="text-right py-2.5 px-4"
+                      className="text-right py-1.5 px-3"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-2">
@@ -704,15 +704,15 @@ export function DataTable<T>({
 
         {/* Pagination controls */}
         {filteredAndSortedRows.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-4 border-t">
+          <div className="flex items-center justify-between px-3 py-2 border-t bg-muted/30">
             {/* Entries per page selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Show</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Show</span>
               <Select
                 value={entriesPerPage.toString()}
                 onValueChange={(value) => setEntriesPerPage(Number(value))}
               >
-                <SelectTrigger className="w-[70px] h-8">
+                <SelectTrigger className="w-[56px] h-6 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -721,15 +721,12 @@ export function DataTable<T>({
                   <SelectItem value="20">20</SelectItem>
                 </SelectContent>
               </Select>
-              <span className="text-sm text-muted-foreground">
-                entries
-              </span>
             </div>
 
             {/* Page info and navigation */}
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedRows.length)} of {filteredAndSortedRows.length} entries
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">
+                {startIndex + 1}-{Math.min(endIndex, filteredAndSortedRows.length)} of {filteredAndSortedRows.length}
               </span>
 
               {totalPages > 1 && (
@@ -834,9 +831,9 @@ function RowDropdown<T>({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
         >
-          <MoreHorizontal className="h-4 w-4" />
+          <MoreHorizontal className="h-3.5 w-3.5" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

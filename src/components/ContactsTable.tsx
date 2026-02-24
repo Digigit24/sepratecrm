@@ -5,7 +5,7 @@ import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Phone, MessageCircle, Building2, User, Tag, Users } from 'lucide-react';
+import { Phone, MessageCircle, Building2, User, Tag, Users, Clock } from 'lucide-react';
 import type { Contact } from '@/types/whatsappTypes';
 
 interface ContactsTableProps {
@@ -22,9 +22,9 @@ interface ContactsTableProps {
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
     month: 'short',
     day: 'numeric',
+    year: '2-digit',
   });
 }
 
@@ -39,38 +39,37 @@ export default function ContactsTable({
   onAddToGroup,
   onAddLabel,
 }: ContactsTableProps) {
-  // Define columns for desktop table
   const columns: DataTableColumn<Contact>[] = [
     {
       header: 'Contact',
       key: 'contact',
       cell: (contact) => (
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
+        <div className="flex items-center gap-2">
+          <Avatar className="h-7 w-7">
             <AvatarImage src={contact.profile_pic_url || undefined} />
-            <AvatarFallback>
+            <AvatarFallback className="text-[10px]">
               {contact.name
                 ? contact.name.charAt(0).toUpperCase()
                 : contact.phone.slice(-2)
               }
             </AvatarFallback>
           </Avatar>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <p className="font-medium text-foreground truncate">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1">
+              <span className="font-medium text-xs truncate max-w-[140px]">
                 {contact.name || 'Unknown'}
-              </p>
+              </span>
               {contact.is_business && (
-                <Building2 className="h-4 w-4 text-blue-600" />
+                <Building2 className="h-3 w-3 text-blue-600 flex-shrink-0" />
               )}
             </div>
-            <p className="text-sm text-muted-foreground font-mono">
+            <p className="text-[11px] text-muted-foreground font-mono leading-none mt-0.5">
               {contact.phone}
             </p>
           </div>
         </div>
       ),
-      className: 'min-w-[200px]',
+      className: 'min-w-[170px]',
       sortable: true,
       accessor: (contact) => contact.name || contact.phone,
     },
@@ -78,20 +77,22 @@ export default function ContactsTable({
       header: 'Labels',
       key: 'labels',
       cell: (contact) => (
-        <div className="flex flex-wrap gap-1 max-w-[200px]">
+        <div className="flex flex-wrap gap-0.5 max-w-[150px]">
           {contact.labels?.length > 0 ? (
-            contact.labels.slice(0, 3).map((label) => (
-              <Badge key={label} variant="secondary" className="text-xs">
-                {label}
-              </Badge>
-            ))
+            <>
+              {contact.labels.slice(0, 2).map((label) => (
+                <Badge key={label} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 leading-none">
+                  {label}
+                </Badge>
+              ))}
+              {contact.labels.length > 2 && (
+                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 leading-none">
+                  +{contact.labels.length - 2}
+                </Badge>
+              )}
+            </>
           ) : (
-            <span className="text-sm text-muted-foreground">No labels</span>
-          )}
-          {contact.labels && contact.labels.length > 3 && (
-            <Badge variant="outline" className="text-xs">
-              +{contact.labels.length - 3}
-            </Badge>
+            <span className="text-[11px] text-muted-foreground">—</span>
           )}
         </div>
       ),
@@ -100,20 +101,22 @@ export default function ContactsTable({
       header: 'Groups',
       key: 'groups',
       cell: (contact) => (
-        <div className="flex flex-wrap gap-1 max-w-[200px]">
+        <div className="flex flex-wrap gap-0.5 max-w-[150px]">
           {contact.groups?.length > 0 ? (
-            contact.groups.slice(0, 2).map((group) => (
-              <Badge key={group} variant="outline" className="text-xs">
-                {group}
-              </Badge>
-            ))
+            <>
+              {contact.groups.slice(0, 2).map((group) => (
+                <Badge key={group} variant="outline" className="text-[10px] px-1.5 py-0 h-4 leading-none">
+                  {group}
+                </Badge>
+              ))}
+              {contact.groups.length > 2 && (
+                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 leading-none">
+                  +{contact.groups.length - 2}
+                </Badge>
+              )}
+            </>
           ) : (
-            <span className="text-sm text-muted-foreground">No groups</span>
-          )}
-          {contact.groups && contact.groups.length > 2 && (
-            <Badge variant="outline" className="text-xs">
-              +{contact.groups.length - 2}
-            </Badge>
+            <span className="text-[11px] text-muted-foreground">—</span>
           )}
         </div>
       ),
@@ -122,13 +125,12 @@ export default function ContactsTable({
       header: 'Status',
       key: 'status',
       cell: (contact) => (
-        <div className="space-y-1">
-          <div className="text-sm">
-            {contact.status || 'No status'}
-          </div>
+        <div>
+          <span className="text-xs">{contact.status || '—'}</span>
           {contact.last_seen && (
-            <div className="text-xs text-muted-foreground">
-              Last seen: {formatDate(contact.last_seen)}
+            <div className="flex items-center gap-1 mt-0.5">
+              <Clock className="h-2.5 w-2.5 text-muted-foreground" />
+              <span className="text-[10px] text-muted-foreground">{formatDate(contact.last_seen)}</span>
             </div>
           )}
         </div>
@@ -138,112 +140,72 @@ export default function ContactsTable({
       header: 'Created',
       key: 'created_at',
       cell: (contact) => (
-        <div className="text-sm text-muted-foreground">
+        <span className="text-[11px] text-muted-foreground">
           {formatDate(contact.created_at)}
-        </div>
+        </span>
       ),
       sortable: true,
       accessor: (contact) => new Date(contact.created_at).getTime(),
     },
   ];
 
-  // Mobile card renderer
   const renderMobileCard = (contact: Contact, actions: RowActions<Contact>) => (
     <>
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <Avatar className="h-12 w-12 flex-shrink-0">
-            <AvatarImage src={contact.profile_pic_url || undefined} />
-            <AvatarFallback>
-              {contact.name
-                ? contact.name.charAt(0).toUpperCase()
-                : contact.phone.slice(-2)
-              }
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h3 className="font-medium text-foreground truncate">
-                {contact.name || 'Unknown'}
-              </h3>
-              {contact.is_business && (
-                <Building2 className="h-4 w-4 text-blue-600 flex-shrink-0" />
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground font-mono">
-              {contact.phone}
-            </p>
+      <div className="flex items-center gap-2">
+        <Avatar className="h-9 w-9 flex-shrink-0">
+          <AvatarImage src={contact.profile_pic_url || undefined} />
+          <AvatarFallback className="text-xs">
+            {contact.name
+              ? contact.name.charAt(0).toUpperCase()
+              : contact.phone.slice(-2)
+            }
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1">
+            <h3 className="font-medium text-sm truncate">{contact.name || 'Unknown'}</h3>
+            {contact.is_business && <Building2 className="h-3 w-3 text-blue-600 flex-shrink-0" />}
           </div>
+          <p className="text-xs text-muted-foreground font-mono">{contact.phone}</p>
         </div>
       </div>
 
-      {/* Labels */}
-      {contact.labels && contact.labels.length > 0 && (
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">Labels</p>
-          <div className="flex flex-wrap gap-1">
-            {contact.labels.map((label) => (
-              <Badge key={label} variant="secondary" className="text-xs">
-                {label}
-              </Badge>
-            ))}
-          </div>
+      {(contact.labels?.length > 0 || contact.groups?.length > 0) && (
+        <div className="flex flex-wrap gap-1">
+          {contact.labels?.map((label) => (
+            <Badge key={label} variant="secondary" className="text-[10px] h-4 px-1.5 py-0">
+              {label}
+            </Badge>
+          ))}
+          {contact.groups?.map((group) => (
+            <Badge key={group} variant="outline" className="text-[10px] h-4 px-1.5 py-0">
+              {group}
+            </Badge>
+          ))}
         </div>
       )}
 
-      {/* Groups */}
-      {contact.groups && contact.groups.length > 0 && (
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">Groups</p>
-          <div className="flex flex-wrap gap-1">
-            {contact.groups.map((group) => (
-              <Badge key={group} variant="outline" className="text-xs">
-                {group}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Status & Date */}
-      <div className="flex justify-between items-center text-xs text-muted-foreground">
+      <div className="flex justify-between items-center text-[11px] text-muted-foreground">
         <span>{contact.status || 'No status'}</span>
-        <span>Created: {formatDate(contact.created_at)}</span>
+        <span>{formatDate(contact.created_at)}</span>
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-2 pt-2 border-t">
+      <div className="flex gap-1.5 pt-1.5 border-t">
         {onCall && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onCall(contact)}
-            className="flex-1"
-          >
-            <Phone className="h-4 w-4 mr-1" />
+          <Button variant="outline" size="sm" onClick={() => onCall(contact)} className="flex-1 h-7 text-xs">
+            <Phone className="h-3 w-3 mr-1" />
             Call
           </Button>
         )}
         {onMessage && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onMessage(contact)}
-            className="flex-1"
-          >
-            <MessageCircle className="h-4 w-4 mr-1" />
+          <Button variant="outline" size="sm" onClick={() => onMessage(contact)} className="flex-1 h-7 text-xs">
+            <MessageCircle className="h-3 w-3 mr-1" />
             Message
           </Button>
         )}
         {actions.view && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={actions.view}
-            className="flex-1"
-          >
-            <User className="h-4 w-4 mr-1" />
+          <Button variant="outline" size="sm" onClick={actions.view} className="flex-1 h-7 text-xs">
+            <User className="h-3 w-3 mr-1" />
             View
           </Button>
         )}

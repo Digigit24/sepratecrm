@@ -1,6 +1,6 @@
 // src/components/TemplatesTable.tsx
 import React from 'react';
-import { Send, BarChart3, RefreshCcw } from 'lucide-react';
+import { Send, BarChart3, RefreshCcw, Hash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
@@ -33,7 +33,7 @@ export function TemplatesTable({
   const getStatusBadge = (status: TemplateStatus) => {
     const colorClass = templatesService.getStatusColor(status);
     return (
-      <Badge variant="secondary" className={colorClass}>
+      <Badge variant="secondary" className={`${colorClass} text-[10px] px-1.5 py-0 h-4`}>
         {status}
       </Badge>
     );
@@ -42,97 +42,86 @@ export function TemplatesTable({
   const getCategoryBadge = (category: TemplateCategory) => {
     const colorClass = templatesService.getCategoryColor(category);
     return (
-      <Badge variant="outline" className={colorClass}>
+      <Badge variant="outline" className={`${colorClass} text-[10px] px-1.5 py-0 h-4`}>
         {category}
       </Badge>
     );
   };
 
   const getBodyText = (template: Template) => {
-    // Handle components array format (Meta/WhatsApp standard)
     if (template.components && Array.isArray(template.components)) {
       const bodyComponent = template.components.find(c => c.type === 'BODY');
       if (bodyComponent?.text) {
         const text = bodyComponent.text;
-        return text.length > 100 ? `${text.substring(0, 100)}...` : text;
+        return text.length > 60 ? `${text.substring(0, 60)}...` : text;
       }
     }
-
-    // Handle Laravel API format - body might be a direct field
     if (template.body) {
       const text = typeof template.body === 'string' ? template.body : String(template.body);
-      return text.length > 100 ? `${text.substring(0, 100)}...` : text;
+      return text.length > 60 ? `${text.substring(0, 60)}...` : text;
     }
-
-    // Handle content field
     if ((template as any).content) {
       const text = (template as any).content;
-      return text.length > 100 ? `${text.substring(0, 100)}...` : text;
+      return text.length > 60 ? `${text.substring(0, 60)}...` : text;
     }
-
-    return '-';
+    return '';
   };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: '2-digit',
     });
   };
 
   const columns: DataTableColumn<Template>[] = [
     {
       key: 'name',
-      header: 'Template Name',
-      cell: (template: Template) => (
-        <div className="space-y-1">
-          <div className="font-medium">{template.name}</div>
-          <div className="text-sm text-muted-foreground">
-            {template.language} • ID: {template.id}
+      header: 'Template',
+      cell: (template: Template) => {
+        const preview = getBodyText(template);
+        return (
+          <div className="min-w-0">
+            <span className="font-medium text-xs">{template.name}</span>
+            <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
+              {template.language} · {template.id}
+            </p>
+            {preview && (
+              <p className="text-[10px] text-muted-foreground/70 truncate max-w-[200px] mt-0.5">
+                {preview}
+              </p>
+            )}
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'status',
       header: 'Status',
-      cell: (template: Template) => getStatusBadge(template.status),
-    },
-    {
-      key: 'category',
-      header: 'Category',
-      cell: (template: Template) => getCategoryBadge(template.category),
-    },
-    {
-      key: 'content',
-      header: 'Content Preview',
       cell: (template: Template) => (
-        <div className="max-w-xs">
-          <div className="text-sm text-muted-foreground truncate">
-            {getBodyText(template)}
-          </div>
+        <div className="flex flex-wrap gap-0.5">
+          {getStatusBadge(template.status)}
+          {getCategoryBadge(template.category)}
         </div>
       ),
     },
     {
       key: 'usage',
-      header: 'Usage',
+      header: 'Sends',
       cell: (template: Template) => (
-        <div className="text-center">
-          <div className="font-medium">{template.usage_count}</div>
-          <div className="text-xs text-muted-foreground">sends</div>
-        </div>
+        <span className="flex items-center gap-1 text-xs tabular-nums">
+          <Hash className="h-2.5 w-2.5 text-muted-foreground" />
+          {template.usage_count}
+        </span>
       ),
     },
     {
       key: 'quality',
       header: 'Quality',
       cell: (template: Template) => {
-        if (!template.quality_score) return '-';
-        
+        if (!template.quality_score) return <span className="text-[11px] text-muted-foreground">—</span>;
+
         const getQualityColor = (score: string) => {
           switch (score.toLowerCase()) {
             case 'high': return 'bg-green-100 text-green-800';
@@ -141,9 +130,9 @@ export function TemplatesTable({
             default: return 'bg-gray-100 text-gray-800';
           }
         };
-        
+
         return (
-          <Badge variant="secondary" className={getQualityColor(template.quality_score)}>
+          <Badge variant="secondary" className={`${getQualityColor(template.quality_score)} text-[10px] px-1.5 py-0 h-4`}>
             {template.quality_score}
           </Badge>
         );
@@ -153,9 +142,9 @@ export function TemplatesTable({
       key: 'created',
       header: 'Created',
       cell: (template: Template) => (
-        <div className="text-sm text-muted-foreground">
+        <span className="text-[11px] text-muted-foreground">
           {formatDate(template.created_at)}
-        </div>
+        </span>
       ),
     },
   ];
@@ -163,65 +152,52 @@ export function TemplatesTable({
   const renderMobileCard = (template: Template, actions: any) => (
     <>
       <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <div className="font-medium">{template.name}</div>
-          <div className="text-sm text-muted-foreground">
-            {template.language} • ID: {template.id}
+        <div>
+          <div className="font-medium text-sm">{template.name}</div>
+          <div className="text-[11px] text-muted-foreground">
+            {template.language} · {template.id}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           {getStatusBadge(template.status)}
           {getCategoryBadge(template.category)}
         </div>
       </div>
-      
-      <div className="text-sm text-muted-foreground">
-        {getBodyText(template)}
-      </div>
-      
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-4">
+
+      {getBodyText(template) && (
+        <p className="text-xs text-muted-foreground line-clamp-2">
+          {getBodyText(template)}
+        </p>
+      )}
+
+      <div className="flex items-center justify-between text-xs">
+        <div className="flex items-center gap-3">
           <span>{template.usage_count} sends</span>
           {template.quality_score && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-[10px] h-4 px-1.5 py-0">
               {template.quality_score}
             </Badge>
           )}
         </div>
-        <span className="text-muted-foreground">
-          {formatDate(template.created_at)}
-        </span>
+        <span className="text-[11px] text-muted-foreground">{formatDate(template.created_at)}</span>
       </div>
-      
-      <div className="flex gap-2 pt-2">
+
+      <div className="flex gap-1.5 pt-1.5">
         {onSync && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onSync(template)}
-            title="Sync template status with Meta API"
-          >
-            <RefreshCcw className="h-4 w-4 mr-1" />
+          <Button variant="outline" size="sm" onClick={() => onSync(template)} className="h-7 text-xs">
+            <RefreshCcw className="h-3 w-3 mr-1" />
             Sync
           </Button>
         )}
         {template.status === TemplateStatus.APPROVED && onSend && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onSend(template)}
-          >
-            <Send className="h-4 w-4 mr-1" />
+          <Button variant="outline" size="sm" onClick={() => onSend(template)} className="h-7 text-xs">
+            <Send className="h-3 w-3 mr-1" />
             Send
           </Button>
         )}
         {onViewAnalytics && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onViewAnalytics(template)}
-          >
-            <BarChart3 className="h-4 w-4 mr-1" />
+          <Button variant="outline" size="sm" onClick={() => onViewAnalytics(template)} className="h-7 text-xs">
+            <BarChart3 className="h-3 w-3 mr-1" />
             Analytics
           </Button>
         )}
@@ -237,14 +213,12 @@ export function TemplatesTable({
           Sync Status
         </DropdownMenuItem>
       )}
-
       {template.status === TemplateStatus.APPROVED && onSend && (
         <DropdownMenuItem onClick={() => onSend(template)}>
           <Send className="mr-2 h-4 w-4" />
           Send Message
         </DropdownMenuItem>
       )}
-
       {onViewAnalytics && (
         <DropdownMenuItem onClick={() => onViewAnalytics(template)}>
           <BarChart3 className="mr-2 h-4 w-4" />

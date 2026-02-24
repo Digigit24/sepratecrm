@@ -23,213 +23,147 @@ export default function GroupsTable({
   onDelete,
   onRefresh,
 }: GroupsTableProps) {
-  // Define columns for desktop table
   const columns: DataTableColumn<Group>[] = [
     {
       header: 'Group',
       key: 'group',
       cell: (group) => (
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarFallback className="bg-primary/10 text-primary">
+        <div className="flex items-center gap-2">
+          <Avatar className="h-7 w-7">
+            <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
               {group.name.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <p className="font-medium text-foreground truncate">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1">
+              <span className="font-medium text-xs truncate max-w-[160px]">
                 {group.name}
-              </p>
+              </span>
               {!group.is_active && (
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-[10px] px-1 py-0 h-3.5">
                   Inactive
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-muted-foreground font-mono">
-              ID: {group.group_id}
+            <p className="text-[10px] text-muted-foreground font-mono leading-none mt-0.5 truncate max-w-[160px]">
+              {group.group_id}
             </p>
-            {group.description && (
-              <p className="text-xs text-muted-foreground truncate max-w-[200px]">
-                {group.description}
-              </p>
-            )}
           </div>
         </div>
       ),
-      className: 'min-w-[250px]',
+      className: 'min-w-[180px]',
     },
     {
-      header: 'Participants',
+      header: 'Members',
       key: 'participants',
       cell: (group) => (
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium">{group.participant_count}</span>
-            <span className="text-sm text-muted-foreground">members</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Crown className="h-4 w-4 text-yellow-600" />
-            <span className="text-sm text-muted-foreground">
-              {group.admins.length} admin{group.admins.length !== 1 ? 's' : ''}
-            </span>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1 text-xs">
+            <Users className="h-3 w-3 text-muted-foreground" />
+            {group.participant_count}
+          </span>
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Crown className="h-3 w-3 text-yellow-600" />
+            {group.admins.length}
+          </span>
         </div>
       ),
     },
     {
-      header: 'Created By',
+      header: 'Created',
       key: 'created_by',
       cell: (group) => (
-        <div className="space-y-1">
-          <div className="text-sm">
-            {group.created_by || 'Unknown'}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {new Date(group.created_at).toLocaleDateString()}
-          </div>
+        <div>
+          <span className="text-xs">{group.created_by || 'Unknown'}</span>
+          <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
+            {new Date(group.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+          </p>
         </div>
       ),
     },
     {
-      header: 'Invite Link',
+      header: 'Link',
       key: 'invite_link',
       cell: (group) => (
-        <div className="flex items-center gap-2">
-          {group.group_invite_link ? (
-            <>
-              <Link2 className="h-4 w-4 text-green-600" />
-              <span className="text-sm text-green-600">Available</span>
-            </>
-          ) : (
-            <>
-              <Link2 className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">None</span>
-            </>
-          )}
-        </div>
+        <Link2
+          className={`h-3.5 w-3.5 ${group.group_invite_link ? 'text-green-600' : 'text-muted-foreground/40'}`}
+        />
       ),
     },
     {
       header: 'Status',
       key: 'status',
       cell: (group) => (
-        <div className="space-y-1">
-          <Badge 
-            variant={group.is_active ? 'default' : 'secondary'}
-            className="text-xs"
-          >
-            {group.is_active ? 'Active' : 'Inactive'}
-          </Badge>
-          <div className="text-xs text-muted-foreground">
-            Updated: {new Date(group.updated_at).toLocaleDateString()}
-          </div>
-        </div>
+        <Badge
+          variant={group.is_active ? 'default' : 'secondary'}
+          className="text-[10px] px-1.5 py-0 h-4"
+        >
+          {group.is_active ? 'Active' : 'Inactive'}
+        </Badge>
       ),
     },
   ];
 
-  // Mobile card renderer
   const renderMobileCard = (group: Group, actions: RowActions<Group>) => (
-    <div className="space-y-3">
-      {/* Header */}
+    <div className="space-y-2">
       <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <Avatar className="h-12 w-12 flex-shrink-0">
-            <AvatarFallback className="bg-primary/10 text-primary">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <Avatar className="h-9 w-9 flex-shrink-0">
+            <AvatarFallback className="bg-primary/10 text-primary text-xs">
               {group.name.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-medium text-foreground truncate">
-                {group.name}
-              </h3>
-              <Badge 
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="font-medium text-sm truncate">{group.name}</h3>
+              <Badge
                 variant={group.is_active ? 'default' : 'secondary'}
-                className="text-xs"
+                className="text-[10px] px-1 py-0 h-4"
               >
                 {group.is_active ? 'Active' : 'Inactive'}
               </Badge>
             </div>
-            <p className="text-sm text-muted-foreground font-mono">
-              ID: {group.group_id}
-            </p>
-            {group.description && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {group.description}
-              </p>
-            )}
+            <p className="text-[11px] text-muted-foreground font-mono">{group.group_id}</p>
           </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">{group.participant_count}</span>
-          <span className="text-muted-foreground">members</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Crown className="h-4 w-4 text-yellow-600" />
-          <span className="font-medium">{group.admins.length}</span>
-          <span className="text-muted-foreground">admin{group.admins.length !== 1 ? 's' : ''}</span>
-        </div>
+      <div className="flex items-center gap-4 text-xs">
+        <span className="flex items-center gap-1">
+          <Users className="h-3 w-3 text-muted-foreground" />
+          <span className="font-medium">{group.participant_count}</span> members
+        </span>
+        <span className="flex items-center gap-1">
+          <Crown className="h-3 w-3 text-yellow-600" />
+          <span className="font-medium">{group.admins.length}</span> admin{group.admins.length !== 1 ? 's' : ''}
+        </span>
+        {group.group_invite_link && (
+          <span className="flex items-center gap-1 text-green-600">
+            <Link2 className="h-3 w-3" /> Link
+          </span>
+        )}
       </div>
 
-      {/* Invite Link */}
-      {group.group_invite_link && (
-        <div className="flex items-center gap-2 text-sm">
-          <Link2 className="h-4 w-4 text-green-600" />
-          <span className="text-green-600">Invite link available</span>
-        </div>
-      )}
-
-      {/* Created Info */}
-      <div className="flex justify-between items-center text-xs text-muted-foreground">
-        <span>Created by: {group.created_by || 'Unknown'}</span>
-        <span>
-          <Calendar className="h-3 w-3 inline mr-1" />
+      <div className="flex justify-between items-center text-[11px] text-muted-foreground">
+        <span>By: {group.created_by || 'Unknown'}</span>
+        <span className="flex items-center gap-1">
+          <Calendar className="h-2.5 w-2.5" />
           {new Date(group.created_at).toLocaleDateString()}
         </span>
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-2 pt-2 border-t">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            // Navigate to group chat
-            console.log('Open group chat:', group.group_id);
-          }}
-          className="flex-1"
-        >
-          <MessageCircle className="h-4 w-4 mr-1" />
+      <div className="flex gap-1.5 pt-1.5 border-t">
+        <Button variant="outline" size="sm" onClick={() => console.log('Open group chat:', group.group_id)} className="flex-1 h-7 text-xs">
+          <MessageCircle className="h-3 w-3 mr-1" />
           Message
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            // Manage participants
-            console.log('Manage participants:', group.group_id);
-          }}
-          className="flex-1"
-        >
-          <UserPlus className="h-4 w-4 mr-1" />
+        <Button variant="outline" size="sm" onClick={() => console.log('Manage participants:', group.group_id)} className="flex-1 h-7 text-xs">
+          <UserPlus className="h-3 w-3 mr-1" />
           Manage
         </Button>
         {actions.view && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={actions.view}
-            className="flex-1"
-          >
-            <Users className="h-4 w-4 mr-1" />
+          <Button variant="outline" size="sm" onClick={actions.view} className="flex-1 h-7 text-xs">
+            <Users className="h-3 w-3 mr-1" />
             View
           </Button>
         )}
