@@ -836,13 +836,14 @@ function RowDropdown<T>({
   rowActions: RowActions<T>;
   extraActions?: (row: T) => React.ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+          className={`h-6 w-6 transition-opacity ${open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
         >
           <MoreHorizontal className="h-3.5 w-3.5" />
         </Button>
