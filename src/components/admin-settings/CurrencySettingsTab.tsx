@@ -1,6 +1,6 @@
 // src/components/admin-settings/CurrencySettingsTab.tsx
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { IndianRupee } from 'lucide-react';
+import { IndianRupee, Eye } from 'lucide-react';
 
 interface CurrencySettings {
   currency_code: string;
@@ -76,22 +76,18 @@ export const CurrencySettingsTab: React.FC<CurrencySettingsTabProps> = ({
   onCurrencySymbolPositionChange,
   onCurrencyUseIndianNumberingChange,
 }) => {
-  // Handle predefined currency selection
   const handleCurrencySelect = (code: string) => {
     const currency = CURRENCY_OPTIONS.find(c => c.code === code);
     if (currency) {
       onCurrencyCodeChange(currency.code);
       onCurrencySymbolChange(currency.symbol);
       onCurrencyNameChange(currency.name);
-
-      // Set default formatting for Indian Rupee
       if (currency.code === 'INR') {
         onCurrencyUseIndianNumberingChange(true);
       }
     }
   };
 
-  // Format preview amount
   const formatPreview = () => {
     const amount = 123456.78;
     let formatted = amount.toFixed(currencyDecimals);
@@ -100,7 +96,6 @@ export const CurrencySettingsTab: React.FC<CurrencySettingsTabProps> = ({
     let formattedInteger = '';
 
     if (currencyUseIndianNumbering && currencyCode === 'INR') {
-      // Indian numbering system: last 3 digits, then groups of 2
       const length = integerPart.length;
       if (length <= 3) {
         formattedInteger = integerPart;
@@ -110,7 +105,6 @@ export const CurrencySettingsTab: React.FC<CurrencySettingsTabProps> = ({
         formattedInteger = remaining.replace(/\B(?=(\d{2})+(?!\d))/g, currencyThousandSeparator) + currencyThousandSeparator + lastThree;
       }
     } else {
-      // Standard numbering: groups of 3
       formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, currencyThousandSeparator);
     }
 
@@ -124,28 +118,26 @@ export const CurrencySettingsTab: React.FC<CurrencySettingsTabProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <IndianRupee className="h-5 w-5" />
-            <CardTitle>Currency Configuration</CardTitle>
+    <div className="space-y-3">
+      {/* Currency Configuration */}
+      <Card className="border-border/60">
+        <CardHeader className="p-3 pb-0">
+          <div className="flex items-center gap-1.5">
+            <IndianRupee className="h-3.5 w-3.5 text-muted-foreground" />
+            <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Currency Configuration</CardTitle>
           </div>
-          <CardDescription>
-            Configure the currency used throughout your application
-          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Quick Currency Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="currency-select">Select Currency</Label>
+        <CardContent className="p-3 pt-2">
+          {/* Quick Selection */}
+          <div className="space-y-1 mb-3">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Quick Select</Label>
             <Select value={currencyCode} onValueChange={handleCurrencySelect}>
-              <SelectTrigger id="currency-select">
+              <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Select a currency" />
               </SelectTrigger>
               <SelectContent>
                 {CURRENCY_OPTIONS.map((currency) => (
-                  <SelectItem key={currency.code} value={currency.code}>
+                  <SelectItem key={currency.code} value={currency.code} className="text-xs">
                     {currency.symbol} {currency.code} - {currency.name}
                   </SelectItem>
                 ))}
@@ -153,153 +145,142 @@ export const CurrencySettingsTab: React.FC<CurrencySettingsTabProps> = ({
             </Select>
           </div>
 
-          {/* Currency Details */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="currency-code">Currency Code</Label>
+          {/* Currency Details - 4 col grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Code</Label>
               <Input
-                id="currency-code"
                 placeholder="INR"
                 value={currencyCode}
                 onChange={(e) => onCurrencyCodeChange(e.target.value)}
+                className="h-8 text-xs font-mono"
               />
-              <p className="text-xs text-muted-foreground">ISO 4217 currency code</p>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="currency-symbol">Currency Symbol</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Symbol</Label>
               <Input
-                id="currency-symbol"
                 placeholder="₹"
                 value={currencySymbol}
                 onChange={(e) => onCurrencySymbolChange(e.target.value)}
+                className="h-8 text-xs"
               />
-              <p className="text-xs text-muted-foreground">Symbol displayed with amounts</p>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="currency-name">Currency Name</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Name</Label>
               <Input
-                id="currency-name"
                 placeholder="Indian Rupee"
                 value={currencyName}
                 onChange={(e) => onCurrencyNameChange(e.target.value)}
+                className="h-8 text-xs"
               />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="currency-decimals">Decimal Places</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Decimals</Label>
               <Select
                 value={currencyDecimals.toString()}
                 onValueChange={(value) => onCurrencyDecimalsChange(parseInt(value))}
               >
-                <SelectTrigger id="currency-decimals">
+                <SelectTrigger className="h-8 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0">0</SelectItem>
-                  <SelectItem value="2">2</SelectItem>
-                  <SelectItem value="3">3</SelectItem>
+                  <SelectItem value="0" className="text-xs">0</SelectItem>
+                  <SelectItem value="2" className="text-xs">2</SelectItem>
+                  <SelectItem value="3" className="text-xs">3</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Formatting Options */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="thousand-separator">Thousand Separator</Label>
-              <Select
-                value={currencyThousandSeparator || "none"}
-                onValueChange={(value) => onCurrencyThousandSeparatorChange(value === "none" ? "" : value)}
-              >
-                <SelectTrigger id="thousand-separator">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value=",">Comma (,)</SelectItem>
-                  <SelectItem value=".">Period (.)</SelectItem>
-                  <SelectItem value=" ">Space ( )</SelectItem>
-                  <SelectItem value="none">None</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="decimal-separator">Decimal Separator</Label>
-              <Select
-                value={currencyDecimalSeparator}
-                onValueChange={onCurrencyDecimalSeparatorChange}
-              >
-                <SelectTrigger id="decimal-separator">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value=".">Period (.)</SelectItem>
-                  <SelectItem value=",">Comma (,)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="symbol-position">Symbol Position</Label>
-              <Select
-                value={currencySymbolPosition}
-                onValueChange={(value) => onCurrencySymbolPositionChange(value as 'before' | 'after')}
-              >
-                <SelectTrigger id="symbol-position">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="before">Before amount ({currencySymbol}100)</SelectItem>
-                  <SelectItem value="after">After amount (100{currencySymbol})</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between space-y-2 pt-6">
-              <div className="space-y-0.5">
-                <Label htmlFor="indian-numbering">Indian Numbering</Label>
-                <p className="text-xs text-muted-foreground">
-                  Use Indian numbering system (1,00,000 instead of 100,000)
-                </p>
+          {/* Formatting Options - 4 col grid */}
+          <div className="border-t border-border/40 mt-3 pt-3">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">Formatting</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Thousand Sep.</Label>
+                <Select
+                  value={currencyThousandSeparator || "none"}
+                  onValueChange={(value) => onCurrencyThousandSeparatorChange(value === "none" ? "" : value)}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="," className="text-xs">Comma (,)</SelectItem>
+                    <SelectItem value="." className="text-xs">Period (.)</SelectItem>
+                    <SelectItem value=" " className="text-xs">Space ( )</SelectItem>
+                    <SelectItem value="none" className="text-xs">None</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <Switch
-                id="indian-numbering"
-                checked={currencyUseIndianNumbering}
-                onCheckedChange={onCurrencyUseIndianNumberingChange}
-              />
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Decimal Sep.</Label>
+                <Select
+                  value={currencyDecimalSeparator}
+                  onValueChange={onCurrencyDecimalSeparatorChange}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="." className="text-xs">Period (.)</SelectItem>
+                    <SelectItem value="," className="text-xs">Comma (,)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Symbol Position</Label>
+                <Select
+                  value={currencySymbolPosition}
+                  onValueChange={(value) => onCurrencySymbolPositionChange(value as 'before' | 'after')}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="before" className="text-xs">Before ({currencySymbol}100)</SelectItem>
+                    <SelectItem value="after" className="text-xs">After (100{currencySymbol})</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between pt-4">
+                <div>
+                  <Label className="text-[10px] text-muted-foreground leading-none">Indian Numbering</Label>
+                  <p className="text-[9px] text-muted-foreground/70 mt-0.5">1,00,000</p>
+                </div>
+                <Switch
+                  checked={currencyUseIndianNumbering}
+                  onCheckedChange={onCurrencyUseIndianNumberingChange}
+                />
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Preview Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Preview</CardTitle>
-          <CardDescription>
-            See how amounts will be displayed with your current settings
-          </CardDescription>
+      <Card className="border-border/60">
+        <CardHeader className="p-3 pb-0">
+          <div className="flex items-center gap-1.5">
+            <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+            <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</CardTitle>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
-              <span className="text-sm text-muted-foreground">Sample Amount (123456.78):</span>
-              <span className="text-2xl font-bold">{formatPreview()}</span>
+        <CardContent className="p-3 pt-2">
+          <div className="flex items-center justify-between p-3 border rounded-md bg-muted/30">
+            <span className="text-[10px] text-muted-foreground">Sample (123456.78):</span>
+            <span className="text-lg font-bold">{formatPreview()}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mt-2 text-xs">
+            <div>
+              <p className="text-[10px] text-muted-foreground">Currency</p>
+              <p className="font-medium">{currencySymbol} {currencyCode}</p>
             </div>
-
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="space-y-1">
-                <p className="text-muted-foreground">Currency:</p>
-                <p className="font-medium">{currencySymbol} {currencyCode}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-muted-foreground">Format:</p>
-                <p className="font-medium">
-                  {currencyUseIndianNumbering ? 'Indian Numbering' : 'Standard Numbering'}
-                </p>
-              </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground">Format</p>
+              <p className="font-medium">
+                {currencyUseIndianNumbering ? 'Indian Numbering' : 'Standard'}
+              </p>
             </div>
           </div>
         </CardContent>
