@@ -142,41 +142,29 @@ export const LeadScoreSlider: React.FC<LeadScoreSliderProps> = ({
     };
   }, [isOpen, handleDragMove, handleDragEnd]);
 
-  const sizeClasses = {
-    sm: 'h-7 w-7 text-xs',
-    md: 'h-9 w-9 text-sm',
-    lg: 'h-12 w-12 text-base',
-  };
-
-  const emojiSizeClasses = {
-    sm: 'text-sm',
-    md: 'text-base',
-    lg: 'text-xl',
+  const getScoreTextColor = (s: number): string => {
+    if (s <= 20) return 'text-slate-500';
+    if (s <= 40) return 'text-blue-500';
+    if (s <= 60) return 'text-yellow-600';
+    if (s <= 80) return 'text-orange-600';
+    return 'text-red-600';
   };
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
+        <button
           className={cn(
-            'relative rounded-full border-2 transition-all hover:scale-105',
-            sizeClasses[size],
-            getScoreColor(score)
+            'text-xs font-medium hover:underline cursor-pointer bg-transparent border-none p-0',
+            getScoreTextColor(score)
           )}
           onClick={(e) => {
             e.stopPropagation();
             setIsOpen(true);
           }}
         >
-          <span className={emojiSizeClasses[size]}>{getScoreEmoji(score)}</span>
-          {score > 0 && (
-            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] text-primary-foreground flex items-center justify-center font-bold">
-              {score}
-            </span>
-          )}
-        </Button>
+          {score > 0 ? score : '-'}
+        </button>
       </PopoverTrigger>
       
       <PopoverContent

@@ -18,13 +18,13 @@ import { FollowupsContent } from '@/components/crm/FollowupsContent';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, RefreshCw, Building2, Phone, Mail, IndianRupee, LayoutGrid, List, Download, Upload, FileSpreadsheet, ChevronDown, MessageCircle, Trash2, FileText, CalendarClock, MoreVertical, Eye, EyeOff } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, isValid } from 'date-fns';
 import type { Lead, LeadsQueryParams, PriorityEnum, LeadStatus } from '@/types/crmTypes';
 import type { RowActions } from '@/components/DataTable';
 import { leadStatusCache } from '@/lib/leadStatusCache';
@@ -669,14 +669,8 @@ export const CRMLeads: React.FC = () => {
         header: 'Name',
         key: 'name',
         cell: (lead) => (
-          <div className="flex flex-col">
-            <span className="font-medium text-foreground">{lead.name}</span>
-            {lead.title && standardFieldsMap.has('title') && (
-              <span className="text-xs text-muted-foreground">{lead.title}</span>
-            )}
-          </div>
+          <span className="font-medium text-sm">{lead.name}</span>
         ),
-        className: 'w-[200px]',
         sortable: true,
         filterable: true,
         accessor: (lead) => lead.name,
@@ -685,16 +679,7 @@ export const CRMLeads: React.FC = () => {
         header: 'Company',
         key: 'company',
         cell: (lead) => (
-          <div className="flex items-center gap-2">
-            {lead.company ? (
-              <>
-                <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-sm">{lead.company}</span>
-              </>
-            ) : (
-              <span className="text-sm text-muted-foreground">-</span>
-            )}
-          </div>
+          <span className="text-sm">{lead.company || '-'}</span>
         ),
         sortable: true,
         filterable: true,
@@ -704,16 +689,10 @@ export const CRMLeads: React.FC = () => {
         header: 'Contact',
         key: 'contact',
         cell: (lead) => (
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-1.5 text-xs">
-              <Phone className="h-3 w-3 text-muted-foreground" />
-              <span>{lead.phone}</span>
-            </div>
+          <div>
+            <div className="text-sm">{lead.phone}</div>
             {lead.email && standardFieldsMap.has('email') && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Mail className="h-3 w-3" />
-                <span className="truncate max-w-[140px]">{lead.email}</span>
-              </div>
+              <div className="text-xs text-muted-foreground truncate max-w-[160px]">{lead.email}</div>
             )}
           </div>
         ),
@@ -761,14 +740,10 @@ export const CRMLeads: React.FC = () => {
         header: 'Value',
         key: 'value',
         cell: (lead) => (
-          <div className="flex items-center gap-1.5">
-            <IndianRupee className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="font-medium">
-              {formatCurrency(lead.value_amount, lead.value_currency)}
-            </span>
-          </div>
+          <span className="text-sm">
+            {formatCurrency(lead.value_amount, lead.value_currency)}
+          </span>
         ),
-        className: 'text-right',
         sortable: true,
         filterable: false,
         accessor: (lead) => parseFloat(lead.value_amount || '0'),
@@ -786,16 +761,15 @@ export const CRMLeads: React.FC = () => {
             />
           </div>
         ),
-        className: 'w-[200px]',
         sortable: false,
         filterable: true,
         accessor: (lead) => lead.notes || '',
       },
       next_follow_up_at: {
-        header: 'Next Follow-up',
+        header: 'Follow-up',
         key: 'next_follow_up_at',
         cell: (lead) => (
-          <div onClick={(e) => e.stopPropagation()} className="w-[140px]">
+          <div onClick={(e) => e.stopPropagation()}>
             <EditableFollowupCell
               dateValue={lead.next_follow_up_at}
               onSave={async (date) => {
@@ -868,16 +842,21 @@ export const CRMLeads: React.FC = () => {
     sortedColumns.unshift(checkboxColumn);
 
     sortedColumns.push({
-      header: 'Last Updated',
+      header: 'Updated',
       key: 'updated',
       cell: (lead) => (
         <span className="text-xs text-muted-foreground">
-          {formatDistanceToNow(new Date(lead.updated_at), { addSuffix: true })}
+          {lead.updated_at && isValid(new Date(lead.updated_at))
+            ? formatDistanceToNow(new Date(lead.updated_at), { addSuffix: true })
+            : '-'}
         </span>
       ),
       sortable: true,
       filterable: false,
-      accessor: (lead) => new Date(lead.updated_at).getTime(),
+      accessor: (lead) => {
+        const d = new Date(lead.updated_at);
+        return isValid(d) ? d.getTime() : 0;
+      },
     });
 
     return sortedColumns;
@@ -988,7 +967,9 @@ export const CRMLeads: React.FC = () => {
 
       <div className="flex items-center justify-between pt-2 border-t">
         <span className="text-xs text-muted-foreground">
-          Updated {formatDistanceToNow(new Date(lead.updated_at), { addSuffix: true })}
+          {lead.updated_at && isValid(new Date(lead.updated_at))
+            ? `Updated ${formatDistanceToNow(new Date(lead.updated_at), { addSuffix: true })}`
+            : ''}
         </span>
         <div className="flex gap-2">
           {actions.edit && (

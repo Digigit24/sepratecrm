@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarIcon, Clock, X, Check } from 'lucide-react';
+import { X, Check } from 'lucide-react';
 import { format, parseISO, isValid, setHours, setMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -111,52 +111,6 @@ export const EditableFollowupCell: React.FC<EditableFollowupCellProps> = ({
     setSelectedTime('');
   }, []);
 
-  const getDisplayValue = () => {
-    if (!dateValue) {
-      return (
-        <span className="text-muted-foreground text-sm flex items-center gap-1">
-          <CalendarIcon className="h-3.5 w-3.5" />
-          Set follow-up
-        </span>
-      );
-    }
-
-    const date = parseISO(dateValue);
-    if (!isValid(date)) {
-      return (
-        <span className="text-muted-foreground text-sm flex items-center gap-1">
-          <CalendarIcon className="h-3.5 w-3.5" />
-          Set follow-up
-        </span>
-      );
-    }
-
-    return (
-      <div className="flex flex-col">
-        <span className="text-sm font-medium">{format(date, 'MMM dd, yyyy')}</span>
-        <span className="text-xs text-muted-foreground flex items-center gap-1">
-          <Clock className="h-3 w-3" />
-          {format(date, 'hh:mm a')}
-        </span>
-      </div>
-    );
-  };
-
-  const getBadgeColor = () => {
-    if (!dateValue) return '';
-    const date = parseISO(dateValue);
-    if (!isValid(date)) return '';
-
-    const now = new Date();
-    if (isValid(date) && date < now && !isSameDay(date, now)) {
-      return 'text-red-600 bg-red-50 hover:bg-red-100 border-red-200';
-    }
-    if (isValid(date) && isSameDay(date, now)) {
-      return 'text-orange-600 bg-orange-50 hover:bg-orange-100 border-orange-200';
-    }
-    return 'text-blue-600 bg-blue-50 hover:bg-blue-100 border-blue-200';
-  };
-
   const isSameDay = (date1: Date, date2: Date) => {
     return (
       date1.getDate() === date2.getDate() &&
@@ -165,24 +119,38 @@ export const EditableFollowupCell: React.FC<EditableFollowupCellProps> = ({
     );
   };
 
+  const getDisplayText = () => {
+    if (!dateValue) return 'Set date';
+    const date = parseISO(dateValue);
+    if (!isValid(date)) return 'Set date';
+    return format(date, 'MMM dd, yyyy');
+  };
+
+  const getTextColor = () => {
+    if (!dateValue) return 'text-muted-foreground';
+    const date = parseISO(dateValue);
+    if (!isValid(date)) return 'text-muted-foreground';
+    const now = new Date();
+    if (date < now && !isSameDay(date, now)) return 'text-red-600';
+    if (isSameDay(date, now)) return 'text-orange-600';
+    return 'text-foreground';
+  };
+
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
+        <button
           className={cn(
-            'w-full justify-start text-left font-normal h-auto py-2 px-3',
-            getBadgeColor(),
-            !dateValue && 'border-dashed'
+            'text-xs hover:underline cursor-pointer bg-transparent border-none p-0',
+            getTextColor()
           )}
           onClick={(e) => {
             e.stopPropagation();
             setIsOpen(true);
           }}
         >
-          {getDisplayValue()}
-        </Button>
+          {getDisplayText()}
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-4" align="start">
         <div className="space-y-4">
