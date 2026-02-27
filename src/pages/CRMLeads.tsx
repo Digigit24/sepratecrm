@@ -1163,6 +1163,11 @@ export const CRMLeads: React.FC = () => {
             onView={handleViewLead}
             onEdit={handleEditLead}
             onDelete={handleDeleteLead}
+            rowClassName={(lead) =>
+              lead.lead_score && lead.lead_score > 0
+                ? 'bg-green-50 dark:bg-green-950/30'
+                : ''
+            }
             renderInlineActions={(lead) => (
               <>
                 <Tooltip>

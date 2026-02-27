@@ -112,6 +112,9 @@ export interface DataTableProps<T> {
   /** optional: inline icon buttons rendered before the 3-dots menu (visible on row hover) */
   renderInlineActions?: (row: T) => React.ReactNode;
 
+  /** optional: return extra className(s) for a row based on its data */
+  rowClassName?: (row: T) => string;
+
   /** empty state text */
   emptyTitle?: string;
   emptySubtitle?: string;
@@ -147,6 +150,7 @@ export function DataTable<T>({
   onBilling,
   extraActions,
   renderInlineActions,
+  rowClassName,
   emptyTitle = 'No records found',
   emptySubtitle = 'Try adjusting your filters or search criteria',
 }: DataTableProps<T>) {
@@ -648,11 +652,12 @@ export function DataTable<T>({
               // Only make row clickable if onRowClick or onView is provided
               const isRowClickable = !!(onRowClick || onView);
               const isSelected = selectedRowId !== undefined && selectedRowId !== null && id === selectedRowId;
+              const extraRowClass = rowClassName ? rowClassName(row) : '';
 
               return (
                 <TableRow
                   key={id}
-                  className={`group hover:bg-muted/50 transition-colors border-b border-border/50 ${isRowClickable ? 'cursor-pointer' : ''} ${isSelected ? 'bg-muted/70 border-l-4 border-l-primary' : ''}`}
+                  className={`group hover:bg-muted/50 transition-colors border-b border-border/50 ${isRowClickable ? 'cursor-pointer' : ''} ${isSelected ? 'bg-muted/70 border-l-4 border-l-primary' : ''} ${extraRowClass}`}
                   onClick={isRowClickable ? handleRowClick : undefined}
                 >
                   {columns.map((col) => (
