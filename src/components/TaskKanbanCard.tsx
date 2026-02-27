@@ -10,7 +10,7 @@ import {
   User,
   Paperclip,
 } from 'lucide-react';
-import { formatDistanceToNow, format, isPast, isToday, isTomorrow, parseISO } from 'date-fns';
+import { formatDistanceToNow, format, isPast, isToday, isTomorrow, parseISO, isValid } from 'date-fns';
 import type { Task, PriorityEnum, TaskStatusEnum } from '@/types/crmTypes';
 
 interface TaskKanbanCardProps {
@@ -40,6 +40,14 @@ export const TaskKanbanCard: React.FC<TaskKanbanCardProps> = ({
 
   const getDueDateBadge = (dueDate: string) => {
     const date = parseISO(dueDate);
+    if (!isValid(date)) {
+      return (
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+          <Calendar className="h-3 w-3" />
+          <span>Invalid date</span>
+        </div>
+      );
+    }
     const isOverdue = isPast(date) && !isToday(date);
 
     if (isOverdue) {
@@ -131,7 +139,9 @@ export const TaskKanbanCard: React.FC<TaskKanbanCardProps> = ({
               </div>
             )}
             <span className="text-[10px] text-muted-foreground">
-              {formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })}
+              {task.updated_at && isValid(new Date(task.updated_at))
+                ? formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })
+                : 'recently'}
             </span>
           </div>
         </div>
