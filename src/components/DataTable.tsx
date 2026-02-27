@@ -118,6 +118,9 @@ export interface DataTableProps<T> {
   /** empty state text */
   emptyTitle?: string;
   emptySubtitle?: string;
+
+  /** callback when entries per page changes - use to sync with API page_size */
+  onPageSizeChange?: (pageSize: number) => void;
 }
 
 // This is just to pass bound handlers down to mobile card
@@ -153,6 +156,7 @@ export function DataTable<T>({
   rowClassName,
   emptyTitle = 'No records found',
   emptySubtitle = 'Try adjusting your filters or search criteria',
+  onPageSizeChange,
 }: DataTableProps<T>) {
   const isMobile = useIsMobile();
 
@@ -726,7 +730,11 @@ export function DataTable<T>({
               <span className="text-xs text-muted-foreground">Show</span>
               <Select
                 value={entriesPerPage.toString()}
-                onValueChange={(value) => setEntriesPerPage(Number(value))}
+                onValueChange={(value) => {
+                  const newSize = Number(value);
+                  setEntriesPerPage(newSize);
+                  onPageSizeChange?.(newSize);
+                }}
               >
                 <SelectTrigger className="w-[64px] h-6 text-xs">
                   <SelectValue />

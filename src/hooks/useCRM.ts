@@ -64,6 +64,7 @@ export const useCRM = () => {
         revalidateOnFocus: false,
         revalidateOnReconnect: true,
         shouldRetryOnError: false,
+        keepPreviousData: true,
         onError: (err) => {
           console.error('Failed to fetch leads:', err);
           setError(err.message || 'Failed to fetch leads');

@@ -43,7 +43,7 @@ export const CRMLeads: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [queryParams, setQueryParams] = useState<LeadsQueryParams>({
     page: 1,
-    page_size: viewMode === 'kanban' ? 1000 : 20,
+    page_size: viewMode === 'kanban' ? 1000 : 50,
     ordering: '-created_at',
   });
 
@@ -424,7 +424,15 @@ export const CRMLeads: React.FC = () => {
     setQueryParams(prev => ({
       ...prev,
       page: 1,
-      page_size: newMode === 'kanban' ? 1000 : 20
+      page_size: newMode === 'kanban' ? 1000 : 50
+    }));
+  }, []);
+
+  const handlePageSizeChange = useCallback((pageSize: number) => {
+    setQueryParams(prev => ({
+      ...prev,
+      page: 1,
+      page_size: pageSize,
     }));
   }, []);
 
@@ -1246,39 +1254,8 @@ export const CRMLeads: React.FC = () => {
             )}
             emptyTitle="No leads found"
             emptySubtitle="Get started by creating your first lead"
+            onPageSizeChange={handlePageSizeChange}
           />
-
-          {!isLoading && leadsData && leadsData.count > 0 && (
-            <div className="flex items-center justify-between px-4 py-2 border-t bg-muted/30">
-              <p className="text-xs text-muted-foreground">
-                {leadsData.results.length} of {leadsData.count}
-              </p>
-              <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs"
-                  disabled={!leadsData.previous}
-                  onClick={() =>
-                    setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) - 1 }))
-                  }
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs"
-                  disabled={!leadsData.next}
-                  onClick={() =>
-                    setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) + 1 }))
-                  }
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       ) : (
         <KanbanBoard
