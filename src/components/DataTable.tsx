@@ -735,8 +735,8 @@ export function DataTable<T>({
             </div>
 
             {/* Page info and navigation */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
                 {startIndex + 1}-{Math.min(endIndex, filteredAndSortedRows.length)} of {filteredAndSortedRows.length}
               </span>
 
