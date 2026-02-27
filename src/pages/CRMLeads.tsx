@@ -692,7 +692,7 @@ export const CRMLeads: React.FC = () => {
           <div>
             <div className="text-sm">{lead.phone}</div>
             {lead.email && standardFieldsMap.has('email') && (
-              <div className="text-xs text-muted-foreground truncate max-w-[160px]">{lead.email}</div>
+              <div className="text-xs text-muted-foreground truncate max-w-[180px]">{lead.email}</div>
             )}
           </div>
         ),
@@ -845,7 +845,7 @@ export const CRMLeads: React.FC = () => {
       header: 'Updated',
       key: 'updated',
       cell: (lead) => (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-sm text-muted-foreground">
           {lead.updated_at && isValid(new Date(lead.updated_at))
             ? formatDistanceToNow(new Date(lead.updated_at), { addSuffix: true })
             : '-'}

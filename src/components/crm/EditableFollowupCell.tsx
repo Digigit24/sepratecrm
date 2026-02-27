@@ -141,7 +141,7 @@ export const EditableFollowupCell: React.FC<EditableFollowupCellProps> = ({
       <PopoverTrigger asChild>
         <button
           className={cn(
-            'text-xs hover:underline cursor-pointer bg-transparent border-none p-0',
+            'text-sm hover:underline cursor-pointer bg-transparent border-none p-0',
             getTextColor()
           )}
           onClick={(e) => {

@@ -81,8 +81,8 @@ export const EditableNotesCell: React.FC<EditableNotesCellProps> = ({
               }
             }}
           >
-            <span className="text-xs text-muted-foreground truncate max-w-[140px]">
-              {truncateText(notes || 'Add notes', 25)}
+            <span className="text-sm text-muted-foreground truncate max-w-[160px]">
+              {truncateText(notes || 'Add notes', 30)}
             </span>
             {isSaving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
           </div>

@@ -538,7 +538,7 @@ export function DataTable<T>({
                 >
                   <div className="flex flex-col">
                     {/* Header row with sort and filter */}
-                    <div className="flex items-center gap-1 px-3 py-1.5 h-8">
+                    <div className="flex items-center gap-1 px-4 py-2 h-10">
                       {/* Header content */}
                       {typeof col.header === 'string' ? (
                         <button
@@ -616,7 +616,7 @@ export function DataTable<T>({
               {/* Actions header */}
               {(onView || onEdit || onDelete || onConsultation || onBilling || extraActions || renderInlineActions) && (
                 <TableHead className="text-right p-0">
-                  <div className="px-3 py-1.5 h-8 flex items-center justify-end">
+                  <div className="px-4 py-2 h-10 flex items-center justify-end">
                     <span className="text-xs font-medium text-muted-foreground">Actions</span>
                   </div>
                 </TableHead>
@@ -656,14 +656,14 @@ export function DataTable<T>({
                   onClick={isRowClickable ? handleRowClick : undefined}
                 >
                   {columns.map((col) => (
-                    <TableCell key={col.key} className={`py-1.5 px-3 text-xs ${col.className || ''}`}>
+                    <TableCell key={col.key} className={`py-2.5 px-4 text-sm ${col.className || ''}`}>
                       {col.cell(row)}
                     </TableCell>
                   ))}
 
                   {(onView || onEdit || onDelete || onConsultation || onBilling || extraActions || renderInlineActions) && (
                     <TableCell
-                      className="text-right py-1.5 px-3"
+                      className="text-right py-2.5 px-4"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-1">
@@ -715,7 +715,7 @@ export function DataTable<T>({
 
         {/* Pagination controls */}
         {filteredAndSortedRows.length > 0 && (
-          <div className="flex items-center justify-between px-3 py-2 border-t bg-muted/30">
+          <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/30">
             {/* Entries per page selector */}
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-muted-foreground">Show</span>

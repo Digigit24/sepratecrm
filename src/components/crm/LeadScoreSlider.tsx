@@ -155,7 +155,7 @@ export const LeadScoreSlider: React.FC<LeadScoreSliderProps> = ({
       <PopoverTrigger asChild>
         <button
           className={cn(
-            'text-xs font-medium hover:underline cursor-pointer bg-transparent border-none p-0',
+            'text-sm font-medium hover:underline cursor-pointer bg-transparent border-none p-0',
             getScoreTextColor(score)
           )}
           onClick={(e) => {
