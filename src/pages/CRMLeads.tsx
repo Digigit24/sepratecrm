@@ -21,7 +21,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, RefreshCw, Building2, Phone, Mail, IndianRupee, LayoutGrid, List, Download, Upload, FileSpreadsheet, ChevronDown, MessageCircle, Trash2, FileText, CalendarClock, MoreVertical, Eye, EyeOff } from 'lucide-react';
+import { Plus, RefreshCw, Building2, Phone, Mail, IndianRupee, LayoutGrid, List, Download, Upload, FileSpreadsheet, ChevronDown, MessageCircle, Trash2, FileText, CalendarClock, MoreVertical, Eye, EyeOff, Target } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { formatDistanceToNow, isValid } from 'date-fns';
@@ -61,6 +62,7 @@ export const CRMLeads: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isBulkUpdatingStatus, setIsBulkUpdatingStatus] = useState(false);
   const [hideDuplicates, setHideDuplicates] = useState(true);
+  const [leadScoreFilter, setLeadScoreFilter] = useState<string>('all');
 
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [selectedLeadForTemplate, setSelectedLeadForTemplate] = useState<Lead | null>(null);
@@ -603,22 +605,37 @@ export const CRMLeads: React.FC = () => {
   const filteredLeads = useMemo(() => {
     if (!leadsData?.results) return [];
 
-    if (!hideDuplicates) {
-      return leadsData.results;
+    let results = leadsData.results;
+
+    // Duplicate filter
+    if (hideDuplicates) {
+      const seenPhones = new Set<string>();
+      results = results.filter((lead) => {
+        if (!lead.phone) return true;
+        const normalizedPhone = lead.phone.replace(/\s+/g, '').toLowerCase();
+        if (seenPhones.has(normalizedPhone)) return false;
+        seenPhones.add(normalizedPhone);
+        return true;
+      });
     }
 
-    const seenPhones = new Set<string>();
-    return leadsData.results.filter((lead) => {
-      if (!lead.phone) return true;
+    // Lead score filter
+    if (leadScoreFilter !== 'all') {
+      results = results.filter((lead) => {
+        const score = lead.lead_score || 0;
+        switch (leadScoreFilter) {
+          case 'no_score': return score === 0;
+          case 'below_25': return score > 0 && score < 25;
+          case '25_to_50': return score >= 25 && score < 50;
+          case '50_to_75': return score >= 50 && score < 75;
+          case '75_above': return score >= 75;
+          default: return true;
+        }
+      });
+    }
 
-      const normalizedPhone = lead.phone.replace(/\s+/g, '').toLowerCase();
-      if (seenPhones.has(normalizedPhone)) {
-        return false;
-      }
-      seenPhones.add(normalizedPhone);
-      return true;
-    });
-  }, [leadsData?.results, hideDuplicates]);
+    return results;
+  }, [leadsData?.results, hideDuplicates, leadScoreFilter]);
 
   const fieldVisibilityMap = useMemo(() => {
     const allFields = configurationsData?.results || [];
@@ -1143,6 +1160,31 @@ export const CRMLeads: React.FC = () => {
             </TabsTrigger>
           </TabsList>
         </Tabs>
+
+        <Select value={leadScoreFilter} onValueChange={setLeadScoreFilter}>
+          <SelectTrigger className="h-8 w-[160px] text-xs">
+            <Target className="h-3 w-3 mr-1.5 text-muted-foreground" />
+            <SelectValue placeholder="Lead Score" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Scores</SelectItem>
+            <SelectItem value="no_score">No Score</SelectItem>
+            <SelectItem value="below_25">Below 25</SelectItem>
+            <SelectItem value="25_to_50">25 - 50</SelectItem>
+            <SelectItem value="50_to_75">50 - 75</SelectItem>
+            <SelectItem value="75_above">75 &amp; Above</SelectItem>
+          </SelectContent>
+        </Select>
+        {leadScoreFilter !== 'all' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLeadScoreFilter('all')}
+            className="h-8 text-xs px-2 text-muted-foreground hover:text-foreground"
+          >
+            Clear
+          </Button>
+        )}
       </div>
 
       {viewMode === 'followups' ? (
