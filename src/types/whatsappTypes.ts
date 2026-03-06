@@ -648,21 +648,59 @@ export interface WhatsAppApiError {
 // ==================== WHATSAPP CAMPAIGNS (Backend-aligned) ====================
 
 /**
- * Backend Campaign item as returned by FastAPI CampaignResponse
- * - list endpoint returns: WACampaign[]
- * - detail endpoint returns: WACampaign
- * - create broadcast endpoint returns: WACampaign
+ * Backend Campaign item as returned by the Laravel WhatsApp API
+ * - list endpoint: GET /campaigns
+ * - detail endpoint: GET /campaigns/{uid}
+ * - status endpoint: GET /campaigns/{uid}/status (adds delivered, read, sent_count, etc.)
  */
 export interface WACampaign {
-  id: number;
-  tenant_id: string;
-  campaign_id: string;
-  campaign_name?: string | null;
-  total_recipients: number;
-  sent_count: number;
-  failed_count: number;
-  results?: CampaignResult[] | null;
+  // Core identity
+  campaign_id: string;        // mapped from _uid
+  campaign_name: string;      // mapped from title
+  template_name?: string;
+  template_language?: string;
+  status: number | string;    // integer status code from list endpoint
+  status_text?: string;       // e.g. "executed", "pending" (from status endpoint)
+  scheduled_at?: string;
   created_at: string;
+  timezone?: string;
+  // Recipients
+  total_recipients: number;   // mapped from total_contacts
+  // Status breakdown (from /status endpoint)
+  queue_pending?: number;
+  queue_failed?: number;
+  queue_processing?: number;
+  queue_expired?: number;
+  executed?: number;
+  delivered?: number;
+  read?: number;
+  sent_count?: number;        // from status.sent
+  failed_count?: number;      // from status.failed
+  // Legacy
+  results?: CampaignResult[] | null;
+}
+
+export interface CampaignMessage {
+  log_uid: string;
+  wamid?: string;
+  contact_uid?: string;
+  contact_name?: string;
+  phone_number: string;
+  status: 'sent' | 'delivered' | 'read' | 'failed';
+  error?: string;
+  messaged_at: string;
+  updated_at: string;
+}
+
+export interface CampaignMessagesResponse {
+  messages: CampaignMessage[];
+  pagination: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    has_more: boolean;
+  };
 }
 
 /** Backend create payload for broadcast campaigns */

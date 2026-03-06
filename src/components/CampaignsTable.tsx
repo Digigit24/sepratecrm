@@ -1,6 +1,6 @@
 // src/components/CampaignsTable.tsx
 import React from 'react';
-import { Archive, ArchiveRestore, BarChart3, Calendar, Send, AlertTriangle, UsersRound } from 'lucide-react';
+import { Archive, ArchiveRestore, BarChart3, Calendar, UsersRound } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/DataTable';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import type { WACampaign } from '@/types/whatsappTypes';
@@ -18,7 +18,8 @@ export interface CampaignsTableProps {
   onViewAnalytics?: (row: WACampaign) => void;
 }
 
-function formatDate(iso: string) {
+function formatDate(iso?: string) {
+  if (!iso) return '—';
   try {
     return new Date(iso).toLocaleDateString('en-US', {
       month: 'short',
@@ -30,16 +31,24 @@ function formatDate(iso: string) {
   }
 }
 
-function successRate(c: WACampaign) {
-  if (!c.total_recipients) return 0;
-  return Math.round(((c.sent_count ?? 0) / c.total_recipients) * 100);
-}
-
-function getSuccessRateColor(rate: number) {
-  if (rate >= 90) return 'bg-green-100 text-green-800';
-  if (rate >= 70) return 'bg-emerald-100 text-emerald-800';
-  if (rate >= 40) return 'bg-yellow-100 text-yellow-800';
-  return 'bg-red-100 text-red-800';
+function getStatusBadge(campaign: WACampaign) {
+  const text = campaign.status_text;
+  if (text) {
+    const lower = text.toLowerCase();
+    if (lower === 'executed') return { label: 'Executed', cls: 'bg-green-100 text-green-800' };
+    if (lower === 'processing') return { label: 'Processing', cls: 'bg-blue-100 text-blue-800' };
+    if (lower === 'pending' || lower === 'scheduled') return { label: text, cls: 'bg-yellow-100 text-yellow-800' };
+    if (lower === 'failed') return { label: 'Failed', cls: 'bg-red-100 text-red-800' };
+    return { label: text, cls: 'bg-gray-100 text-gray-700' };
+  }
+  // Fall back to numeric status
+  switch (Number(campaign.status)) {
+    case 1: return { label: 'Active', cls: 'bg-green-100 text-green-800' };
+    case 2: return { label: 'Processing', cls: 'bg-blue-100 text-blue-800' };
+    case 3: return { label: 'Executed', cls: 'bg-emerald-100 text-emerald-800' };
+    case 4: return { label: 'Failed', cls: 'bg-red-100 text-red-800' };
+    default: return { label: String(campaign.status), cls: 'bg-gray-100 text-gray-700' };
+  }
 }
 
 export function CampaignsTable({
@@ -70,18 +79,49 @@ export function CampaignsTable({
       accessor: (row) => row.campaign_name || '',
     },
     {
-      header: 'Date',
-      key: 'created',
+      header: 'Template',
+      key: 'template',
       cell: (row) => (
-        <span className="text-[11px] text-muted-foreground">
-          {formatDate(row.created_at)}
+        <div className="min-w-0">
+          <span className="text-xs truncate block max-w-[160px]">
+            {row.template_name || '—'}
+          </span>
+          {row.template_language && (
+            <span className="text-[10px] text-muted-foreground">{row.template_language}</span>
+          )}
+        </div>
+      ),
+      sortable: true,
+      accessor: (row) => row.template_name || '',
+    },
+    {
+      header: 'Status',
+      key: 'status',
+      cell: (row) => {
+        const { label, cls } = getStatusBadge(row);
+        return (
+          <Badge variant="secondary" className={cn('text-[10px] px-1.5 py-0 h-4', cls)}>
+            {label}
+          </Badge>
+        );
+      },
+      sortable: true,
+      accessor: (row) => row.status_text || String(row.status),
+    },
+    {
+      header: 'Scheduled',
+      key: 'scheduled',
+      cell: (row) => (
+        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+          <Calendar className="h-3 w-3" />
+          {formatDate(row.scheduled_at)}
         </span>
       ),
       sortable: true,
-      accessor: (row) => new Date(row.created_at).getTime(),
+      accessor: (row) => row.scheduled_at ? new Date(row.scheduled_at).getTime() : 0,
     },
     {
-      header: 'Recipients',
+      header: 'Contacts',
       key: 'total',
       cell: (row) => (
         <span className="flex items-center gap-1 text-xs tabular-nums">
@@ -92,50 +132,10 @@ export function CampaignsTable({
       sortable: true,
       accessor: (row) => row.total_recipients,
     },
-    {
-      header: 'Sent',
-      key: 'sent',
-      cell: (row) => (
-        <span className="flex items-center gap-1 text-xs tabular-nums">
-          <Send className="h-3 w-3 text-green-600" />
-          <span className="text-green-600">{row.sent_count}</span>
-        </span>
-      ),
-      sortable: true,
-      accessor: (row) => row.sent_count ?? 0,
-    },
-    {
-      header: 'Failed',
-      key: 'failed',
-      cell: (row) => (
-        <span className="flex items-center gap-1 text-xs tabular-nums">
-          <AlertTriangle className={cn('h-3 w-3', (row.failed_count ?? 0) > 0 ? 'text-red-500' : 'text-muted-foreground/40')} />
-          <span className={cn((row.failed_count ?? 0) > 0 ? 'text-red-600' : 'text-muted-foreground')}>
-            {row.failed_count ?? 0}
-          </span>
-        </span>
-      ),
-      sortable: true,
-      accessor: (row) => row.failed_count ?? 0,
-    },
-    {
-      header: 'Rate',
-      key: 'success',
-      cell: (row) => {
-        const rate = successRate(row);
-        return (
-          <Badge variant="secondary" className={cn('text-[10px] px-1.5 py-0 h-4 tabular-nums', getSuccessRateColor(rate))}>
-            {rate}%
-          </Badge>
-        );
-      },
-      sortable: true,
-      accessor: (row) => successRate(row),
-    },
   ];
 
-  const renderMobileCard = (row: WACampaign, actions: any) => {
-    const rate = successRate(row);
+  const renderMobileCard = (row: WACampaign, _actions: any) => {
+    const { label, cls } = getStatusBadge(row);
     return (
       <>
         <div className="flex items-start justify-between">
@@ -143,33 +143,26 @@ export function CampaignsTable({
             <div className="font-medium text-sm">{row.campaign_name || '(No name)'}</div>
             <div className="text-[11px] text-muted-foreground font-mono">{row.campaign_id}</div>
           </div>
-          <Badge
-            variant="secondary"
-            className={cn('text-[10px] px-1.5 py-0 h-4 tabular-nums', getSuccessRateColor(rate))}
-          >
-            {rate}%
+          <Badge variant="secondary" className={cn('text-[10px] px-1.5 py-0 h-4', cls)}>
+            {label}
           </Badge>
         </div>
 
-        <div className="text-[11px] text-muted-foreground flex items-center gap-1">
-          <Calendar className="h-2.5 w-2.5" />
-          {formatDate(row.created_at)}
-        </div>
+        {row.template_name && (
+          <div className="text-[11px] text-muted-foreground">
+            Template: <span className="font-medium">{row.template_name}</span>
+            {row.template_language && ` (${row.template_language})`}
+          </div>
+        )}
 
-        <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="grid grid-cols-2 gap-2 text-center">
           <div className="rounded border p-1.5">
-            <div className="text-[9px] uppercase text-muted-foreground">Recipients</div>
+            <div className="text-[9px] uppercase text-muted-foreground">Contacts</div>
             <div className="text-xs font-medium">{row.total_recipients}</div>
           </div>
           <div className="rounded border p-1.5">
-            <div className="text-[9px] uppercase text-muted-foreground">Sent</div>
-            <div className="text-xs font-medium text-green-600">{row.sent_count}</div>
-          </div>
-          <div className="rounded border p-1.5">
-            <div className="text-[9px] uppercase text-muted-foreground">Failed</div>
-            <div className={cn('text-xs font-medium', (row.failed_count ?? 0) > 0 ? 'text-red-600' : '')}>
-              {row.failed_count ?? 0}
-            </div>
+            <div className="text-[9px] uppercase text-muted-foreground">Scheduled</div>
+            <div className="text-xs font-medium">{formatDate(row.scheduled_at)}</div>
           </div>
         </div>
       </>

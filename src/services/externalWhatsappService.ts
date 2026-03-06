@@ -133,13 +133,21 @@ export interface CreateCampaignPayload {
 }
 
 export interface CampaignStatusResponse {
+  _uid?: string;
+  title?: string;
+  status_text?: string;
+  total_contacts?: number;
   total_recipients?: number;
-  sent?: number;
+  queue_pending?: number;
+  queue_failed?: number;
+  queue_processing?: number;
+  queue_expired?: number;
+  executed?: number;
   delivered?: number;
   read?: number;
+  sent?: number;
   failed?: number;
-  pending?: number;
-  status?: string;
+  scheduled_at?: string;
 }
 
 // Contact Types
@@ -390,6 +398,20 @@ class ExternalWhatsappService {
   async unarchiveCampaign(campaignUid: string): Promise<any> {
     const url = buildVendorUrl(`/campaigns/${campaignUid}/unarchive`);
     const response = await externalWhatsappClient.post(url);
+    return handleResponse(response);
+  }
+
+  async getCampaignMessages(
+    campaignUid: string,
+    params?: { status?: 'sent' | 'delivered' | 'read' | 'failed'; page?: number; limit?: number }
+  ): Promise<any> {
+    const queryParams = new URLSearchParams();
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.page) queryParams.append('page', String(params.page));
+    if (params?.limit) queryParams.append('limit', String(params.limit));
+    const qs = queryParams.toString();
+    const url = buildVendorUrl(`/campaigns/${campaignUid}/messages${qs ? '?' + qs : ''}`);
+    const response = await externalWhatsappClient.get(url);
     return handleResponse(response);
   }
 
