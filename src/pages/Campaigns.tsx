@@ -1,6 +1,6 @@
 // src/pages/Campaigns.tsx
-import { useEffect, useMemo, useState } from 'react';
-import { Plus, RefreshCw, Phone, Send, AlertTriangle, Calendar, Clock, Users, FileText, ChevronRight, ChevronLeft, Search, X } from 'lucide-react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { Plus, RefreshCw, Phone, Send, AlertTriangle, Calendar, Clock, Users, FileText, ChevronRight, ChevronLeft, Search, X, MessageSquare, CheckCheck, Eye, XCircle, Hourglass } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,15 +20,10 @@ import { useCampaigns } from '@/hooks/whatsapp/useCampaigns';
 import { useTemplates } from '@/hooks/whatsapp/useTemplates';
 import { useContacts } from '@/hooks/whatsapp/useContacts';
 import { useGroups } from '@/hooks/whatsapp/useGroups';
-import type { WACampaign, Template, TemplateStatus, Contact, Group } from '@/types/whatsappTypes';
+import type { WACampaign, Template, TemplateStatus, CampaignMessage } from '@/types/whatsappTypes';
 import CampaignsTable from '@/components/CampaignsTable';
 import { SideDrawer } from '@/components/SideDrawer';
 
-function rate(c?: WACampaign | null) {
-  if (!c || !c.total_recipients) return 0;
-  const sent = c.sent_count ?? 0;
-  return Math.round((sent / c.total_recipients) * 100);
-}
 
 function formatDate(iso?: string) {
   if (!iso) return '';
@@ -71,7 +66,7 @@ export default function Campaigns() {
     refetch,
     sendTemplateBroadcastBulk,
     getCampaign,
-    stats,
+    getCampaignMessages,
   } = useCampaigns({ autoFetch: true });
 
   // Templates hook - fetch approved templates for campaigns
@@ -102,6 +97,15 @@ export default function Campaigns() {
   const [createOpen, setCreateOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewItem, setViewItem] = useState<WACampaign | null>(null);
+
+  // Message log state
+  const [messages, setMessages] = useState<CampaignMessage[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messagesPagination, setMessagesPagination] = useState<{
+    current_page: number; last_page: number; per_page: number; total: number; has_more: boolean;
+  } | null>(null);
+  const [messagesPage, setMessagesPage] = useState(1);
+  const [messagesStatusFilter, setMessagesStatusFilter] = useState<'all' | 'sent' | 'delivered' | 'read' | 'failed'>('all');
 
   // Multi-step campaign creation
   const [currentStep, setCurrentStep] = useState<CampaignStep>('template');
@@ -149,10 +153,28 @@ export default function Campaigns() {
     setCreateOpen(true);
   };
 
+  const fetchMessages = useCallback(async (campaignId: string, page: number, status: string) => {
+    setMessagesLoading(true);
+    const params: any = { page, limit: 25 };
+    if (status !== 'all') params.status = status;
+    const result = await getCampaignMessages(campaignId, params);
+    if (result) {
+      setMessages(result.messages);
+      setMessagesPagination(result.pagination);
+    }
+    setMessagesLoading(false);
+  }, [getCampaignMessages]);
+
   const onView = async (row: WACampaign) => {
+    setMessages([]);
+    setMessagesPagination(null);
+    setMessagesPage(1);
+    setMessagesStatusFilter('all');
     const fresh = await getCampaign(row.campaign_id);
-    setViewItem(fresh || row);
+    const campaign = fresh || row;
+    setViewItem(campaign);
     setViewOpen(true);
+    fetchMessages(campaign.campaign_id, 1, 'all');
   };
 
   const parseRecipients = (input: string): string[] => {
@@ -293,7 +315,10 @@ export default function Campaigns() {
     }
   };
 
-  const viewStats = useMemo(() => (viewItem ? stats(viewItem) : null), [viewItem, stats]);
+  const deliveredRate = useMemo(() => {
+    if (!viewItem?.total_recipients) return 0;
+    return Math.round(((viewItem.delivered ?? 0) / viewItem.total_recipients) * 100);
+  }, [viewItem]);
 
   // Filter templates by search query
   const filteredTemplates = useMemo(() => {
@@ -1005,87 +1030,249 @@ export default function Campaigns() {
           <div className="text-sm text-muted-foreground">No campaign selected.</div>
         ) : (
           <div className="space-y-6">
-            <div className="grid gap-2">
-              <div className="text-xs text-muted-foreground">Campaign ID</div>
-              <div className="text-sm font-mono break-all">{viewItem.campaign_id}</div>
+            {/* Basic Info */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <span className="text-muted-foreground">Campaign ID</span>
+                <span className="col-span-2 font-mono text-xs break-all">{viewItem.campaign_id}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <span className="text-muted-foreground">Template</span>
+                <span className="col-span-2 font-medium">{viewItem.template_name || '—'}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <span className="text-muted-foreground">Language</span>
+                <span className="col-span-2">{viewItem.template_language || '—'}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <span className="text-muted-foreground">Status</span>
+                <span className="col-span-2">
+                  <Badge variant="secondary" className={
+                    viewItem.status_text?.toLowerCase() === 'executed' ? 'bg-green-100 text-green-800' :
+                    viewItem.status_text?.toLowerCase() === 'processing' ? 'bg-blue-100 text-blue-800' :
+                    viewItem.status_text?.toLowerCase() === 'failed' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-700'
+                  }>
+                    {viewItem.status_text || String(viewItem.status)}
+                  </Badge>
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <span className="text-muted-foreground">Created</span>
+                <span className="col-span-2">{formatDate(viewItem.created_at)}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <span className="text-muted-foreground">Scheduled</span>
+                <span className="col-span-2">{formatDate(viewItem.scheduled_at)}</span>
+              </div>
+              {viewItem.timezone && (
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <span className="text-muted-foreground">Timezone</span>
+                  <span className="col-span-2">{viewItem.timezone}</span>
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <span className="text-muted-foreground">Total Contacts</span>
+                <span className="col-span-2 font-medium">{viewItem.total_recipients}</span>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="rounded border p-3">
-                <div className="text-[10px] uppercase text-muted-foreground">Created</div>
-                <div className="text-xs sm:text-sm font-medium mt-1 break-words">{formatDate(viewItem.created_at)}</div>
-              </div>
-              <div className="rounded border p-3">
-                <div className="text-[10px] uppercase text-muted-foreground">Recipients</div>
-                <div className="text-sm font-medium mt-1">{viewItem.total_recipients}</div>
-              </div>
-              <div className="rounded border p-3">
-                <div className="text-[10px] uppercase text-muted-foreground">Sent</div>
-                <div className="text-sm font-medium mt-1">{viewItem.sent_count}</div>
-              </div>
-              <div className="rounded border p-3">
-                <div className="text-[10px] uppercase text-muted-foreground">Failed</div>
-                <div className={`text-sm font-medium mt-1 ${viewItem.failed_count ? 'text-red-600' : ''}`}>
-                  {viewItem.failed_count}
+            <Separator />
+
+            {/* Delivery Breakdown */}
+            <div className="space-y-3">
+              <div className="text-sm font-semibold">Delivery Breakdown</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="rounded border p-3 text-center">
+                  <Send className="h-4 w-4 mx-auto text-blue-500 mb-1" />
+                  <div className="text-[10px] uppercase text-muted-foreground">Sent</div>
+                  <div className="text-lg font-bold">{viewItem.sent_count ?? '—'}</div>
+                </div>
+                <div className="rounded border p-3 text-center">
+                  <CheckCheck className="h-4 w-4 mx-auto text-green-500 mb-1" />
+                  <div className="text-[10px] uppercase text-muted-foreground">Delivered</div>
+                  <div className="text-lg font-bold">{viewItem.delivered ?? '—'}</div>
+                </div>
+                <div className="rounded border p-3 text-center">
+                  <Eye className="h-4 w-4 mx-auto text-purple-500 mb-1" />
+                  <div className="text-[10px] uppercase text-muted-foreground">Read</div>
+                  <div className="text-lg font-bold">{viewItem.read ?? '—'}</div>
+                </div>
+                <div className="rounded border p-3 text-center">
+                  <XCircle className="h-4 w-4 mx-auto text-red-500 mb-1" />
+                  <div className="text-[10px] uppercase text-muted-foreground">Failed</div>
+                  <div className={`text-lg font-bold ${(viewItem.failed_count ?? 0) > 0 ? 'text-red-600' : ''}`}>
+                    {viewItem.failed_count ?? '—'}
+                  </div>
                 </div>
               </div>
+
+              {/* Queue breakdown */}
+              {(viewItem.queue_pending !== undefined || viewItem.executed !== undefined) && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded border p-2 text-center bg-muted/20">
+                    <div className="text-[10px] uppercase text-muted-foreground">Executed</div>
+                    <div className="text-sm font-semibold">{viewItem.executed ?? '—'}</div>
+                  </div>
+                  <div className="rounded border p-2 text-center bg-muted/20">
+                    <Hourglass className="h-3 w-3 mx-auto text-yellow-500 mb-0.5" />
+                    <div className="text-[10px] uppercase text-muted-foreground">Pending</div>
+                    <div className="text-sm font-semibold">{viewItem.queue_pending ?? '—'}</div>
+                  </div>
+                  <div className="rounded border p-2 text-center bg-muted/20">
+                    <div className="text-[10px] uppercase text-muted-foreground">Processing</div>
+                    <div className="text-sm font-semibold">{viewItem.queue_processing ?? '—'}</div>
+                  </div>
+                  <div className="rounded border p-2 text-center bg-muted/20">
+                    <div className="text-[10px] uppercase text-muted-foreground">Expired</div>
+                    <div className="text-sm font-semibold">{viewItem.queue_expired ?? '—'}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Delivered rate progress */}
+              {viewItem.delivered !== undefined && viewItem.total_recipients > 0 && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Delivered rate</span>
+                    <span className="font-medium">{deliveredRate}%</span>
+                  </div>
+                  <Progress value={deliveredRate} className="h-1.5" />
+                </div>
+              )}
             </div>
 
-            {/* Success Rate */}
-            <div className="space-y-2">
+            <Separator />
+
+            {/* Message Log */}
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-medium">Success Rate</div>
-                <Badge variant="secondary">{rate(viewItem)}%</Badge>
+                <div className="text-sm font-semibold flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Message Log
+                  {messagesPagination && (
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({messagesPagination.total} total)
+                    </span>
+                  )}
+                </div>
+                <Select
+                  value={messagesStatusFilter}
+                  onValueChange={(val: any) => {
+                    setMessagesStatusFilter(val);
+                    setMessagesPage(1);
+                    fetchMessages(viewItem.campaign_id, 1, val);
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-32 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="sent">Sent</SelectItem>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                    <SelectItem value="read">Read</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <Progress value={rate(viewItem)} className="h-2" />
-            </div>
 
-            {/* Results */}
-            {Array.isArray(viewItem.results) && viewItem.results.length > 0 && (
-              <div className="space-y-3">
-                <div className="text-sm font-medium">Delivery Results</div>
+              {messagesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="border rounded-lg p-6 text-center">
+                  <MessageSquare className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">No messages found</p>
+                </div>
+              ) : (
                 <div className="rounded border overflow-hidden">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                       <thead className="bg-muted/50">
                         <tr>
+                          <th className="text-left px-3 py-2 whitespace-nowrap">Contact</th>
                           <th className="text-left px-3 py-2 whitespace-nowrap">Phone</th>
                           <th className="text-left px-3 py-2 whitespace-nowrap">Status</th>
-                          <th className="text-left px-3 py-2 whitespace-nowrap">Message ID</th>
+                          <th className="text-left px-3 py-2 whitespace-nowrap">Sent At</th>
                           <th className="text-left px-3 py-2 whitespace-nowrap">Error</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {viewItem.results.slice(0, 50).map((r: any, idx: number) => (
-                          <tr key={`${r.phone}-${idx}`} className="border-t">
-                            <td className="px-3 py-2 font-mono text-xs">{r.phone}</td>
+                        {messages.map((msg) => (
+                          <tr key={msg.log_uid} className="border-t hover:bg-muted/20">
+                            <td className="px-3 py-2">
+                              <div>{msg.contact_name || '—'}</div>
+                              {msg.contact_uid && (
+                                <div className="text-[10px] text-muted-foreground font-mono">{msg.contact_uid}</div>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 font-mono">{msg.phone_number}</td>
                             <td className="px-3 py-2">
                               <Badge
                                 variant="secondary"
                                 className={
-                                  r.status === 'sent'
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-red-100 text-red-800'
+                                  msg.status === 'read' ? 'bg-purple-100 text-purple-800' :
+                                  msg.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                                  msg.status === 'sent' ? 'bg-blue-100 text-blue-800' :
+                                  'bg-red-100 text-red-800'
                                 }
                               >
-                                {r.status}
+                                {msg.status}
                               </Badge>
                             </td>
-                            <td className="px-3 py-2 font-mono text-xs break-all">{r.message_id || '-'}</td>
-                            <td className="px-3 py-2 text-xs text-red-700 break-words max-w-xs">{r.error || '-'}</td>
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              {msg.messaged_at ? formatDate(msg.messaged_at) : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-red-700 max-w-[160px] break-words">
+                              {msg.error || '—'}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 </div>
-                {viewItem.results.length > 50 && (
-                  <div className="text-xs text-muted-foreground">
-                    Showing first 50 of {viewItem.results.length} results.
+              )}
+
+              {/* Pagination */}
+              {messagesPagination && messagesPagination.last_page > 1 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    Page {messagesPagination.current_page} of {messagesPagination.last_page}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={messagesPage <= 1 || messagesLoading}
+                      onClick={() => {
+                        const p = messagesPage - 1;
+                        setMessagesPage(p);
+                        fetchMessages(viewItem.campaign_id, p, messagesStatusFilter);
+                      }}
+                    >
+                      <ChevronLeft className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={!messagesPagination.has_more || messagesLoading}
+                      onClick={() => {
+                        const p = messagesPage + 1;
+                        setMessagesPage(p);
+                        fetchMessages(viewItem.campaign_id, p, messagesStatusFilter);
+                      }}
+                    >
+                      <ChevronRight className="h-3 w-3" />
+                    </Button>
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </SideDrawer>
