@@ -1,7 +1,7 @@
 // Excel Import/Export Utilities for CRM Leads
 import * as XLSX from 'xlsx';
 import { format, parseISO } from 'date-fns';
-import type { Lead, CreateLeadPayload, PriorityEnum } from '@/types/crmTypes';
+import type { Lead, CreateLeadPayload, PriorityEnum, LeadFieldConfiguration } from '@/types/crmTypes';
 
 // Format date/datetime to standard Excel format
 const formatDateForExcel = (dateString?: string): string => {
@@ -53,40 +53,59 @@ const parseExcelDate = (value: any): string | undefined => {
 };
 
 /**
- * Export leads to Excel file
+ * Export leads to Excel file, including any active custom field configurations.
  */
 export const exportLeadsToExcel = (
   leads: Lead[],
+  customFieldConfigs: LeadFieldConfiguration[] = [],
   filename: string = `leads_export_${format(new Date(), 'yyyy-MM-dd_HHmmss')}.xlsx`
 ) => {
   // Prepare data for Excel
-  const excelData = leads.map((lead) => ({
-    'ID': lead.id,
-    'Name': lead.name || '',
-    'Phone': lead.phone || '',
-    'Email': lead.email || '',
-    'Company': lead.company || '',
-    'Title': lead.title || '',
-    'Priority': lead.priority || '',
-    'Status ID': typeof lead.status === 'number' ? lead.status : lead.status?.id || '',
-    'Status Name': lead.status_name || '',
-    'Value Amount': lead.value_amount || '',
-    'Value Currency': lead.value_currency || '',
-    'Source': lead.source || '',
-    'Owner User ID': lead.owner_user_id || '',
-    'Assigned To': lead.assigned_to || '',
-    'Notes': lead.notes || '',
-    'Address Line 1': lead.address_line1 || '',
-    'Address Line 2': lead.address_line2 || '',
-    'City': lead.city || '',
-    'State': lead.state || '',
-    'Country': lead.country || '',
-    'Postal Code': lead.postal_code || '',
-    'Last Contacted At': formatDateForExcel(lead.last_contacted_at),
-    'Next Follow Up At': formatDateForExcel(lead.next_follow_up_at),
-    'Created At': formatDateForExcel(lead.created_at),
-    'Updated At': formatDateForExcel(lead.updated_at),
-  }));
+  const excelData = leads.map((lead) => {
+    const row: Record<string, any> = {
+      'ID': lead.id,
+      'Name': lead.name || '',
+      'Phone': lead.phone || '',
+      'Email': lead.email || '',
+      'Company': lead.company || '',
+      'Title': lead.title || '',
+      'Priority': lead.priority || '',
+      'Status ID': typeof lead.status === 'number' ? lead.status : lead.status?.id || '',
+      'Status Name': lead.status_name || '',
+      'Value Amount': lead.value_amount || '',
+      'Value Currency': lead.value_currency || '',
+      'Source': lead.source || '',
+      'Owner User ID': lead.owner_user_id || '',
+      'Assigned To': lead.assigned_to || '',
+      'Notes': lead.notes || '',
+      'Address Line 1': lead.address_line1 || '',
+      'Address Line 2': lead.address_line2 || '',
+      'City': lead.city || '',
+      'State': lead.state || '',
+      'Country': lead.country || '',
+      'Postal Code': lead.postal_code || '',
+      'Last Contacted At': formatDateForExcel(lead.last_contacted_at),
+      'Next Follow Up At': formatDateForExcel(lead.next_follow_up_at),
+      'Created At': formatDateForExcel(lead.created_at),
+      'Updated At': formatDateForExcel(lead.updated_at),
+    };
+
+    // Append custom field values from lead.metadata
+    for (const field of customFieldConfigs) {
+      const rawValue = lead.metadata?.[field.field_name];
+      if (rawValue === undefined || rawValue === null) {
+        row[field.field_label] = '';
+      } else if (field.field_type === 'DATE' || field.field_type === 'DATETIME') {
+        row[field.field_label] = formatDateOnlyForExcel(String(rawValue));
+      } else if (Array.isArray(rawValue)) {
+        row[field.field_label] = rawValue.join(', ');
+      } else {
+        row[field.field_label] = rawValue;
+      }
+    }
+
+    return row;
+  });
 
   // Create workbook and worksheet
   const worksheet = XLSX.utils.json_to_sheet(excelData);
@@ -120,6 +139,8 @@ export const exportLeadsToExcel = (
     { wch: 20 }, // Next Follow Up At
     { wch: 20 }, // Created At
     { wch: 20 }, // Updated At
+    // Custom field columns — default width
+    ...customFieldConfigs.map(() => ({ wch: 20 })),
   ];
   worksheet['!cols'] = columnWidths;
 

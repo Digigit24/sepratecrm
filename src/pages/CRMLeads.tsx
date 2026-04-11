@@ -27,6 +27,8 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { toast } from 'sonner';
 import { formatDistanceToNow, isValid } from 'date-fns';
 import type { Lead, LeadsQueryParams, PriorityEnum, LeadStatus } from '@/types/crmTypes';
+import { crmService } from '@/services/crmService';
+import { exportLeadsToExcel } from '@/utils/excelUtils';
 import type { RowActions } from '@/components/DataTable';
 import { leadStatusCache } from '@/lib/leadStatusCache';
 
@@ -436,48 +438,56 @@ export const CRMLeads: React.FC = () => {
     }));
   }, []);
 
-  const handleExportLeads = useCallback(async (format: 'csv' | 'json' = 'csv') => {
+  const handleExportLeads = useCallback(async () => {
     try {
       if (!leadsData || leadsData.count === 0) {
         toast.error('No leads to export');
         return;
       }
 
-      toast.info('Exporting leads...');
+      toast.info('Preparing export...');
 
-      const result = await exportLeads({ format });
+      // Strip pagination params; fetch ALL leads matching current filters
+      const { page: _page, page_size: _pageSize, ordering: _ordering, ...filterParams } = queryParams;
+      const result = await crmService.getLeads({ ...filterParams, page: 1, page_size: 10000 });
 
-      if (format === 'csv' && result instanceof Blob) {
-        const url = window.URL.createObjectURL(result);
-        const link = document.createElement('a');
-        link.href = url;
-        const timestamp = new Date().toISOString().split('T')[0];
-        link.download = `leads_export_${timestamp}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
+      let leads = result.results;
 
-        toast.success(`Exported leads successfully as CSV`);
-      } else if (format === 'json') {
-        const jsonResult = result as any;
-        const blob = new Blob([JSON.stringify(jsonResult, null, 2)], { type: 'application/json' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        const timestamp = new Date().toISOString().split('T')[0];
-        link.download = `leads_export_${timestamp}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-
-        toast.success(`Exported ${jsonResult.count} leads successfully as JSON`);
+      // Apply client-side filters that mirror what the UI shows
+      if (hideDuplicates) {
+        const seenPhones = new Set<string>();
+        leads = leads.filter((lead) => {
+          if (!lead.phone) return true;
+          const normalizedPhone = lead.phone.replace(/\s+/g, '').toLowerCase();
+          if (seenPhones.has(normalizedPhone)) return false;
+          seenPhones.add(normalizedPhone);
+          return true;
+        });
       }
+
+      if (leadScoreFilter !== 'all') {
+        leads = leads.filter((lead) => {
+          const score = lead.lead_score || 0;
+          switch (leadScoreFilter) {
+            case 'no_score': return score === 0;
+            case 'below_25': return score > 0 && score < 25;
+            case '25_to_50': return score >= 25 && score < 50;
+            case '50_to_75': return score >= 50 && score < 75;
+            case '75_above': return score >= 75;
+            default: return true;
+          }
+        });
+      }
+
+      const customFields = (configurationsData?.results || []).filter((f) => !f.is_standard && f.is_active);
+      const timestamp = new Date().toISOString().split('T')[0];
+      exportLeadsToExcel(leads, customFields, `leads_export_${timestamp}.xlsx`);
+
+      toast.success(`Exported ${leads.length} leads successfully`);
     } catch (error: any) {
       toast.error(error.message || 'Failed to export leads');
     }
-  }, [leadsData, exportLeads]);
+  }, [leadsData, queryParams, hideDuplicates, leadScoreFilter, configurationsData]);
 
   const handleImportClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -1120,18 +1130,11 @@ export const CRMLeads: React.FC = () => {
                 Import Leads
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => handleExportLeads('csv')}
+                onClick={() => handleExportLeads()}
                 disabled={!leadsData || leadsData.count === 0}
               >
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Export as CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => handleExportLeads('json')}
-                disabled={!leadsData || leadsData.count === 0}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Export as JSON
+                Export as Excel
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
