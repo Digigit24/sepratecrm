@@ -1,5 +1,6 @@
 // src/hooks/whatsapp/useChat.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
   chatService,
@@ -67,6 +68,79 @@ export function useChatContacts(options: UseChatContactsOptions = {}) {
     isError: query.isError,
     error: query.error,
     refetch: query.refetch,
+  };
+}
+
+// ==================== CONTACTS WITH INFINITE SCROLL ====================
+// Stores accumulated contacts under chatKeys.contacts() so realtime updates
+// (which target the same key prefix) automatically keep data fresh.
+
+export interface UseContactsWithInfiniteScrollOptions {
+  search?: string;
+  limit?: number;
+}
+
+export function useContactsWithInfiniteScroll(options: UseContactsWithInfiniteScrollOptions = {}) {
+  const { search, limit = 50 } = options;
+  const queryClient = useQueryClient();
+
+  // Key includes search so different searches stay separate.
+  // chatKeys.contacts() is a prefix of this key, so realtime setQueriesData hits it.
+  const contactsKey = [...chatKeys.contacts(), { search }] as const;
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Initial page — React Query fetches and caches under contactsKey
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: contactsKey,
+    queryFn: async () => {
+      const result = await chatService.getChatContacts({ page: 1, limit, search });
+      setHasMore(result.contacts.length >= limit);
+      return result;
+    },
+    staleTime: 30000,
+    gcTime: 5 * 60 * 1000,
+  });
+
+  // Reset pagination when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+    setHasMore(true);
+  }, [search]);
+
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore || !hasMore) return;
+    setIsLoadingMore(true);
+    const nextPage = currentPage + 1;
+    try {
+      const result = await chatService.getChatContacts({ page: nextPage, limit, search });
+      // Append new contacts into the same cache entry — realtime updates target this key
+      queryClient.setQueryData<ChatContactsResponse>(contactsKey as unknown as readonly unknown[], (old) => {
+        if (!old) return result;
+        const existingUids = new Set(old.contacts.map((c: ChatContact) => c._uid));
+        const newContacts = result.contacts.filter((c: ChatContact) => !existingUids.has(c._uid));
+        return { ...old, contacts: [...old.contacts, ...newContacts] };
+      });
+      setCurrentPage(nextPage);
+      setHasMore(result.contacts.length >= limit);
+    } catch (err) {
+      console.error('Failed to load more contacts:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [currentPage, hasMore, isLoadingMore, search, limit, queryClient, contactsKey]);
+
+  return {
+    contacts: data?.contacts || [],
+    total: data?.total || 0,
+    isLoading,
+    isError,
+    error,
+    hasMore,
+    isLoadingMore,
+    loadMore,
   };
 }
 
@@ -320,8 +394,9 @@ export function useAssignLabels() {
   return useMutation({
     mutationFn: ({ contactUid, labelUids }: { contactUid: string; labelUids: string[] }) =>
       chatService.assignLabels(contactUid, labelUids),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
+      queryClient.invalidateQueries({ queryKey: chatKeys.chatContext(variables.contactUid) });
       toast.success('Labels updated');
     },
     onError: (error: any) => {
@@ -338,8 +413,9 @@ export function useUpdateNotes() {
   return useMutation({
     mutationFn: ({ contactUid, notes }: { contactUid: string; notes: string }) =>
       chatService.updateNotes(contactUid, notes),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
+      queryClient.invalidateQueries({ queryKey: chatKeys.chatContext(variables.contactUid) });
       toast.success('Notes updated');
     },
     onError: (error: any) => {

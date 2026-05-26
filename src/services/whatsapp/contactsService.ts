@@ -62,8 +62,12 @@ class ContactsService {
       email: data.email || '',
       country: data.country || '',
       language_code: data.language_code || '',
-      labels: data.labels || [],
-      groups: data.groups || [],
+      labels: Array.isArray(data.labels)
+        ? data.labels.map((l: any) => typeof l === 'object' ? (l._uid || l.id || '') : l).filter(Boolean)
+        : [],
+      groups: Array.isArray(data.groups)
+        ? data.groups.map((g: any) => typeof g === 'object' ? (g._uid || g.id || '') : g).filter(Boolean)
+        : [],
       custom_fields: data.custom_fields || {},
       created_at: data.created_at || new Date().toISOString(),
       updated_at: data.updated_at || new Date().toISOString(),
@@ -84,6 +88,8 @@ class ContactsService {
       page: query?.page,
       limit: query?.limit,
       search: query?.search,
+      labels: query?.labels,
+      groups: query?.groups,
     });
 
     let contacts: any[] = [];

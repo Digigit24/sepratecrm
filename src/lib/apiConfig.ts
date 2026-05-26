@@ -602,13 +602,8 @@ export const API_CONFIG = {
     
     FLOW_STATS: '/flows/stats',
 
-    // QR Codes endpoints
-    QR_CODES: '/qr-codes/',
-    QR_CODE_DETAIL: '/qr-codes/:code',
-    QR_CODE_CREATE: '/qr-codes/',
-    QR_CODE_UPDATE: '/qr-codes/:code',
-    QR_CODE_DELETE: '/qr-codes/:code',
-    QR_CODE_FETCH: '/qr-codes/fetch',
+    // QR Codes endpoint
+    QR_CODES: '/qr-codes',
 
 
     // Tenant Configuration endpoints

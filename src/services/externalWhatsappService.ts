@@ -417,11 +417,13 @@ class ExternalWhatsappService {
 
   // ==================== CONTACT METHODS ====================
 
-  async getContacts(params?: { page?: number; limit?: number; search?: string }): Promise<any> {
+  async getContacts(params?: { page?: number; limit?: number; search?: string; labels?: string; groups?: string }): Promise<any> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.search) queryParams.append('search', params.search);
+    if (params?.labels) queryParams.append('labels', params.labels);
+    if (params?.groups) queryParams.append('groups', params.groups);
 
     const url = buildVendorUrl(`/contacts${queryParams.toString() ? '?' + queryParams.toString() : ''}`);
     const response = await externalWhatsappClient.get(url);

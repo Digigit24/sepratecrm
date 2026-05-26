@@ -2,14 +2,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConversationList } from '@/components/ConversationList';
 import { ChatWindow } from '@/components/ChatWindow';
-import { ContactDetailPanel } from '@/components/ContactDetailPanel';
+import { ContactChatDrawer } from '@/components/ContactChatDrawer';
+import type { ContactChatDrawerTab } from '@/components/ContactChatDrawer';
 import { useIsMobile } from '@/hooks/use-is-mobile';
 import { useWebSocket } from '@/context/WebSocketProvider';
 import { useAuth } from '@/hooks/useAuth';
-import { MessageCircle, PanelRightClose, PanelRightOpen, Wifi, WifiOff } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { MessageCircle } from 'lucide-react';
 import {
-  useChatContacts,
+  useContactsWithInfiniteScroll,
   useUnreadCount,
   useChatMessages,
   useMarkAsRead,
@@ -24,7 +24,8 @@ import type { ChatContact } from '@/services/whatsapp/chatService';
 export default function Chats() {
   const [selectedContactUid, setSelectedContactUid] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showContactPanel, setShowContactPanel] = useState(false);
+  const [showContactDrawer, setShowContactDrawer] = useState(false);
+  const [contactDrawerTab, setContactDrawerTab] = useState<ContactChatDrawerTab>('contact');
   const isMobile = useIsMobile();
   const { payloads } = useWebSocket();
   const queryClient = useQueryClient();
@@ -35,33 +36,21 @@ export default function Chats() {
 
   // React Query hooks
   // Real-time updates via Pusher/Laravel Echo (must be before polling hooks)
-  const {
-    isConnected: isRealtimeConnected,
-    connectionError: realtimeError,
-    connectionState: pusherState
-  } = useRealtimeChat({
+  useRealtimeChat({
     enabled: true,
     selectedContactUid: selectedContactUid || null,
     playNotificationSound: true,
   });
 
-  // Debug log for Pusher connection status
-  useEffect(() => {
-    console.log('Chats: Pusher connection status:', {
-      isConnected: isRealtimeConnected,
-      state: pusherState,
-      error: realtimeError,
-    });
-  }, [isRealtimeConnected, pusherState, realtimeError]);
-
   const {
     contacts,
-    total: contactsTotal,
     isLoading,
     isError,
     error,
-    refetch: refetchContacts,
-  } = useChatContacts({
+    hasMore: hasMoreContacts,
+    isLoadingMore: isLoadingMoreContacts,
+    loadMore: loadMoreContacts,
+  } = useContactsWithInfiniteScroll({
     search: searchQuery || undefined,
   });
 
@@ -140,7 +129,8 @@ export default function Chats() {
   }, []);
 
   const toggleContactPanel = useCallback(() => {
-    setShowContactPanel(prev => !prev);
+    setContactDrawerTab('contact');
+    setShowContactDrawer(prev => !prev);
   }, []);
 
   // Live updates via persistent WhatsApp WebSocket
@@ -211,7 +201,7 @@ export default function Chats() {
             {(error as any)?.message || 'Unable to load conversations'}
           </div>
           <button
-            onClick={() => refetchContacts()}
+            onClick={() => window.location.reload()}
             className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
           >
             Retry
@@ -293,6 +283,9 @@ export default function Chats() {
           currentUserUid={currentUserUid}
           unreadCounts={unreadCounts}
           onSearchChange={handleSearchChange}
+          onLoadMore={loadMoreContacts}
+          hasMore={hasMoreContacts}
+          isLoadingMore={isLoadingMoreContacts}
         />
       </div>
     );
@@ -310,59 +303,21 @@ export default function Chats() {
           currentUserUid={currentUserUid}
           unreadCounts={unreadCounts}
           onSearchChange={handleSearchChange}
+          onLoadMore={loadMoreContacts}
+          hasMore={hasMoreContacts}
+          isLoadingMore={isLoadingMoreContacts}
         />
       </div>
 
       {/* Chat Area */}
       <div className="flex-1 h-full min-w-0 flex flex-col">
         {selectedContactUid ? (
-          <>
-            {/* Header Actions */}
-            <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-              {/* Real-time Connection Indicator */}
-              <div
-                className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs cursor-help"
-                title={isRealtimeConnected
-                  ? `Real-time connected (${pusherState})`
-                  : (realtimeError || `Connecting... (${pusherState})`)}
-              >
-                {isRealtimeConnected ? (
-                  <>
-                    <Wifi className="h-3 w-3 text-emerald-500" />
-                    <span className="text-emerald-600 hidden sm:inline">Live</span>
-                  </>
-                ) : pusherState === 'connecting' ? (
-                  <>
-                    <Wifi className="h-3 w-3 text-amber-500 animate-pulse" />
-                    <span className="text-amber-600 hidden sm:inline">Connecting</span>
-                  </>
-                ) : (
-                  <>
-                    <WifiOff className="h-3 w-3 text-red-500" />
-                    <span className="text-red-600 hidden sm:inline">Offline</span>
-                  </>
-                )}
-              </div>
-              {/* Contact Panel Toggle */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={toggleContactPanel}
-                title={showContactPanel ? 'Hide contact details' : 'Show contact details'}
-              >
-                {showContactPanel ? (
-                  <PanelRightClose className="h-4 w-4" />
-                ) : (
-                  <PanelRightOpen className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            <ChatWindow
-              conversationId={selectedConversation?.phone_number || selectedContactUid}
-              selectedConversation={chatWindowConversation}
-            />
-          </>
+          <ChatWindow
+            conversationId={selectedConversation?.phone_number || selectedContactUid}
+            selectedConversation={chatWindowConversation}
+            onToggleContactPanel={toggleContactPanel}
+            showContactPanel={showContactDrawer}
+          />
         ) : (
           <div className="flex items-center justify-center h-full bg-muted/10">
             <div className="text-center max-w-sm px-4">
@@ -378,14 +333,14 @@ export default function Chats() {
         )}
       </div>
 
-      {/* Contact Detail Panel - Right Sidebar */}
-      {showContactPanel && selectedContactUid && (
-        <div className="w-80 h-full flex-shrink-0">
-          <ContactDetailPanel
-            contactUid={selectedContactUid}
-            onClose={toggleContactPanel}
-          />
-        </div>
+      {/* Combined Contact + Add Lead drawer */}
+      {selectedContactUid && (
+        <ContactChatDrawer
+          open={showContactDrawer}
+          onOpenChange={setShowContactDrawer}
+          contactUid={selectedConversation?.phone_number || selectedContactUid}
+          defaultTab={contactDrawerTab}
+        />
       )}
     </div>
   );

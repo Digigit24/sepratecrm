@@ -315,27 +315,55 @@ const handleContactUpdated = useCallback((data: ContactUpdatedEvent) => {
 
     const { contactUid, isNewIncomingMessage, message_status, lastMessageUid } = data;
 
-    // If new incoming message, refetch to get latest messages from API
-    if (isNewIncomingMessage && contactUid) {
-      console.log('🟢 New incoming message, refetching data for:', contactUid);
+    // Move contact to top of conversation list locally — no API call.
+    // This covers both regular incoming/outgoing messages AND campaign messages.
+    if (contactUid) {
+      const now = new Date().toISOString();
 
-      // Force refetch messages for this contact
-      queryClient.refetchQueries({
-        queryKey: chatKeys.messages(contactUid, {}),
-        exact: false,
-      });
+      queryClient.setQueriesData<ChatContactsResponse>(
+        { queryKey: chatKeys.contacts() },
+        (oldData) => {
+          if (!oldData?.contacts?.length) return oldData;
 
-      // Force refetch contacts to update last_message and unread_count
-      queryClient.refetchQueries({
-        queryKey: chatKeys.contacts(),
-        exact: false,
-      });
+          const contactIndex = oldData.contacts.findIndex((c: ChatContact) => c._uid === contactUid);
+          if (contactIndex === -1) return oldData; // Not in loaded pages yet — skip
 
-      // Play notification sound
-      playSound();
+          const contact = oldData.contacts[contactIndex];
+          const isCurrentlyOpen = selectedContactUid === contactUid;
+
+          const updatedContact: ChatContact = {
+            ...contact,
+            last_message_at: now,
+            unread_count: (isNewIncomingMessage && !isCurrentlyOpen)
+              ? (contact.unread_count || 0) + 1
+              : contact.unread_count || 0,
+          };
+
+          // Rebuild array: updated contact first, then everyone else in their original order
+          const otherContacts = oldData.contacts.filter((c: ChatContact) => c._uid !== contactUid);
+          return {
+            ...oldData,
+            contacts: [updatedContact, ...otherContacts],
+          };
+        }
+      );
+
+      // Play notification sound for incoming messages
+      if (isNewIncomingMessage) {
+        playSound();
+      }
+
+      // For the currently open contact only: fetch latest messages so new ones appear
+      if (isNewIncomingMessage && contactUid === selectedContactUid) {
+        console.log('🟢 Fetching new messages for open contact:', contactUid);
+        queryClient.refetchQueries({
+          queryKey: chatKeys.messages(contactUid, {}),
+          exact: false,
+        });
+      }
     }
 
-    // Update message status if provided
+    // Update message status in cache if delivery receipt came in
     if (message_status && lastMessageUid && selectedContactUid) {
       queryClient.setQueriesData<ChatMessagesResponse>(
         { queryKey: chatKeys.messages(selectedContactUid, {}) },

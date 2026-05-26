@@ -12,6 +12,9 @@ export interface UseMessagesReturn {
   messages: WhatsAppMessage[];
   isLoading: boolean;
   error: string | null;
+  hasMoreMessages: boolean;
+  isLoadingMoreMessages: boolean;
+  loadMoreMessages: () => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
   sendMediaMessage: (file: File, media_type: "image" | "video" | "audio" | "document", caption?: string) => Promise<void>;
   sendTemplateMessage: (template: Template, variables: Record<string, string>) => Promise<void>;
@@ -24,6 +27,17 @@ export function useMessages(conversationPhone: string | null): UseMessagesReturn
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contactUid, setContactUid] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
+
+  // Reset pagination when contact changes
+  useEffect(() => {
+    setCurrentPage(1);
+    setHasMoreMessages(false);
+    setMessages([]);
+    setContactUid(null);
+  }, [conversationPhone]);
 
   // Enable real-time updates via Pusher
   useRealtimeChat({
@@ -183,7 +197,10 @@ export function useMessages(conversationPhone: string | null): UseMessagesReturn
         setContactUid(contact._uid);
 
         // Fetch messages using chat service (React Query backed)
-        const result = await chatService.getContactMessages(contact._uid, { limit: 100 });
+        const result = await chatService.getContactMessages(contact._uid, { page: 1, limit: 50 });
+
+        setCurrentPage(1);
+        setHasMoreMessages(result.messages.length >= 50);
 
         // Update React Query cache
         queryClient.setQueryData(chatKeys.messages(contact._uid, {}), result);
@@ -243,6 +260,53 @@ export function useMessages(conversationPhone: string | null): UseMessagesReturn
       setIsLoading(false);
     }
   }, [conversationPhone, queryClient]);
+
+  // Helper to transform a raw message from API into WhatsAppMessage format
+  const transformRawMessage = useCallback((m: any): WhatsAppMessage => {
+    const isIncoming = m.is_incoming_message ?? (m.direction === 'incoming');
+    return {
+      id: m._uid,
+      from: isIncoming ? conversationPhone || '' : '',
+      to: isIncoming ? '' : conversationPhone || '',
+      text: m.message || m.message_body || m.text || '',
+      type: m.message_type || 'text',
+      direction: isIncoming ? 'incoming' : 'outgoing',
+      timestamp: normalizeTimestamp(m.messaged_at || m.created_at || m.timestamp),
+      status: m.status,
+      metadata: m.metadata || {},
+      template_proforma: m.template_proforma,
+      template_component_values: m.template_component_values,
+      template_components: m.template_components,
+      media_values: m.media_values,
+      interaction_message_data: m.interaction_message_data,
+      template_message: m.template_message,
+      whatsapp_message_error: m.whatsapp_message_error,
+    };
+  }, [conversationPhone, normalizeTimestamp]);
+
+  // Load older messages (earlier pages) and prepend them
+  const loadMoreMessages = useCallback(async () => {
+    if (!contactUid || isLoadingMoreMessages || !hasMoreMessages) return;
+    setIsLoadingMoreMessages(true);
+    const nextPage = currentPage + 1;
+    try {
+      const result = await chatService.getContactMessages(contactUid, { page: nextPage, limit: 50 });
+      const olderMessages = result.messages.map(transformRawMessage);
+      setMessages(prev => {
+        const existingIds = new Set(prev.map(m => m.id));
+        const newUnique = olderMessages.filter((m: WhatsAppMessage) => !existingIds.has(m.id));
+        return [...newUnique, ...prev].sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+      });
+      setCurrentPage(nextPage);
+      setHasMoreMessages(result.messages.length >= 50);
+    } catch (err) {
+      console.error('Failed to load more messages:', err);
+    } finally {
+      setIsLoadingMoreMessages(false);
+    }
+  }, [contactUid, currentPage, hasMoreMessages, isLoadingMoreMessages, transformRawMessage]);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!conversationPhone || !text.trim()) return;
@@ -450,6 +514,9 @@ export function useMessages(conversationPhone: string | null): UseMessagesReturn
     messages,
     isLoading,
     error,
+    hasMoreMessages,
+    isLoadingMoreMessages,
+    loadMoreMessages,
     sendMessage,
     sendMediaMessage,
     sendTemplateMessage,

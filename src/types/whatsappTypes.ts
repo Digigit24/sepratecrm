@@ -57,11 +57,26 @@ export interface WhatsAppMessage {
     filename?: string;
   };
   interaction_message_data?: {
-    body?: { text: string };
-    action?: {
-      buttons?: Array<{
-        type: string;
-        reply?: { id: string; title: string };
+    interactive_type?: 'button' | 'cta_url' | 'list';
+    media_link?: string;
+    header_type?: 'text' | 'image' | 'video' | 'audio' | 'document';
+    header_text?: string;
+    body_text?: string;
+    footer_text?: string;
+    buttons?: Record<string, string>;
+    cta_url?: {
+      display_text?: string;
+      url?: string;
+    };
+    list_data?: {
+      button_text?: string;
+      sections?: Array<{
+        title?: string;
+        rows?: Array<{
+          row_id?: string;
+          title?: string;
+          description?: string;
+        }>;
       }>;
     };
   };
@@ -870,39 +885,17 @@ export interface PublishFlowResponse {
 
 // ==================== QR CODE TYPES ====================
 
-export enum ImageType {
-  PNG = "PNG",
-  SVG = "SVG"
-}
-
 export interface QRCode {
-  id: number;
-  tenant_id: string;
-  code: string;
-  prefilled_message: string;
-  image_type: string;
-  image_url?: string | null;
-  deep_link_url?: string | null;
-  created_at: string;
-  updated_at: string;
+  phone_number: string;
+  display_number: string;
+  verified_name?: string | null;
+  wa_link: string;
+  qr_image_url: string;
 }
-
-export interface QRCodeCreate {
-  prefilled_message: string;
-  image_type?: ImageType;
-}
-
-export interface QRCodeUpdate {
-  prefilled_message: string;
-}
-
-export interface QRCodeResponse extends QRCode {}
 
 export interface QRCodeListResponse {
+  qr_codes: QRCode[];
   total: number;
-  items: QRCode[];
-  page: number;
-  page_size: number;
 }
 
 export interface QRCodeDeleteResponse {

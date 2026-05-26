@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { X } from 'lucide-react';
 import { useUsers } from '@/hooks/useUsers';
+import { useLabels, useContactGroups } from '@/hooks/whatsapp/useContacts';
 
 import type { Contact, CreateContactPayload } from '@/types/whatsappTypes';
 import type { ContactBasicInfoHandle } from '../ContactsFormDrawer';
@@ -50,6 +51,8 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
   ({ contact, fallbackPhone, mode }, ref) => {
     const isReadOnly = mode === 'view';
     const { useUsersList } = useUsers();
+    const { labels: allLabels } = useLabels();
+    const { groups: allGroups } = useContactGroups();
     const { data: usersData, isLoading: usersLoading } = useUsersList({
       page: 1,
       page_size: 1000,
@@ -149,19 +152,6 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
       setValue('groups', watchedGroups.filter(group => group !== groupToRemove));
     };
 
-    const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>, type: 'label' | 'group') => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const value = e.currentTarget.value;
-        if (type === 'label') {
-          addLabel(value);
-        } else {
-          addGroup(value);
-        }
-        e.currentTarget.value = '';
-      }
-    };
-
     return (
       <div className="space-y-5">
         {/* Basic Information */}
@@ -246,20 +236,40 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
           </h3>
           {watchedLabels.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
-              {watchedLabels.map((label) => (
-                <Badge key={label} variant="secondary" className="flex items-center gap-1">
-                  {label}
-                  {!isReadOnly && (
-                    <Button type="button" variant="ghost" size="sm" className="h-4 w-4 p-0 hover:bg-transparent" onClick={() => removeLabel(label)}>
-                      <X className="h-3 w-3" />
-                    </Button>
-                  )}
-                </Badge>
-              ))}
+              {watchedLabels.map((labelUid) => {
+                const labelObj = allLabels.find(l => l._uid === labelUid);
+                return (
+                  <Badge key={labelUid} variant="secondary" className="flex items-center gap-1">
+                    {labelObj?.bg_color && (
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: labelObj.bg_color }} />
+                    )}
+                    {labelObj?.title ?? labelUid}
+                    {!isReadOnly && (
+                      <Button type="button" variant="ghost" size="sm" className="h-4 w-4 p-0 hover:bg-transparent" onClick={() => removeLabel(labelUid)}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </Badge>
+                );
+              })}
             </div>
           )}
           {!isReadOnly && (
-            <Input placeholder="Type label and press Enter" onKeyPress={(e) => handleKeyPress(e, 'label')} className="h-9" />
+            <Controller name="labels" control={control} render={() => (
+              <Select onValueChange={(uid) => { if (!watchedLabels.includes(uid)) addLabel(uid); }}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Add label..." /></SelectTrigger>
+                <SelectContent>
+                  {allLabels.filter(l => !watchedLabels.includes(l._uid)).map(label => (
+                    <SelectItem key={label._uid} value={label._uid}>
+                      <div className="flex items-center gap-2">
+                        {label.bg_color && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: label.bg_color }} />}
+                        {label.title}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )} />
           )}
           {watchedLabels.length === 0 && isReadOnly && (
             <p className="text-sm text-muted-foreground">No labels</p>
@@ -275,20 +285,37 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
           </h3>
           {watchedGroups.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
-              {watchedGroups.map((group) => (
-                <Badge key={group} variant="outline" className="flex items-center gap-1">
-                  {group}
-                  {!isReadOnly && (
-                    <Button type="button" variant="ghost" size="sm" className="h-4 w-4 p-0 hover:bg-transparent" onClick={() => removeGroup(group)}>
-                      <X className="h-3 w-3" />
-                    </Button>
-                  )}
-                </Badge>
-              ))}
+              {watchedGroups.map((groupUid) => {
+                const groupObj = allGroups.find(g => g._uid === groupUid);
+                return (
+                  <Badge key={groupUid} variant="outline" className="flex items-center gap-1">
+                    {groupObj?.title ?? groupUid}
+                    {!isReadOnly && (
+                      <Button type="button" variant="ghost" size="sm" className="h-4 w-4 p-0 hover:bg-transparent" onClick={() => removeGroup(groupUid)}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </Badge>
+                );
+              })}
             </div>
           )}
           {!isReadOnly && (
-            <Input placeholder="Type group and press Enter" onKeyPress={(e) => handleKeyPress(e, 'group')} className="h-9" />
+            <Controller name="groups" control={control} render={() => (
+              <Select onValueChange={(uid) => { if (!watchedGroups.includes(uid)) addGroup(uid); }}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Add group..." /></SelectTrigger>
+                <SelectContent>
+                  {allGroups.filter(g => !watchedGroups.includes(g._uid)).map(group => (
+                    <SelectItem key={group._uid} value={group._uid}>
+                      {group.title}
+                      {group.contacts_count !== undefined && group.contacts_count > 0 && (
+                        <span className="ml-1 text-xs text-muted-foreground">({group.contacts_count})</span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )} />
           )}
           {watchedGroups.length === 0 && isReadOnly && (
             <p className="text-sm text-muted-foreground">No groups</p>

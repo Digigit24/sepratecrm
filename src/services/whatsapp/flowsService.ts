@@ -1,6 +1,6 @@
 // src/services/whatsapp/flowsService.ts
-import { whatsappClient } from '@/lib/whatsappClient';
-import { API_CONFIG, buildUrl, buildQueryString } from '@/lib/apiConfig';
+import { externalWhatsappClient, getVendorUid } from '@/lib/externalWhatsappClient';
+import { buildQueryString } from '@/lib/apiConfig';
 import {
   Flow,
   FlowsListQuery,
@@ -13,6 +13,37 @@ import {
   PublishFlowResponse,
 } from '@/types/whatsappTypes';
 
+// =========================================================================
+// HELPERS
+// =========================================================================
+
+interface LaravelResponse<T = any> {
+  result?: 'success' | 'failed';
+  data?: T;
+  message?: string;
+}
+
+function unwrap<T>(response: { data: LaravelResponse<T> | T }): T {
+  const body = response.data as LaravelResponse<T>;
+  if (body && body.result === 'failed') {
+    throw new Error(body.message || 'API request failed');
+  }
+  if (body && body.result === 'success' && body.data !== undefined) {
+    return body.data as T;
+  }
+  return response.data as T;
+}
+
+function vendorUrl(path: string): string {
+  const vendorUid = getVendorUid();
+  if (!vendorUid) throw new Error('Vendor UID not found. Please ensure user is logged in.');
+  return `/${vendorUid}/flows${path}`;
+}
+
+// =========================================================================
+// SERVICE
+// =========================================================================
+
 class FlowsService {
   /**
    * Get all flows with optional filters
@@ -22,19 +53,17 @@ class FlowsService {
       console.log('📋 Fetching flows:', query);
 
       const queryString = buildQueryString(query as unknown as Record<string, string | number | boolean>);
-      const url = `${API_CONFIG.WHATSAPP.FLOWS}${queryString}`;
+      const url = vendorUrl(`${queryString}`);
 
-      const response = await whatsappClient.get<FlowsListResponse>(url);
+      const response = await externalWhatsappClient.get<LaravelResponse<FlowsListResponse>>(url);
+      const data = unwrap<FlowsListResponse>(response);
 
-      console.log('✅ Flows fetched:', {
-        total: response.data.total,
-        count: response.data.flows.length,
-      });
+      console.log('✅ Flows fetched:', { total: data.total, count: data.flows.length });
 
-      return response.data;
+      return data;
     } catch (error: any) {
       console.error('❌ Failed to fetch flows:', error);
-      const message = error.response?.data?.detail || error.message || 'Failed to fetch flows';
+      const message = error.response?.data?.message || error.message || 'Failed to fetch flows';
       throw new Error(message);
     }
   }
@@ -46,17 +75,14 @@ class FlowsService {
     try {
       console.log('📋 Fetching flow:', flow_id);
 
-      const url = buildUrl(
-        API_CONFIG.WHATSAPP.FLOW_DETAIL,
-        { flow_id },
-        'whatsapp'
+      const response = await externalWhatsappClient.get<LaravelResponse<Flow>>(
+        vendorUrl(`/${flow_id}`)
       );
+      const data = unwrap<Flow>(response);
 
-      const response = await whatsappClient.get<Flow>(url);
+      console.log('✅ Flow fetched:', data.name);
 
-      console.log('✅ Flow fetched:', response.data.name);
-
-      return response.data;
+      return data;
     } catch (error: any) {
       console.error('❌ Failed to fetch flow:', error);
 
@@ -64,7 +90,7 @@ class FlowsService {
         throw new Error('Flow not found');
       }
 
-      const message = error.response?.data?.detail || 'Failed to fetch flow';
+      const message = error.response?.data?.message || 'Failed to fetch flow';
       throw new Error(message);
     }
   }
@@ -76,18 +102,19 @@ class FlowsService {
     try {
       console.log('➕ Creating flow:', payload.name);
 
-      const response = await whatsappClient.post<Flow>(
-        API_CONFIG.WHATSAPP.FLOW_CREATE,
+      const response = await externalWhatsappClient.post<LaravelResponse<Flow>>(
+        vendorUrl(''),
         payload
       );
+      const data = unwrap<Flow>(response);
 
-      console.log('✅ Flow created:', response.data.flow_id);
+      console.log('✅ Flow created:', data.flow_id);
 
-      return response.data;
+      return data;
     } catch (error: any) {
       console.error('❌ Failed to create flow:', error);
 
-      const message = error.response?.data?.detail || 'Failed to create flow';
+      const message = error.response?.data?.message || 'Failed to create flow';
       throw new Error(message);
     }
   }
@@ -99,17 +126,15 @@ class FlowsService {
     try {
       console.log('✏️ Updating flow:', flow_id);
 
-      const url = buildUrl(
-        API_CONFIG.WHATSAPP.FLOW_UPDATE,
-        { flow_id },
-        'whatsapp'
+      const response = await externalWhatsappClient.put<LaravelResponse<Flow>>(
+        vendorUrl(`/${flow_id}`),
+        payload
       );
+      const data = unwrap<Flow>(response);
 
-      const response = await whatsappClient.put<Flow>(url, payload);
+      console.log('✅ Flow updated:', data.flow_id);
 
-      console.log('✅ Flow updated:', response.data.flow_id);
-
-      return response.data;
+      return data;
     } catch (error: any) {
       console.error('❌ Failed to update flow:', error);
 
@@ -117,7 +142,7 @@ class FlowsService {
         throw new Error('Flow not found');
       }
 
-      const message = error.response?.data?.detail || 'Failed to update flow';
+      const message = error.response?.data?.message || 'Failed to update flow';
       throw new Error(message);
     }
   }
@@ -125,24 +150,18 @@ class FlowsService {
   /**
    * Delete a flow
    */
-  async deleteFlow(flow_id: string, hard_delete: boolean = false): Promise<DeleteFlowResponse> {
+  async deleteFlow(flow_id: string): Promise<DeleteFlowResponse> {
     try {
-      console.log('🗑️ Deleting flow:', flow_id, 'hard:', hard_delete);
+      console.log('🗑️ Deleting flow:', flow_id);
 
-      const url = buildUrl(
-        API_CONFIG.WHATSAPP.FLOW_DELETE,
-        { flow_id },
-        'whatsapp'
+      const response = await externalWhatsappClient.delete<LaravelResponse<DeleteFlowResponse>>(
+        vendorUrl(`/${flow_id}`)
       );
+      const data = unwrap<DeleteFlowResponse>(response);
 
-      const queryString = buildQueryString({ hard_delete });
-      const fullUrl = `${url}${queryString}`;
+      console.log('✅ Flow deleted:', flow_id);
 
-      const response = await whatsappClient.delete<DeleteFlowResponse>(fullUrl);
-
-      console.log('✅ Flow deleted:', response.data.flow_id);
-
-      return response.data;
+      return data;
     } catch (error: any) {
       console.error('❌ Failed to delete flow:', error);
 
@@ -150,7 +169,7 @@ class FlowsService {
         throw new Error('Flow not found');
       }
 
-      const message = error.response?.data?.detail || 'Failed to delete flow';
+      const message = error.response?.data?.message || 'Failed to delete flow';
       throw new Error(message);
     }
   }
@@ -162,47 +181,41 @@ class FlowsService {
     try {
       console.log('🚀 Publishing flow:', flow_id);
 
-      const url = buildUrl(
-        API_CONFIG.WHATSAPP.FLOW_PUBLISH,
-        { flow_id },
-        'whatsapp'
+      const response = await externalWhatsappClient.post<LaravelResponse<PublishFlowResponse>>(
+        vendorUrl(`/${flow_id}/publish`)
       );
+      const data = unwrap<PublishFlowResponse>(response);
 
-      const response = await whatsappClient.post<PublishFlowResponse>(url);
+      console.log('✅ Flow published:', flow_id);
 
-      console.log('✅ Flow published:', response.data.flow_id);
-
-      return response.data;
+      return data;
     } catch (error: any) {
       console.error('❌ Failed to publish flow:', error);
 
-      const message = error.response?.data?.detail || 'Failed to publish flow';
+      const message = error.response?.data?.message || 'Failed to publish flow';
       throw new Error(message);
     }
   }
 
   /**
-   * Unpublish a flow
+   * Unpublish (deprecate) a flow
    */
   async unpublishFlow(flow_id: string): Promise<PublishFlowResponse> {
     try {
       console.log('📥 Unpublishing flow:', flow_id);
 
-      const url = buildUrl(
-        API_CONFIG.WHATSAPP.FLOW_UNPUBLISH,
-        { flow_id },
-        'whatsapp'
+      const response = await externalWhatsappClient.post<LaravelResponse<PublishFlowResponse>>(
+        vendorUrl(`/${flow_id}/unpublish`)
       );
+      const data = unwrap<PublishFlowResponse>(response);
 
-      const response = await whatsappClient.post<PublishFlowResponse>(url);
+      console.log('✅ Flow unpublished:', flow_id);
 
-      console.log('✅ Flow unpublished:', response.data.flow_id);
-
-      return response.data;
+      return data;
     } catch (error: any) {
       console.error('❌ Failed to unpublish flow:', error);
 
-      const message = error.response?.data?.detail || 'Failed to unpublish flow';
+      const message = error.response?.data?.message || 'Failed to unpublish flow';
       throw new Error(message);
     }
   }
@@ -214,24 +227,19 @@ class FlowsService {
     try {
       console.log('📋 Duplicating flow:', flow_id);
 
-      const url = buildUrl(
-        API_CONFIG.WHATSAPP.FLOW_DUPLICATE,
-        { flow_id },
-        'whatsapp'
-      );
-
       const queryString = new_name ? buildQueryString({ new_name }) : '';
-      const fullUrl = `${url}${queryString}`;
+      const response = await externalWhatsappClient.post<LaravelResponse<Flow>>(
+        vendorUrl(`/${flow_id}/duplicate${queryString}`)
+      );
+      const data = unwrap<Flow>(response);
 
-      const response = await whatsappClient.post<Flow>(fullUrl);
+      console.log('✅ Flow duplicated:', data.flow_id);
 
-      console.log('✅ Flow duplicated:', response.data.flow_id);
-
-      return response.data;
+      return data;
     } catch (error: any) {
       console.error('❌ Failed to duplicate flow:', error);
 
-      const message = error.response?.data?.detail || 'Failed to duplicate flow';
+      const message = error.response?.data?.message || 'Failed to duplicate flow';
       throw new Error(message);
     }
   }
@@ -243,25 +251,22 @@ class FlowsService {
     try {
       console.log('✔️ Validating flow:', flow_id);
 
-      const url = buildUrl(
-        API_CONFIG.WHATSAPP.FLOW_VALIDATE,
-        { flow_id },
-        'whatsapp'
+      const response = await externalWhatsappClient.post<LaravelResponse<FlowValidationResponse>>(
+        vendorUrl(`/${flow_id}/validate`)
       );
-
-      const response = await whatsappClient.post<FlowValidationResponse>(url);
+      const data = unwrap<FlowValidationResponse>(response);
 
       console.log('✅ Flow validation complete:', {
-        is_valid: response.data.is_valid,
-        errors: response.data.errors.length,
-        warnings: response.data.warnings.length,
+        is_valid: data.is_valid,
+        errors: data.errors.length,
+        warnings: data.warnings.length,
       });
 
-      return response.data;
+      return data;
     } catch (error: any) {
       console.error('❌ Failed to validate flow:', error);
 
-      const message = error.response?.data?.detail || 'Failed to validate flow';
+      const message = error.response?.data?.message || 'Failed to validate flow';
       throw new Error(message);
     }
   }
@@ -273,17 +278,18 @@ class FlowsService {
     try {
       console.log('📊 Fetching flow stats');
 
-      const response = await whatsappClient.get<FlowStats>(
-        API_CONFIG.WHATSAPP.FLOW_STATS
+      const response = await externalWhatsappClient.get<LaravelResponse<FlowStats>>(
+        vendorUrl('/stats')
       );
+      const data = unwrap<FlowStats>(response);
 
-      console.log('✅ Flow stats fetched:', response.data.total_flows);
+      console.log('✅ Flow stats fetched:', data.total_flows);
 
-      return response.data;
+      return data;
     } catch (error: any) {
       console.error('❌ Failed to fetch flow stats:', error);
 
-      const message = error.response?.data?.detail || 'Failed to fetch flow stats';
+      const message = error.response?.data?.message || 'Failed to fetch flow stats';
       throw new Error(message);
     }
   }

@@ -22,6 +22,12 @@ import {
   X,
   Reply,
   Hash,
+  ExternalLink,
+  List,
+  ChevronDown,
+  ChevronUp,
+  PanelRightOpen,
+  PanelRightClose,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,11 +54,11 @@ import { useTemplates } from "@/hooks/whatsapp/useTemplates";
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import MediaWithAuth from './MediaWithAuth';
+import VoiceMessagePlayer from './VoiceMessagePlayer';
 import DocumentWithAuth from './DocumentWithAuth';
 import { getMediaUrl } from "@/services/whatsapp";
 import { API_CONFIG } from "@/lib/apiConfig";
 import type { Template } from "@/types/whatsappTypes";
-
 type Props = {
   conversationId: string;
   selectedConversation?: {
@@ -65,6 +71,8 @@ type Props = {
   };
   isMobile?: boolean;
   onBack?: () => void;
+  onToggleContactPanel?: () => void;
+  showContactPanel?: boolean;
 };
 
 type AttachmentType = 'image' | 'video' | 'document' | 'audio' | 'camera' | 'contact' | 'location';
@@ -172,8 +180,124 @@ const isSameDay = (date1: Date, date2: Date): boolean => {
   return date1.toDateString() === date2.toDateString();
 };
 
-export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onBack }: Props) => {
-  const { messages, isLoading, error, sendMessage, sendMediaMessage, sendTemplateMessage } = useMessages(selectedConversation?.phone || null);
+// Renders an interactive message (button/cta_url/list) from Laravel flows
+const InteractiveMessageBubble = ({ msg }: { msg: any }) => {
+  const [showListSheet, setShowListSheet] = useState(false);
+  const imd = msg.interaction_message_data;
+
+  return (
+    <>
+      {/* Header media */}
+      {imd.header_type && imd.header_type !== 'text' && imd.media_link && (
+        <div className="w-full bg-gray-100 flex items-center justify-center overflow-hidden" style={{ maxHeight: 200 }}>
+          {imd.header_type === 'image' && (
+            <a href={imd.media_link} target="_blank" rel="noopener noreferrer">
+              <img src={imd.media_link} alt="header" className="w-full object-cover" />
+            </a>
+          )}
+          {imd.header_type === 'video' && (
+            <video controls src={imd.media_link} className="w-full" />
+          )}
+          {imd.header_type === 'audio' && (
+            <audio controls src={imd.media_link} className="w-full mx-4 my-2" />
+          )}
+          {imd.header_type === 'document' && (
+            <a href={imd.media_link} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center py-4 text-gray-500 hover:text-gray-700">
+              <FileText className="h-10 w-10 mb-1" />
+              <span className="text-xs">Document</span>
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Body */}
+      <div className="px-3 pt-3 pb-2">
+        {imd.header_type === 'text' && imd.header_text && (
+          <p className="font-bold text-[15px] text-[#0b141a] mb-2">{imd.header_text}</p>
+        )}
+        {imd.body_text && (
+          <p className="text-[14px] leading-[1.5] text-[#0b141a] break-words whitespace-pre-wrap">{imd.body_text}</p>
+        )}
+        {imd.footer_text && (
+          <p className="text-xs text-gray-400 mt-2">{imd.footer_text}</p>
+        )}
+        {/* Timestamp */}
+        <div className="flex items-center justify-end mt-1 text-[11px] text-[#667781]">
+          <span>{msg.time}</span>
+        </div>
+      </div>
+
+      {/* Reply buttons */}
+      {imd.interactive_type === 'button' && imd.buttons && Object.keys(imd.buttons).length > 0 && (
+        <div className="flex flex-col">
+          {Object.values(imd.buttons as Record<string, string>).filter(Boolean).map((label, i) => (
+            <button
+              key={i}
+              type="button"
+              className="w-full py-2.5 px-3 text-[14px] font-normal text-[#00a5f4] hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 border-t border-gray-200"
+            >
+              <Reply className="h-4 w-4 rotate-180 scale-x-[-1]" />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* CTA URL button */}
+      {imd.interactive_type === 'cta_url' && imd.cta_url?.url && (
+        <div className="border-t border-gray-200">
+          <a
+            href={imd.cta_url.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-2.5 px-3 text-[14px] font-normal text-[#00a5f4] hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+          >
+            <ExternalLink className="h-4 w-4" />
+            {imd.cta_url.display_text || imd.cta_url.url}
+          </a>
+        </div>
+      )}
+
+      {/* List message button */}
+      {imd.interactive_type === 'list' && imd.list_data && (
+        <div className="border-t border-gray-200">
+          <button
+            type="button"
+            className="w-full py-2.5 px-3 text-[14px] font-normal text-[#00a5f4] hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+            onClick={() => setShowListSheet(v => !v)}
+          >
+            <List className="h-4 w-4" />
+            {imd.list_data.button_text || 'View Options'}
+            {showListSheet ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+          </button>
+          {showListSheet && imd.list_data.sections && (
+            <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 max-h-64 overflow-y-auto">
+              {imd.list_data.sections.map((section: any, si: number) => (
+                <div key={si} className="mb-3">
+                  {section.title && (
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{section.title}</p>
+                  )}
+                  {section.rows?.map((row: any, ri: number) => (
+                    <div key={ri} className="mb-2">
+                      <p className="text-sm font-medium text-[#0b141a]">{row.title}</p>
+                      {row.description && (
+                        <p className="text-xs text-gray-500">{row.description}</p>
+                      )}
+                    </div>
+                  ))}
+                  {si < imd.list_data.sections.length - 1 && <hr className="my-2 border-gray-200" />}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+};
+
+export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onBack, onToggleContactPanel, showContactPanel }: Props) => {
+  const { messages, isLoading, error, hasMoreMessages, isLoadingMoreMessages, loadMoreMessages, sendMessage, sendMediaMessage, sendTemplateMessage } = useMessages(selectedConversation?.phone || null);
   const clearChatMutation = useClearChatHistory();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -207,6 +331,11 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
            msg.template_proforma ||
            msg.template_components ||
            (msg.metadata as any)?.template_name;
+  };
+
+  // Check if message is an interactive/button message from Laravel flows
+  const isInteractiveMessage = (msg: typeof transformedMessages[0]) => {
+    return !!msg.interaction_message_data?.interactive_type;
   };
 
   // Check if message has media from media_values
@@ -374,6 +503,69 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
   const [selectedFileType, setSelectedFileType] = useState<AttachmentType | null>(null);
   const [isFilePreviewOpen, setIsFilePreviewOpen] = useState(false);
   const [fileCaption, setFileCaption] = useState("");
+
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : 'audio/ogg';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
+        const file = new File([blob], `voice_${Date.now()}.${ext}`, { type: mimeType });
+        try {
+          await sendMediaMessage(file, 'audio');
+        } catch {
+          // error handled by sendMediaMessage
+        }
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => setRecordingSeconds(s => s + 1), 1000);
+    } catch {
+      // mic permission denied or unavailable — silently ignore
+    }
+  };
+
+  const stopRecording = () => {
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    setIsRecording(false);
+    setRecordingSeconds(0);
+  };
+
+  const cancelRecording = () => {
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    if (mediaRecorderRef.current) {
+      // Detach onstop so it doesn't send anything
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream?.getTracks().forEach(t => t.stop());
+      mediaRecorderRef.current = null;
+    }
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordingSeconds(0);
+  };
 
   // Template slash command state
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
@@ -745,22 +937,43 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
             </Button>
           )}
 
-          <Avatar className="h-10 w-10 shrink-0">
-            <AvatarImage src="" alt={selectedConversation?.name} />
-            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm font-semibold">
-              {selectedConversation?.name ? getInitials(selectedConversation.name) : 'U'}
-            </AvatarFallback>
-          </Avatar>
+          {/* Clickable area: avatar + name opens the contact drawer */}
+          <button
+            className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
+            onClick={onToggleContactPanel}
+          >
+            <Avatar className="h-10 w-10 shrink-0">
+              <AvatarImage src="" alt={selectedConversation?.name} />
+              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm font-semibold">
+                {selectedConversation?.name ? getInitials(selectedConversation.name) : 'U'}
+              </AvatarFallback>
+            </Avatar>
 
-          <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-semibold text-foreground truncate">
-              {selectedConversation?.name || conversationId}
-            </h2>
-            <p className="text-xs text-muted-foreground">Online</p>
-          </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-sm font-semibold text-foreground truncate">
+                {selectedConversation?.name || conversationId}
+              </h2>
+              <p className="text-xs text-muted-foreground">Online</p>
+            </div>
+          </button>
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
+          {onToggleContactPanel && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              onClick={onToggleContactPanel}
+              title={showContactPanel ? 'Hide contact details' : 'Show contact details'}
+            >
+              {showContactPanel ? (
+                <PanelRightClose className="h-[18px] w-[18px]" />
+              ) : (
+                <PanelRightOpen className="h-[18px] w-[18px]" />
+              )}
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-9 w-9">
@@ -829,19 +1042,31 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
           </div>
         ) : (
           <div className="flex flex-col min-h-full justify-end space-y-3">
-            {/* Load earlier messages button */}
-            <div className="flex justify-center py-2">
-              <button
-                type="button"
-                className="bg-white/90 hover:bg-white text-gray-600 hover:text-gray-800 text-xs font-medium px-4 py-2 rounded-full shadow-sm border border-gray-200 transition-all hover:shadow-md"
-                onClick={() => {
-                  console.log('Load earlier messages clicked');
-                  // TODO: Implement pagination/load more
-                }}
-              >
-                ↑ Load earlier messages
-              </button>
-            </div>
+            {/* Load earlier messages button — only shown when more pages exist */}
+            {hasMoreMessages && (
+              <div className="flex justify-center py-2">
+                <button
+                  type="button"
+                  disabled={isLoadingMoreMessages}
+                  className="bg-white/90 hover:bg-white text-gray-600 hover:text-gray-800 text-xs font-medium px-4 py-2 rounded-full shadow-sm border border-gray-200 transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={async () => {
+                    const container = messagesContainerRef.current;
+                    const prevScrollHeight = container?.scrollHeight ?? 0;
+                    const prevScrollTop = container?.scrollTop ?? 0;
+                    await loadMoreMessages();
+                    // Restore scroll position so prepended messages don't jump the view
+                    requestAnimationFrame(() => {
+                      if (container) {
+                        const heightAdded = container.scrollHeight - prevScrollHeight;
+                        container.scrollTop = prevScrollTop + heightAdded;
+                      }
+                    });
+                  }}
+                >
+                  {isLoadingMoreMessages ? '↻ Loading...' : '↑ Load earlier messages'}
+                </button>
+              </div>
+            )}
             {transformedMessages.map((msg, idx) => {
               // Check if we need to show a date separator
               const showDateSeparator =
@@ -871,8 +1096,8 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
                 <div
                   className={cn(
                     "relative max-w-[85%] sm:max-w-[70%] md:max-w-[65%] rounded-lg shadow-sm",
-                    // Template messages get white background with no padding (padding added inside)
-                    isTemplateMessage(msg)
+                    // Template and interactive messages get white background with no padding (padding added inside)
+                    isTemplateMessage(msg) || isInteractiveMessage(msg)
                       ? "bg-white text-[#0b141a] rounded-br-none border border-gray-200 overflow-hidden"
                       : msg.from === "me"
                         ? "bg-[#dcf8c6] text-[#0b141a] rounded-br-none border border-emerald-100 px-3 py-2"
@@ -913,18 +1138,19 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
                     </div>
                   )}
                   {(msg.type === 'audio' || msg.media_values?.type === 'audio') && !isTemplateMessage(msg) && (
-                    <div className="relative mb-1">
-                      <MediaWithAuth
-                        type="audio"
-                        src={msg.media_values?.link || getMediaUrl(msg.metadata?.media_id)}
-                        previewSrc={msg.metadata?.file_preview_url}
-                        alt="sent audio"
-                        className="rounded-md max-w-[240px] w-full h-auto"
-                      />
-                      {msg.metadata?.is_uploading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                    <div className="relative">
+                      {msg.metadata?.is_uploading ? (
+                        <div className="flex items-center gap-2 py-1 px-1" style={{ minWidth: 220 }}>
+                          <div className="w-10 h-10 rounded-full bg-[#25d366] flex items-center justify-center opacity-50">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          </div>
+                          <span className="text-xs text-muted-foreground">Uploading…</span>
                         </div>
+                      ) : (
+                        <VoiceMessagePlayer
+                          src={msg.media_values?.link || getMediaUrl(msg.metadata?.media_id)}
+                          isOutgoing={msg.from === 'me'}
+                        />
                       )}
                     </div>
                   )}
@@ -1017,6 +1243,8 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
                         <span>{msg.time}</span>
                       </div>
                     </>
+                  ) : isInteractiveMessage(msg) ? (
+                    <InteractiveMessageBubble msg={msg} />
                   ) : (
                     <>
                       {/* Regular message body - show text or media caption */}
@@ -1024,22 +1252,6 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
                         <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
                           {msg.text || msg.media_values?.caption}
                         </p>
-                      )}
-                      {/* Interactive message buttons */}
-                      {msg.interaction_message_data?.action?.buttons && (
-                        <div className="mt-3 flex flex-col">
-                          {msg.interaction_message_data.action.buttons.map((btn, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              className="w-full py-2.5 px-3 text-sm font-medium text-[#00a5f4] hover:bg-gray-50 transition-colors flex items-center justify-center gap-1.5 border-t border-gray-200"
-                              onClick={() => console.log('Button clicked:', btn.reply?.title)}
-                            >
-                              <Reply className="h-4 w-4 rotate-180 scale-x-[-1]" />
-                              {btn.reply?.title}
-                            </button>
-                          ))}
-                        </div>
                       )}
                       {/* Timestamp for regular messages */}
                       <div className={cn(
@@ -1094,6 +1306,22 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
 
       {/* Fixed Input Area */}
       <div className="flex-shrink-0 px-4 py-3 bg-card border-t border-border">
+        {/* Recording indicator bar */}
+        {isRecording && (
+          <div className="flex items-center gap-3 mb-2 px-3 py-2 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+            <span className="text-sm font-medium text-red-600 dark:text-red-400 flex-1">
+              Recording… {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')}
+            </span>
+            <button
+              type="button"
+              onClick={cancelRecording}
+              className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-0.5 rounded hover:bg-red-100 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         {/* Debug indicator */}
         {isFilePreviewOpen && (
           <div className="mb-2 p-2 bg-yellow-100 dark:bg-yellow-900 text-yellow-900 dark:text-yellow-100 text-xs rounded">
@@ -1233,23 +1461,37 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
             </Popover>
           </div>
 
-          {/* Send/Mic Button */}
-          <Button
-            type={input.trim() ? "submit" : "button"}
-            size="icon"
-            className={cn(
-              "shrink-0 rounded-full h-11 w-11 shadow-lg transition-all",
-              input.trim()
-                ? "bg-primary hover:bg-primary/90 text-primary-foreground"
-                : "bg-muted hover:bg-muted/80 text-muted-foreground"
-            )}
-          >
-            {input.trim() ? (
+          {/* Send / Mic / Stop-recording Button */}
+          {isRecording ? (
+            <Button
+              type="button"
+              size="icon"
+              className="shrink-0 rounded-full h-11 w-11 shadow-lg bg-red-500 hover:bg-red-600 text-white animate-pulse"
+              onClick={stopRecording}
+              title="Send voice message"
+            >
               <Send className="h-5 w-5" />
-            ) : (
-              <Mic className="h-5 w-5" />
-            )}
-          </Button>
+            </Button>
+          ) : (
+            <Button
+              type={input.trim() ? "submit" : "button"}
+              size="icon"
+              className={cn(
+                "shrink-0 rounded-full h-11 w-11 shadow-lg transition-all",
+                input.trim()
+                  ? "bg-primary hover:bg-primary/90 text-primary-foreground"
+                  : "bg-muted hover:bg-muted/80 text-muted-foreground"
+              )}
+              onClick={!input.trim() ? startRecording : undefined}
+              title={!input.trim() ? "Record voice message" : undefined}
+            >
+              {input.trim() ? (
+                <Send className="h-5 w-5" />
+              ) : (
+                <Mic className="h-5 w-5" />
+              )}
+            </Button>
+          )}
         </form>
       </div>
 
@@ -1576,6 +1818,7 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 };

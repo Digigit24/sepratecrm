@@ -1,13 +1,14 @@
 // src/pages/LeadDetailsPage.tsx
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Textarea } from '@/components/ui/textarea';
 import {
-  ArrowLeft, Pencil, Trash2, Phone, Mail, Loader2, MapPin, Calendar, Clock,
-  Building2, User, X, Check, Plus,
+  ArrowLeft, Phone, Mail, Loader2, Calendar, Clock,
+  MapPin, Plus, Check, Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, isPast, isFuture, isToday } from 'date-fns';
@@ -26,110 +27,79 @@ import { LeadFormHandle } from '@/components/LeadsFormDrawer';
 export const LeadDetailsPage = () => {
   const { leadId } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('details');
-  const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [notes, setNotes] = useState('');
+  const [notesSaving, setNotesSaving] = useState(false);
+  const notesDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Meeting drawer state
   const [meetingDrawerOpen, setMeetingDrawerOpen] = useState(false);
   const [selectedMeetingId, setSelectedMeetingId] = useState<number | null>(null);
   const [meetingDrawerMode, setMeetingDrawerMode] = useState<'view' | 'edit' | 'create'>('view');
 
-  // Hooks
   const { useLead, useLeadStatuses, updateLead, deleteLead, patchLead } = useCRM();
   const { useMeetingsByLead } = useMeeting();
 
-  // Parse leadId to number
   const leadIdNum = leadId ? parseInt(leadId, 10) : null;
 
-  // Fetch lead data
-  const {
-    data: lead,
-    error: leadError,
-    isLoading: leadLoading,
-    mutate: mutateLead
-  } = useLead(leadIdNum);
-
-  // Fetch lead statuses
-  const { data: statusesData } = useLeadStatuses({
-    page_size: 100,
-    ordering: 'order_index',
-    is_active: true
-  });
-
-  // Fetch meetings for this lead
-  const {
-    data: meetingsData,
-    isLoading: meetingsLoading,
-    mutate: mutateMeetings
-  } = useMeetingsByLead(leadIdNum);
+  const { data: lead, error: leadError, isLoading: leadLoading, mutate: mutateLead } = useLead(leadIdNum);
+  const { data: statusesData } = useLeadStatuses({ page_size: 100, ordering: 'order_index', is_active: true });
+  const { data: meetingsData, isLoading: meetingsLoading, mutate: mutateMeetings } = useMeetingsByLead(leadIdNum);
   const meetings = meetingsData?.results || [];
 
-  // Form ref
   const formRef = useRef<LeadFormHandle | null>(null);
 
-  // Handle back navigation
-  const handleBack = useCallback(() => {
-    navigate('/crm/leads');
-  }, [navigate]);
+  // Sync notes state when lead loads
+  useEffect(() => {
+    if (lead?.notes !== undefined) setNotes(lead.notes || '');
+  }, [lead?.id]);
 
-  // Handle edit mode toggle
-  const handleEditToggle = useCallback(() => {
-    setIsEditing(!isEditing);
-  }, [isEditing]);
+  const handleBack = useCallback(() => navigate('/crm/leads'), [navigate]);
 
-  // Handle save
+  // Save all properties
   const handleSave = useCallback(async () => {
     if (!lead || !formRef.current) return;
-
     try {
       setIsSaving(true);
       const formValues = await formRef.current.getFormValues();
-
-      if (!formValues) {
-        toast.error('Please fill in all required fields');
-        return;
-      }
-
-      // Check if status changed to won
-      const oldStatusId = typeof lead.status === 'number' ? lead.status : lead.status?.id;
-      const newStatusId = formValues.status;
-      const statusChanged = oldStatusId !== newStatusId;
-
-      let isWonStatus = false;
-      if (statusChanged && newStatusId) {
-        const newStatus = statusesData?.results.find(s => s.id === newStatusId);
-        isWonStatus = newStatus?.is_won === true;
-      }
-
-      await updateLead(lead.id, formValues);
+      if (!formValues) { toast.error('Please fill in all required fields'); return; }
+      await updateLead(lead.id, { ...formValues, notes });
       await mutateLead();
-      toast.success('Lead updated successfully');
-      setIsEditing(false);
-
-      if (isWonStatus) {
-        toast.success('Lead marked as won!', { duration: 3000 });
-      }
+      toast.success('Lead saved');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to update lead');
+      toast.error(error.message || 'Failed to save lead');
     } finally {
       setIsSaving(false);
     }
-  }, [lead, updateLead, mutateLead, statusesData]);
+  }, [lead, updateLead, mutateLead, notes]);
 
-  // Handle delete
+  // Auto-save notes with debounce
+  const handleNotesChange = useCallback((value: string) => {
+    setNotes(value);
+    if (notesDebounceRef.current) clearTimeout(notesDebounceRef.current);
+    notesDebounceRef.current = setTimeout(async () => {
+      if (!lead) return;
+      try {
+        setNotesSaving(true);
+        await patchLead(lead.id, { notes: value });
+        await mutateLead();
+      } catch {
+        // silent fail — user can always use the main Save button
+      } finally {
+        setNotesSaving(false);
+      }
+    }, 800);
+  }, [lead, patchLead, mutateLead]);
+
   const handleDelete = useCallback(async () => {
     if (!lead) return;
-    const confirmed = window.confirm(
-      `Are you sure you want to delete "${lead.name}"? This action cannot be undone.`
-    );
-    if (!confirmed) return;
-
+    if (!window.confirm(`Delete "${lead.name}"? This cannot be undone.`)) return;
     try {
       setIsDeleting(true);
       await deleteLead(lead.id);
-      toast.success('Lead deleted successfully');
+      toast.success('Lead deleted');
       navigate('/crm/leads');
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete lead');
@@ -138,72 +108,42 @@ export const LeadDetailsPage = () => {
     }
   }, [lead, deleteLead, navigate]);
 
-  // Handle call
-  const handleCall = useCallback(() => {
-    if (lead?.phone) window.location.href = `tel:${lead.phone}`;
-  }, [lead]);
+  const handleCall = useCallback(() => { if (lead?.phone) window.location.href = `tel:${lead.phone}`; }, [lead]);
+  const handleEmail = useCallback(() => { if (lead?.email) window.location.href = `mailto:${lead.email}`; }, [lead]);
 
-  // Handle email
-  const handleEmail = useCallback(() => {
-    if (lead?.email) window.location.href = `mailto:${lead.email}`;
-  }, [lead]);
-
-  // Handle schedule meeting
   const handleScheduleMeeting = useCallback(() => {
-    setSelectedMeetingId(null);
-    setMeetingDrawerMode('create');
-    setMeetingDrawerOpen(true);
+    setSelectedMeetingId(null); setMeetingDrawerMode('create'); setMeetingDrawerOpen(true);
+  }, []);
+  const handleMeetingClick = useCallback((id: number) => {
+    setSelectedMeetingId(id); setMeetingDrawerMode('view'); setMeetingDrawerOpen(true);
   }, []);
 
-  // Handle meeting drawer callbacks
-  const handleMeetingSuccess = useCallback(() => { mutateMeetings(); }, [mutateMeetings]);
-  const handleMeetingDelete = useCallback(() => { mutateMeetings(); }, [mutateMeetings]);
-  const handleMeetingClick = useCallback((meetingId: number) => {
-    setSelectedMeetingId(meetingId);
-    setMeetingDrawerMode('view');
-    setMeetingDrawerOpen(true);
-  }, []);
-
-  // Handle lead score update
   const handleUpdateLeadScore = useCallback(async (score: number) => {
     if (!lead) return;
     try {
       await patchLead(lead.id, { lead_score: score });
       await mutateLead();
-      toast.success('Lead score updated');
     } catch (error: any) {
       toast.error(error?.message || 'Failed to update lead score');
       throw error;
     }
   }, [lead, patchLead, mutateLead]);
 
-  // Get status badge
   const getStatusBadge = (status?: LeadStatus | number) => {
     if (!status) return null;
-    let statusObj: LeadStatus | undefined;
-    if (typeof status === 'number') {
-      statusObj = statusesData?.results.find(s => s.id === status);
-    } else {
-      statusObj = status;
-    }
+    const statusObj = typeof status === 'number'
+      ? statusesData?.results.find(s => s.id === status)
+      : status;
     if (!statusObj) return null;
-    const bgColor = statusObj.color_hex || '#6B7280';
+    const c = statusObj.color_hex || '#6B7280';
     return (
-      <Badge
-        variant="outline"
-        className="text-[11px] px-1.5 py-0 h-5 font-medium"
-        style={{
-          backgroundColor: `${bgColor}20`,
-          borderColor: bgColor,
-          color: bgColor,
-        }}
-      >
+      <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-5 font-medium"
+        style={{ backgroundColor: `${c}20`, borderColor: c, color: c }}>
         {statusObj.name}
       </Badge>
     );
   };
 
-  // Priority badge
   const getPriorityBadge = (priority: string) => {
     const colors: Record<string, string> = {
       HIGH: 'bg-red-50 text-red-700 border-red-200',
@@ -212,41 +152,27 @@ export const LeadDetailsPage = () => {
     };
     return (
       <Badge variant="outline" className={`text-[11px] px-1.5 py-0 h-5 font-medium ${colors[priority] || ''}`}>
-        {priority}
+        {priority.charAt(0) + priority.slice(1).toLowerCase()}
       </Badge>
     );
   };
 
-  // Get meeting status badge
   const getMeetingStatusBadge = (meeting: Meeting) => {
-    const start = new Date(meeting.start_at);
-    const end = new Date(meeting.end_at);
-    const now = new Date();
-
-    if (isPast(end)) {
-      return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-gray-100 text-gray-600 border-gray-200">Completed</Badge>;
-    } else if (now >= start && now <= end) {
-      return <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 bg-green-100 text-green-700 border-green-200">In Progress</Badge>;
-    } else if (isToday(start)) {
-      return <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 bg-blue-100 text-blue-700 border-blue-200">Today</Badge>;
-    } else if (isFuture(start)) {
-      return <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 bg-purple-100 text-purple-700 border-purple-200">Upcoming</Badge>;
-    }
+    const start = new Date(meeting.start_at), end = new Date(meeting.end_at), now = new Date();
+    if (isPast(end)) return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">Completed</Badge>;
+    if (now >= start && now <= end) return <Badge className="text-[10px] px-1.5 py-0 h-4 bg-green-100 text-green-700">In Progress</Badge>;
+    if (isToday(start)) return <Badge className="text-[10px] px-1.5 py-0 h-4 bg-blue-100 text-blue-700">Today</Badge>;
+    if (isFuture(start)) return <Badge className="text-[10px] px-1.5 py-0 h-4 bg-purple-100 text-purple-700">Upcoming</Badge>;
     return null;
   };
 
-  // Format meeting time
   const formatMeetingTime = (startAt: string, endAt: string) => {
     try {
-      const start = new Date(startAt);
-      const end = new Date(endAt);
-      return `${format(start, 'MMM dd')} · ${format(start, 'hh:mm a')} – ${format(end, 'hh:mm a')}`;
-    } catch {
-      return 'Invalid date';
-    }
+      const s = new Date(startAt), e = new Date(endAt);
+      return `${format(s, 'MMM dd')} · ${format(s, 'hh:mm a')} – ${format(e, 'hh:mm a')}`;
+    } catch { return 'Invalid date'; }
   };
 
-  // Loading state
   if (leadLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -255,17 +181,13 @@ export const LeadDetailsPage = () => {
     );
   }
 
-  // Error state
   if (leadError || !lead) {
     return (
       <div className="p-4">
         <div className="flex flex-col items-center justify-center min-h-[200px] space-y-3">
-          <p className="text-sm text-destructive">
-            {leadError ? 'Failed to load lead details' : 'Lead not found'}
-          </p>
+          <p className="text-sm text-destructive">{leadError ? 'Failed to load lead' : 'Lead not found'}</p>
           <Button onClick={handleBack} variant="outline" size="sm">
-            <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-            Back to Leads
+            <ArrowLeft className="h-3.5 w-3.5 mr-1.5" /> Back to Leads
           </Button>
         </div>
       </div>
@@ -273,187 +195,139 @@ export const LeadDetailsPage = () => {
   }
 
   return (
-    <div className="p-4 space-y-3">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0">
-          <Button
-            onClick={handleBack}
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0 mt-0.5"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col min-h-full">
+
+      {/* ── Sticky header ─────────────────────────────────────────── */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b">
+        {/* Row 1: back + name + actions */}
+        <div className="px-4 pt-2.5 pb-1.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Button onClick={handleBack} variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+              <ArrowLeft className="h-3.5 w-3.5" />
+            </Button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-sm font-semibold truncate">{lead.name}</h1>
+                {getStatusBadge(lead.status)}
+                {getPriorityBadge(lead.priority)}
+              </div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                {lead.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{lead.phone}</span>}
+                {lead.email && <span className="flex items-center gap-1 truncate max-w-[200px]"><Mail className="h-3 w-3" />{lead.email}</span>}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            <LeadScoreSlider score={lead.lead_score || 0} onSave={handleUpdateLeadScore} leadName={lead.name} size="sm" />
+
+          {lead.phone && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={handleCall} variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:bg-green-50">
+                  <Phone className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom"><p className="text-xs">Call</p></TooltipContent>
+            </Tooltip>
+          )}
+          {lead.email && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={handleEmail} variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:bg-blue-50">
+                  <Mail className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom"><p className="text-xs">Email</p></TooltipContent>
+            </Tooltip>
+          )}
+
+          <div className="w-px h-4 bg-border/60 mx-0.5" />
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={handleDelete} variant="ghost" size="icon"
+                className="h-7 w-7 text-destructive hover:bg-destructive/10" disabled={isDeleting}>
+                {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom"><p className="text-xs">Delete</p></TooltipContent>
+          </Tooltip>
+
+          <Button onClick={handleSave} size="sm" className="h-7 text-xs px-3 ml-1" disabled={isSaving}>
+            {isSaving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+            {isSaving ? 'Saving…' : 'Save'}
           </Button>
-
-          <div className="min-w-0">
-            {/* Name + Status + Priority */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-base font-semibold truncate">{lead.name}</h1>
-              {getStatusBadge(lead.status)}
-              {getPriorityBadge(lead.priority)}
-            </div>
-
-            {/* Contact info chips */}
-            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-              {lead.phone && (
-                <span className="flex items-center gap-1">
-                  <Phone className="h-3 w-3" />
-                  {lead.phone}
-                </span>
-              )}
-              {lead.email && (
-                <span className="flex items-center gap-1">
-                  <Mail className="h-3 w-3" />
-                  {lead.email}
-                </span>
-              )}
-              {lead.company && (
-                <span className="flex items-center gap-1">
-                  <Building2 className="h-3 w-3" />
-                  {lead.company}
-                </span>
-              )}
-              {lead.title && (
-                <span className="flex items-center gap-1">
-                  <User className="h-3 w-3" />
-                  {lead.title}
-                </span>
-              )}
-            </div>
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1 shrink-0">
-          {!isEditing ? (
-            <>
-              <LeadScoreSlider
-                score={lead.lead_score || 0}
-                onSave={handleUpdateLeadScore}
-                leadName={lead.name}
-                size="sm"
-              />
-
-              {lead.phone && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button onClick={handleCall} variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50">
-                      <Phone className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom"><p className="text-xs">Call</p></TooltipContent>
-                </Tooltip>
-              )}
-              {lead.email && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button onClick={handleEmail} variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                      <Mail className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom"><p className="text-xs">Email</p></TooltipContent>
-                </Tooltip>
-              )}
-
-              <div className="w-px h-5 bg-border/60 mx-0.5" />
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button onClick={handleEditToggle} variant="ghost" size="icon" className="h-7 w-7">
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom"><p className="text-xs">Edit</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={handleDelete}
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    disabled={isDeleting}
-                  >
-                    {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom"><p className="text-xs">Delete</p></TooltipContent>
-              </Tooltip>
-            </>
-          ) : (
-            <>
-              <Button onClick={handleEditToggle} variant="ghost" size="sm" className="h-7 text-xs px-2">
-                <X className="h-3.5 w-3.5 mr-1" />
-                Cancel
-              </Button>
-              <Button onClick={handleSave} size="sm" className="h-7 text-xs px-2.5" disabled={isSaving}>
-                {isSaving ? (
-                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+        {/* Row 2: tab triggers flush left */}
+        <div className="px-4 pb-0">
+          <TabsList className="h-8 bg-transparent p-0 gap-0 rounded-none">
+            {(['overview', 'activities', 'tasks', 'meetings'] as const).map(tab => (
+              <TabsTrigger
+                key={tab}
+                value={tab}
+                className="h-8 text-xs px-3 rounded-none capitalize border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary font-normal data-[state=active]:font-medium text-muted-foreground data-[state=active]:text-foreground"
+              >
+                {tab === 'meetings' && meetings.length > 0 ? (
+                  <>Meetings <span className="ml-1 text-[10px] bg-muted rounded-full px-1.5 py-px">{meetings.length}</span></>
                 ) : (
-                  <Check className="h-3.5 w-3.5 mr-1" />
+                  tab.charAt(0).toUpperCase() + tab.slice(1)
                 )}
-                {isSaving ? 'Saving...' : 'Save'}
-              </Button>
-            </>
-          )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="h-8 bg-muted/50 p-0.5 gap-0.5">
-          <TabsTrigger value="details" className="h-7 text-xs px-3 data-[state=active]:shadow-sm">Details</TabsTrigger>
-          <TabsTrigger value="activities" className="h-7 text-xs px-3 data-[state=active]:shadow-sm">Activities</TabsTrigger>
-          <TabsTrigger value="tasks" className="h-7 text-xs px-3 data-[state=active]:shadow-sm">Tasks</TabsTrigger>
-          <TabsTrigger value="meetings" className="h-7 text-xs px-3 data-[state=active]:shadow-sm">
-            Meetings
-            {meetings.length > 0 && (
-              <span className="ml-1.5 text-[10px] text-muted-foreground bg-muted rounded-full px-1.5 py-px">
-                {meetings.length}
-              </span>
-            )}
-          </TabsTrigger>
-        </TabsList>
+      {/* ── Overview: properties + notes ─────────────────────────── */}
+      <TabsContent value="overview" className="mt-0 flex-1">
+        <div className="px-4 pt-4 pb-2">
+          <LeadDetailsForm
+            lead={lead}
+            mode="edit"
+            showNotes={false}
+            ref={r => {
+              if (r && 'getFormValues' in r) {
+                // @ts-ignore
+                formRef.current = r;
+              }
+            }}
+          />
+        </div>
 
-        {/* Lead Details Tab */}
-        <TabsContent value="details" className="mt-3">
-          <div className="border rounded-lg p-4 bg-card">
-            <LeadDetailsForm
-              lead={lead}
-              mode={isEditing ? 'edit' : 'view'}
-              ref={(ref) => {
-                if (ref && 'getFormValues' in ref) {
-                  // @ts-ignore
-                  formRef.current = ref;
-                }
-              }}
-            />
+        <div className="mt-3 border-t">
+          <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Notes</span>
+            {notesSaving && <span className="text-[10px] text-muted-foreground animate-pulse">Saving…</span>}
           </div>
-        </TabsContent>
+          <Textarea
+            value={notes}
+            onChange={e => handleNotesChange(e.target.value)}
+            placeholder="Write notes here… (auto-saved)"
+            className="w-full resize-none border-0 border-t rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm min-h-[200px] px-4 py-3"
+          />
+        </div>
+      </TabsContent>
 
-        {/* Activities Tab */}
+      {/* ── Tab content panels ───────────────────────────────────── */}
+      <div className="px-4 pb-4">
         <TabsContent value="activities" className="mt-3">
           <div className="border rounded-lg p-4 bg-card">
             <LeadActivities leadId={lead.id} />
           </div>
         </TabsContent>
 
-        {/* Tasks Tab */}
         <TabsContent value="tasks" className="mt-3">
           <LeadTasks leadId={lead.id} />
         </TabsContent>
 
-        {/* Meetings Tab */}
         <TabsContent value="meetings" className="mt-3">
-          {/* Meetings header */}
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs text-muted-foreground">
-              {meetings.length} meeting{meetings.length !== 1 ? 's' : ''}
-            </p>
+            <p className="text-xs text-muted-foreground">{meetings.length} meeting{meetings.length !== 1 ? 's' : ''}</p>
             <Button onClick={handleScheduleMeeting} size="sm" className="h-7 text-xs px-2.5">
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Schedule
+              <Plus className="h-3.5 w-3.5 mr-1" />Schedule
             </Button>
           </div>
 
@@ -466,18 +340,15 @@ export const LeadDetailsPage = () => {
               <Calendar className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
               <p className="text-xs text-muted-foreground">No meetings scheduled</p>
               <Button onClick={handleScheduleMeeting} variant="outline" size="sm" className="mt-3 h-7 text-xs">
-                <Calendar className="h-3.5 w-3.5 mr-1" />
-                Schedule First Meeting
+                <Calendar className="h-3.5 w-3.5 mr-1" />Schedule First Meeting
               </Button>
             </div>
           ) : (
             <div className="border rounded-lg bg-card divide-y divide-border/50">
-              {meetings.map((meeting) => (
-                <div
-                  key={meeting.id}
+              {meetings.map(meeting => (
+                <div key={meeting.id}
                   className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors cursor-pointer"
-                  onClick={() => handleMeetingClick(meeting.id)}
-                >
+                  onClick={() => handleMeetingClick(meeting.id)}>
                   <div className="h-7 w-7 rounded-md bg-muted/70 flex items-center justify-center shrink-0">
                     <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
@@ -493,8 +364,7 @@ export const LeadDetailsPage = () => {
                       </span>
                       {meeting.location && (
                         <span className="flex items-center gap-1 truncate">
-                          <MapPin className="h-3 w-3 shrink-0" />
-                          {meeting.location}
+                          <MapPin className="h-3 w-3 shrink-0" />{meeting.location}
                         </span>
                       )}
                     </div>
@@ -504,20 +374,19 @@ export const LeadDetailsPage = () => {
             </div>
           )}
         </TabsContent>
-      </Tabs>
+      </div>
 
-      {/* Meeting Drawer */}
       <MeetingsFormDrawer
         open={meetingDrawerOpen}
         onOpenChange={setMeetingDrawerOpen}
         meetingId={selectedMeetingId}
         mode={meetingDrawerMode}
-        onSuccess={handleMeetingSuccess}
-        onDelete={handleMeetingDelete}
+        onSuccess={() => mutateMeetings()}
+        onDelete={() => mutateMeetings()}
         onModeChange={setMeetingDrawerMode}
         initialLeadId={leadIdNum}
       />
-    </div>
+    </Tabs>
   );
 };
 

@@ -613,7 +613,7 @@ class ChatService {
 
     return {
       contact: this.normalizeContact(response?.contact || response),
-      labels: response?.labels || [],
+      labels: response?.all_labels || response?.labels || [],
       teamMembers: (response?.team_members || []).map((m: any) => ({
         _uid: m._uid || m.id || m.user_uid,
         name: m.name || `${m.first_name || ''} ${m.last_name || ''}`.trim(),

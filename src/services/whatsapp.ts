@@ -27,10 +27,19 @@ export const uploadMedia = async (file: File) => {
     },
   });
 
-  // Return response with media_url for sending
+  // Surface upload failures immediately
+  if (response.data?.result === 'failed') {
+    throw new Error(response.data?.message || 'Media upload failed');
+  }
+
+  const mediaUrl = response.data?.data?.media_url || response.data?.media_url;
+  if (!mediaUrl) {
+    throw new Error('Upload succeeded but no media URL returned');
+  }
+
   return {
-    media_id: response.data?.data?.media_url || response.data?.media_url,
-    url: response.data?.data?.media_url || response.data?.media_url,
+    media_id: mediaUrl,
+    url: mediaUrl,
     file_name: response.data?.data?.file_name || file.name,
   };
 };

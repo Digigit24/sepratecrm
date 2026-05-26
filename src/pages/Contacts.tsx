@@ -1,6 +1,6 @@
 // src/pages/Contacts.tsx
 import { useState } from 'react';
-import { useContacts, useContactMutations } from '@/hooks/whatsapp/useContacts';
+import { useContacts, useContactMutations, useLabels, useContactGroups } from '@/hooks/whatsapp/useContacts';
 import type { ContactsListQuery, Contact } from '@/types/whatsappTypes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,8 @@ export default function Contacts() {
 
   const { contacts, total, isLoading, error, revalidate } = useContacts(filters);
   const { deleteContact } = useContactMutations();
+  const { labels: allLabels } = useLabels();
+  const { groups: allGroups } = useContactGroups();
 
   // Handle search
   const handleSearch = () => {
@@ -221,16 +223,25 @@ export default function Contacts() {
               Search: {filters.search}
             </span>
           )}
-          {filters.labels && (
-            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-              Labels: {filters.labels}
-            </span>
-          )}
-          {filters.groups && (
-            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-              Groups: {filters.groups}
-            </span>
-          )}
+          {filters.labels && filters.labels.split(',').filter(Boolean).map((uid) => {
+            const label = allLabels.find((l) => l._uid === uid);
+            return (
+              <span key={uid} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                {label?.bg_color && (
+                  <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: label.bg_color }} />
+                )}
+                {label?.title ?? uid}
+              </span>
+            );
+          })}
+          {filters.groups && filters.groups.split(',').filter(Boolean).map((uid) => {
+            const group = allGroups.find((g) => g._uid === uid);
+            return (
+              <span key={uid} className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                {group?.title ?? uid}
+              </span>
+            );
+          })}
         </div>
       )}
 

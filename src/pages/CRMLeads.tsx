@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useLeadsFilterConfig } from '@/hooks/useLeadsFilterConfig';
 import { DataTable, type DataTableColumn } from '@/components/DataTable';
 import { LeadsFormDrawer } from '@/components/LeadsFormDrawer';
 import { LeadStatusFormDrawer } from '@/components/LeadStatusFormDrawer';
@@ -15,20 +16,27 @@ import { EditableStatusCell } from '@/components/crm/EditableStatusCell';
 import { LeadScoreSlider } from '@/components/crm/LeadScoreSlider';
 import { WhatsAppTemplateModal } from '@/components/WhatsAppTemplateModal';
 import { FollowupsContent } from '@/components/crm/FollowupsContent';
+import { LeadsFilterDrawer, countActiveFilters } from '@/components/leads/LeadsFilterDrawer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, RefreshCw, Building2, Phone, Mail, IndianRupee, LayoutGrid, List, Download, Upload, FileSpreadsheet, ChevronDown, MessageCircle, Trash2, FileText, CalendarClock, MoreVertical, Eye, EyeOff, Target } from 'lucide-react';
+import { Plus, RefreshCw, Building2, Phone, Mail, IndianRupee, LayoutGrid, List, Download, Upload, FileSpreadsheet, ChevronDown, MessageCircle, Trash2, FileText, CalendarClock, MoreVertical, Eye, EyeOff, SlidersHorizontal, X } from 'lucide-react';
+// Note: Target import removed - lead score filter is now in LeadsFilterDrawer
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { useUsers } from '@/hooks/useUsers';
 import { toast } from 'sonner';
 import { formatDistanceToNow, isValid } from 'date-fns';
 import type { Lead, LeadsQueryParams, PriorityEnum, LeadStatus } from '@/types/crmTypes';
+import { FieldTypeEnum } from '@/types/crmTypes';
 import type { RowActions } from '@/components/DataTable';
 import { leadStatusCache } from '@/lib/leadStatusCache';
+import { STANDARD_FILTER_DEFS } from '@/types/filterTypes';
+import type { ActiveFilters, FilterFieldDef, FilterFieldType } from '@/types/filterTypes';
 
 type DrawerMode = 'view' | 'edit' | 'create';
 type ViewMode = 'list' | 'kanban' | 'followups';
@@ -61,8 +69,13 @@ export const CRMLeads: React.FC = () => {
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<number>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [isBulkUpdatingStatus, setIsBulkUpdatingStatus] = useState(false);
-  const [hideDuplicates, setHideDuplicates] = useState(true);
-  const [leadScoreFilter, setLeadScoreFilter] = useState<string>('all');
+  const [activeFilters, setActiveFilters] = useState<ActiveFilters>({ hide_duplicates: true });
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+
+  const { config: filterConfig, saveForMe, saveForEveryone, isSaving: isSavingFilter } = useLeadsFilterConfig();
+
+  const { useUsersList } = useUsers();
+  const { data: usersData } = useUsersList({ page_size: 100 });
 
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [selectedLeadForTemplate, setSelectedLeadForTemplate] = useState<Lead | null>(null);
@@ -610,28 +623,69 @@ export const CRMLeads: React.FC = () => {
     return formatCurrencyDynamic(numericAmount, true, 2);
   };
 
+  // Build filter definitions from standard + custom fields
+  const filterDefs = useMemo<FilterFieldDef[]>(() => {
+    const customFields = (configurationsData?.results || [])
+      .filter(f => f.category === 'custom' || !f.is_standard)
+      .map((f): FilterFieldDef => {
+        let filterType: FilterFieldType = 'text_contains';
+        if (f.field_type === FieldTypeEnum.NUMBER || f.field_type === FieldTypeEnum.DECIMAL || f.field_type === FieldTypeEnum.CURRENCY) {
+          filterType = 'number_range';
+        } else if (f.field_type === FieldTypeEnum.DATE || f.field_type === FieldTypeEnum.DATETIME) {
+          filterType = 'date_range';
+        } else if (f.field_type === FieldTypeEnum.DROPDOWN) {
+          filterType = 'single_select';
+        } else if (f.field_type === FieldTypeEnum.MULTISELECT) {
+          filterType = 'multi_select';
+        } else if (f.field_type === FieldTypeEnum.CHECKBOX) {
+          filterType = 'boolean_toggle';
+        }
+        return {
+          key: f.field_name,
+          label: f.field_label,
+          filterType,
+          isCustom: true,
+          fieldConfig: f,
+          options: Array.isArray(f.options) ? f.options : [],
+        };
+      });
+    return [...STANDARD_FILTER_DEFS, ...customFields];
+  }, [configurationsData?.results]);
+
   const filteredLeads = useMemo(() => {
     if (!leadsData?.results) return [];
-
     let results = leadsData.results;
 
-    // Duplicate filter
-    if (hideDuplicates) {
+    // Hide duplicates
+    if (activeFilters.hide_duplicates) {
       const seenPhones = new Set<string>();
       results = results.filter((lead) => {
         if (!lead.phone) return true;
-        const normalizedPhone = lead.phone.replace(/\s+/g, '').toLowerCase();
-        if (seenPhones.has(normalizedPhone)) return false;
-        seenPhones.add(normalizedPhone);
+        const norm = lead.phone.replace(/\s+/g, '').toLowerCase();
+        if (seenPhones.has(norm)) return false;
+        seenPhones.add(norm);
         return true;
       });
     }
 
-    // Lead score filter
-    if (leadScoreFilter !== 'all') {
-      results = results.filter((lead) => {
+    // Status (multi-select array of IDs)
+    if (activeFilters.status?.length) {
+      results = results.filter(lead => {
+        const id = typeof lead.status === 'number' ? lead.status : (lead.status as any)?.id;
+        return activeFilters.status.includes(id);
+      });
+    }
+
+    // Priority (multi-select array of strings)
+    if (activeFilters.priority?.length) {
+      results = results.filter(lead => activeFilters.priority.includes(lead.priority));
+    }
+
+    // Lead score range
+    if (activeFilters.lead_score) {
+      results = results.filter(lead => {
         const score = lead.lead_score || 0;
-        switch (leadScoreFilter) {
+        switch (activeFilters.lead_score) {
           case 'no_score': return score === 0;
           case 'below_25': return score > 0 && score < 25;
           case '25_to_50': return score >= 25 && score < 50;
@@ -642,8 +696,119 @@ export const CRMLeads: React.FC = () => {
       });
     }
 
+    // Owner
+    if (activeFilters.owner_user_id) {
+      results = results.filter(lead => lead.owner_user_id === activeFilters.owner_user_id);
+    }
+
+    // Text contains — standard fields
+    const textStandardFields = ['name', 'phone', 'email', 'company', 'source', 'city', 'state', 'country', 'notes'] as const;
+    for (const field of textStandardFields) {
+      const val = activeFilters[field];
+      if (val) {
+        results = results.filter(lead =>
+          ((lead[field] as string) || '').toLowerCase().includes(val.toLowerCase())
+        );
+      }
+    }
+
+    // Value amount range
+    const valMin = activeFilters.value_amount_min;
+    const valMax = activeFilters.value_amount_max;
+    if (valMin !== undefined || valMax !== undefined) {
+      results = results.filter(lead => {
+        const amt = parseFloat(lead.value_amount || '0');
+        if (valMin !== undefined && amt < valMin) return false;
+        if (valMax !== undefined && amt > valMax) return false;
+        return true;
+      });
+    }
+
+    // Date range filters for standard date fields
+    for (const field of ['created_at', 'updated_at', 'next_follow_up_at'] as const) {
+      const gte = activeFilters[`${field}_gte`];
+      const lte = activeFilters[`${field}_lte`];
+      if (gte || lte) {
+        results = results.filter(lead => {
+          const val = lead[field];
+          if (!val) return false;
+          const d = new Date(val);
+          if (gte && d < new Date(gte)) return false;
+          if (lte && d > new Date(lte)) return false;
+          return true;
+        });
+      }
+    }
+
+    // Next follow-up: no followup scheduled
+    if (activeFilters.next_follow_up_at_isnull === true) {
+      results = results.filter(lead => !lead.next_follow_up_at);
+    }
+
+    // Custom field filters
+    const customDefs = filterDefs.filter(f => f.isCustom);
+    for (const def of customDefs) {
+      const baseKey = `meta_${def.key}`;
+      switch (def.filterType) {
+        case 'text_contains': {
+          const v = activeFilters[baseKey];
+          if (v) results = results.filter(lead =>
+            ((lead.metadata?.[def.key] || '') + '').toLowerCase().includes(v.toLowerCase())
+          );
+          break;
+        }
+        case 'number_range': {
+          const min = activeFilters[`${baseKey}_min`];
+          const max = activeFilters[`${baseKey}_max`];
+          if (min !== undefined && min !== '') {
+            results = results.filter(lead => parseFloat(lead.metadata?.[def.key] || '0') >= Number(min));
+          }
+          if (max !== undefined && max !== '') {
+            results = results.filter(lead => parseFloat(lead.metadata?.[def.key] || '0') <= Number(max));
+          }
+          break;
+        }
+        case 'date_range': {
+          const gte = activeFilters[`${baseKey}_gte`];
+          const lte = activeFilters[`${baseKey}_lte`];
+          if (gte) results = results.filter(lead => {
+            const v = lead.metadata?.[def.key];
+            return v && new Date(v) >= new Date(gte);
+          });
+          if (lte) results = results.filter(lead => {
+            const v = lead.metadata?.[def.key];
+            return v && new Date(v) <= new Date(lte);
+          });
+          break;
+        }
+        case 'single_select': {
+          const v = activeFilters[baseKey];
+          if (v) results = results.filter(lead => lead.metadata?.[def.key] === v);
+          break;
+        }
+        case 'multi_select': {
+          const v: string[] = activeFilters[baseKey];
+          if (Array.isArray(v) && v.length) {
+            results = results.filter(lead => {
+              const lv = lead.metadata?.[def.key];
+              if (Array.isArray(lv)) return v.some(sv => lv.includes(sv));
+              return v.includes(lv);
+            });
+          }
+          break;
+        }
+        case 'boolean_toggle': {
+          const v = activeFilters[baseKey];
+          if (v !== undefined && v !== null) {
+            results = results.filter(lead => Boolean(lead.metadata?.[def.key]) === v);
+          }
+          break;
+        }
+      }
+    }
+
     return results;
-  }, [leadsData?.results, hideDuplicates, leadScoreFilter]);
+  }, [leadsData?.results, activeFilters, filterDefs]);
 
   const fieldVisibilityMap = useMemo(() => {
     const allFields = configurationsData?.results || [];
@@ -658,12 +823,29 @@ export const CRMLeads: React.FC = () => {
     return fieldVisibilityMap.get(fieldName) ?? true;
   }, [fieldVisibilityMap]);
 
+  // Filters with "tabs" placement — rendered as clickable chips below toolbar
+  const tabsPlacementFilters = useMemo(() => {
+    return filterDefs.filter(def => {
+      const layout = filterConfig.fields.find(f => f.key === def.key);
+      return layout?.placement === 'tabs';
+    });
+  }, [filterDefs, filterConfig]);
+
+  // Filters with "toolbar" placement — rendered as compact dropdowns in toolbar
+  const toolbarPlacementFilters = useMemo(() => {
+    return filterDefs.filter(def => {
+      const layout = filterConfig.fields.find(f => f.key === def.key);
+      return layout?.placement === 'toolbar';
+    });
+  }, [filterDefs, filterConfig]);
+
+  const activeFilterCount = countActiveFilters(activeFilters);
+
   const dynamicColumns = useMemo(() => {
     const allFields = configurationsData?.results || [];
+    // Use all configured fields (not just is_standard) so display_order is respected for every field
     const standardFieldsMap = new Map(
-      allFields
-        .filter((field) => field.is_standard)
-        .map((field) => [field.field_name, { order: field.display_order, visible: field.is_visible, config: field }])
+      allFields.map((field) => [field.field_name, { order: field.display_order, visible: field.is_visible, config: field }])
     );
 
     const allLeadsSelected = filteredLeads.length > 0 && filteredLeads.every((lead) => selectedLeadIds.has(lead.id));
@@ -1101,8 +1283,8 @@ export const CRMLeads: React.FC = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setHideDuplicates(!hideDuplicates)}>
-                {hideDuplicates ? (
+              <DropdownMenuItem onClick={() => setActiveFilters(prev => ({ ...prev, hide_duplicates: !prev.hide_duplicates || undefined }))}>
+                {activeFilters.hide_duplicates ? (
                   <>
                     <Eye className="h-4 w-4 mr-2" />
                     Show All Leads
@@ -1151,7 +1333,8 @@ export const CRMLeads: React.FC = () => {
         className="hidden"
       />
 
-      <div className="flex items-center gap-2">
+      {/* Toolbar row: view mode tabs + toolbar filters + filter icon */}
+      <div className="flex items-center gap-2 flex-wrap">
         <Tabs value={viewMode} onValueChange={(value) => handleViewModeChange(value as ViewMode)}>
           <TabsList className="h-8">
             <TabsTrigger value="list" className="text-xs h-6 px-2.5 gap-1.5">
@@ -1169,31 +1352,271 @@ export const CRMLeads: React.FC = () => {
           </TabsList>
         </Tabs>
 
-        <Select value={leadScoreFilter} onValueChange={setLeadScoreFilter}>
-          <SelectTrigger className="h-8 w-[160px] text-xs">
-            <Target className="h-3 w-3 mr-1.5 text-muted-foreground" />
-            <SelectValue placeholder="Lead Score" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Scores</SelectItem>
-            <SelectItem value="no_score">No Score</SelectItem>
-            <SelectItem value="below_25">Below 25</SelectItem>
-            <SelectItem value="25_to_50">25 - 50</SelectItem>
-            <SelectItem value="50_to_75">50 - 75</SelectItem>
-            <SelectItem value="75_above">75 &amp; Above</SelectItem>
-          </SelectContent>
-        </Select>
-        {leadScoreFilter !== 'all' && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setLeadScoreFilter('all')}
-            className="h-8 text-xs px-2 text-muted-foreground hover:text-foreground"
-          >
-            Clear
-          </Button>
-        )}
+        {/* Toolbar placement filters */}
+        {toolbarPlacementFilters.map(def => {
+          const filterKey = def.isCustom ? `meta_${def.key}` : def.key;
+
+          if (def.filterType === 'lead_score_range') {
+            return (
+              <Select
+                key={def.key}
+                value={activeFilters.lead_score || '__all__'}
+                onValueChange={v => setActiveFilters(prev => ({ ...prev, lead_score: v === '__all__' ? undefined : v }))}
+              >
+                <SelectTrigger className="h-8 w-[140px] text-xs">
+                  <SelectValue placeholder={def.label} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Scores</SelectItem>
+                  <SelectItem value="no_score">No Score</SelectItem>
+                  <SelectItem value="below_25">Below 25</SelectItem>
+                  <SelectItem value="25_to_50">25 – 50</SelectItem>
+                  <SelectItem value="50_to_75">50 – 75</SelectItem>
+                  <SelectItem value="75_above">75+</SelectItem>
+                </SelectContent>
+              </Select>
+            );
+          }
+
+          if (def.filterType === 'multi_priority') {
+            return (
+              <Select
+                key={def.key}
+                value={activeFilters.priority?.[0] || '__all__'}
+                onValueChange={v => setActiveFilters(prev => ({ ...prev, priority: v === '__all__' ? undefined : [v] }))}
+              >
+                <SelectTrigger className="h-8 w-[120px] text-xs">
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Any Priority</SelectItem>
+                  <SelectItem value="HIGH">High</SelectItem>
+                  <SelectItem value="MEDIUM">Medium</SelectItem>
+                  <SelectItem value="LOW">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            );
+          }
+
+          if (def.filterType === 'multi_status') {
+            return (
+              <Select
+                key={def.key}
+                value={activeFilters.status?.[0]?.toString() || '__all__'}
+                onValueChange={v => setActiveFilters(prev => ({ ...prev, status: v === '__all__' ? undefined : [Number(v)] }))}
+              >
+                <SelectTrigger className="h-8 w-[130px] text-xs">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Any Status</SelectItem>
+                  {(statusesData?.results || []).map(s => (
+                    <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          }
+
+          if (def.filterType === 'user_select') {
+            const users = usersData?.results || [];
+            return (
+              <Select
+                key={def.key}
+                value={activeFilters[filterKey] || '__all__'}
+                onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__all__' ? undefined : v }))}
+              >
+                <SelectTrigger className="h-8 w-[130px] text-xs">
+                  <SelectValue placeholder={def.label} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Any {def.label}</SelectItem>
+                  {users.map(u => (
+                    <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          }
+
+          if (def.filterType === 'single_select') {
+            return (
+              <Select
+                key={def.key}
+                value={activeFilters[filterKey] || '__any__'}
+                onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__any__' ? undefined : v }))}
+              >
+                <SelectTrigger className="h-8 w-[140px] text-xs">
+                  <SelectValue placeholder={def.label} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__any__">Any {def.label}</SelectItem>
+                  {(def.options || []).map(opt => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          }
+
+          if (def.filterType === 'multi_select') {
+            return (
+              <Select
+                key={def.key}
+                value={activeFilters[filterKey]?.[0] || '__any__'}
+                onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__any__' ? undefined : [v] }))}
+              >
+                <SelectTrigger className="h-8 w-[140px] text-xs">
+                  <SelectValue placeholder={def.label} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__any__">Any {def.label}</SelectItem>
+                  {(def.options || []).map(opt => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          }
+
+          if (def.filterType === 'boolean_toggle') {
+            return (
+              <Select
+                key={def.key}
+                value={activeFilters[filterKey] === true ? 'true' : activeFilters[filterKey] === false ? 'false' : '__any__'}
+                onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__any__' ? undefined : v === 'true' }))}
+              >
+                <SelectTrigger className="h-8 w-[130px] text-xs">
+                  <SelectValue placeholder={def.label} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__any__">Any</SelectItem>
+                  <SelectItem value="true">Yes</SelectItem>
+                  <SelectItem value="false">No</SelectItem>
+                </SelectContent>
+              </Select>
+            );
+          }
+
+          if (def.filterType === 'text_contains') {
+            return (
+              <Input
+                key={def.key}
+                value={activeFilters[filterKey] || ''}
+                onChange={e => setActiveFilters(prev => ({ ...prev, [filterKey]: e.target.value || undefined }))}
+                placeholder={def.label}
+                className="h-8 w-[150px] text-xs"
+              />
+            );
+          }
+
+          return null;
+        })}
+
+        <div className="ml-auto flex items-center gap-1.5">
+          {/* Active filter count chip */}
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => setFilterDrawerOpen(true)}
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
+            >
+              <SlidersHorizontal className="h-3 w-3" />
+              {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''}
+              <X
+                className="h-2.5 w-2.5 ml-0.5 hover:text-primary/60"
+                onClick={e => { e.stopPropagation(); setActiveFilters({ hide_duplicates: true }); }}
+              />
+            </button>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={activeFilterCount > 0 ? 'secondary' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setFilterDrawerOpen(true)}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p className="text-xs">Filters & Configure</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
       </div>
+
+      {/* Tabs-placement filter rows (e.g. Status tabs) */}
+      {tabsPlacementFilters.length > 0 && (
+        <div className="space-y-1.5">
+          {tabsPlacementFilters.map(def => {
+            if (def.filterType === 'multi_status') {
+              const selected: number[] = activeFilters.status || [];
+              return (
+                <div key={def.key} className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    onClick={() => setActiveFilters(prev => { const n = { ...prev }; delete n.status; return n; })}
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-all ${
+                      selected.length === 0
+                        ? 'bg-foreground text-background border-foreground'
+                        : 'border-border text-muted-foreground hover:border-foreground/30'
+                    }`}
+                  >
+                    All
+                  </button>
+                  {(statusesData?.results || []).map(s => {
+                    const isSelected = selected.includes(s.id);
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => {
+                          const next = isSelected ? selected.filter(id => id !== s.id) : [...selected, s.id];
+                          setActiveFilters(prev => ({ ...prev, status: next.length ? next : undefined }));
+                        }}
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-all ${
+                          isSelected ? 'opacity-100' : 'opacity-50 hover:opacity-80'
+                        }`}
+                        style={{
+                          backgroundColor: isSelected ? `${s.color_hex || '#6B7280'}20` : 'transparent',
+                          borderColor: s.color_hex || '#6B7280',
+                          color: s.color_hex || '#6B7280',
+                        }}
+                      >
+                        {s.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            }
+            if (def.filterType === 'multi_priority') {
+              const selected: string[] = activeFilters.priority || [];
+              return (
+                <div key={def.key} className="flex items-center gap-1.5">
+                  {['HIGH', 'MEDIUM', 'LOW'].map(p => {
+                    const isSelected = selected.includes(p);
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => {
+                          const next = isSelected ? selected.filter(v => v !== p) : [...selected, p];
+                          setActiveFilters(prev => ({ ...prev, priority: next.length ? next : undefined }));
+                        }}
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-all ${
+                          isSelected ? 'bg-muted border-foreground/30' : 'border-border hover:bg-muted/50 text-muted-foreground'
+                        }`}
+                      >
+                        {p.charAt(0) + p.slice(1).toLowerCase()}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            }
+            return null;
+          })}
+        </div>
+      )}
 
       {viewMode === 'followups' ? (
         <FollowupsContent
@@ -1306,6 +1729,19 @@ export const CRMLeads: React.FC = () => {
         onOpenChange={setTemplateModalOpen}
         phoneNumber={selectedLeadForTemplate?.phone || ''}
         leadName={selectedLeadForTemplate?.name || ''}
+      />
+
+      <LeadsFilterDrawer
+        open={filterDrawerOpen}
+        onOpenChange={setFilterDrawerOpen}
+        filterDefs={filterDefs}
+        statuses={statusesData?.results || []}
+        activeFilters={activeFilters}
+        onFiltersChange={setActiveFilters}
+        config={filterConfig}
+        onSaveForMe={saveForMe}
+        onSaveForEveryone={saveForEveryone}
+        isSaving={isSavingFilter}
       />
     </div>
   );

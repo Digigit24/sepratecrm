@@ -28,6 +28,7 @@ import {
   Loader2,
   PanelLeftClose,
   PanelLeft,
+  Bot,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -81,6 +82,7 @@ const menuSections: MenuSection[] = [
           { id: "whatsapp-templates", label: "Templates", icon: FileText, path: "/whatsapp/templates" },
           { id: "whatsapp-campaigns", label: "Campaigns", icon: Send, path: "/whatsapp/campaigns" },
           { id: "whatsapp-flows", label: "Flows", icon: Workflow, path: "/whatsapp/flows" },
+          { id: "whatsapp-bot-flows", label: "Bot Flows", icon: Bot, path: "/whatsapp/bot-flows" },
           { id: "whatsapp-qrcode", label: "QR Codes", icon: QrCode, path: "/whatsapp/qrcode" },
         ],
       },

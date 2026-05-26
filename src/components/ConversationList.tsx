@@ -1,9 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Phone, MessageCircle, Home, Search, Clock, AlertCircle } from "lucide-react";
+import { Phone, MessageCircle, Home, Search, Clock, AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatLabel } from "@/services/whatsapp/chatService";
 
@@ -63,6 +63,9 @@ type Props = {
   currentUserUid?: string;
   unreadCounts?: UnreadCounts;
   onSearchChange?: (search: string) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
 };
 
 export const ConversationList = ({
@@ -73,9 +76,32 @@ export const ConversationList = ({
   currentUserUid,
   unreadCounts,
   onSearchChange,
+  onLoadMore,
+  hasMore = false,
+  isLoadingMore = false,
 }: Props) => {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("all");
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // IntersectionObserver: trigger loadMore when sentinel scrolls into view
+  useEffect(() => {
+    if (!onLoadMore || !hasMore) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingMore) {
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [onLoadMore, hasMore, isLoadingMore]);
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -205,7 +231,7 @@ export const ConversationList = ({
                 key={conversation.id}
                 onClick={() => onSelect(conversation.id)}
                 className={cn(
-                  "flex items-start gap-3 px-4 py-3 border-b border-border transition-colors hover:bg-accent/50 text-left w-full",
+                  "flex items-start gap-3 px-4 py-3 border-b border-border transition-colors hover:bg-accent/50 text-left w-full relative",
                   selectedId === conversation.id && "bg-accent"
                 )}
               >
@@ -306,6 +332,16 @@ export const ConversationList = ({
               </button>
             );
           })
+        )}
+        {/* Sentinel div for IntersectionObserver — triggers loadMore when scrolled into view */}
+        {hasMore && (
+          <div ref={sentinelRef} className="py-3 flex items-center justify-center">
+            {isLoadingMore ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : (
+              <span className="text-[11px] text-muted-foreground">Scroll for more</span>
+            )}
+          </div>
         )}
       </div>
     </div>

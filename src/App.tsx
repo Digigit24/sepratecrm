@@ -30,6 +30,8 @@ import Templates from "./pages/Templates";
 import Campaigns from "./pages/Campaigns";
 import Flows from "./pages/Flows";
 import FlowEditor from "./pages/FlowEditor";
+import BotFlows from "./pages/BotFlows";
+import BotFlowBuilder from "./pages/BotFlowBuilder";
 import QRCodes from "./pages/QRCodes";
 import WhatsAppOnboarding from "./pages/WhatsAppOnboarding";
 import Scheduling from "./pages/Scheduling";
@@ -98,6 +100,8 @@ const AppLayout = () => {
               <Route path="/whatsapp/campaigns" element={<ModuleProtectedRoute requiredModule="whatsapp"><Campaigns /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/flows" element={<ModuleProtectedRoute requiredModule="whatsapp"><Flows /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/flows/:flow_id" element={<ModuleProtectedRoute requiredModule="whatsapp"><FlowEditor /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/bot-flows" element={<ModuleProtectedRoute requiredModule="whatsapp"><BotFlows /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/bot-flows/:flowId" element={<ModuleProtectedRoute requiredModule="whatsapp"><BotFlowBuilder /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/qrcode" element={<ModuleProtectedRoute requiredModule="whatsapp"><QRCodes /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/scheduling" element={<ModuleProtectedRoute requiredModule="whatsapp"><Scheduling /></ModuleProtectedRoute>} />
 
