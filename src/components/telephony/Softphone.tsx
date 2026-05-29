@@ -77,7 +77,19 @@ export const Softphone: React.FC = () => {
       {panelOpen && (
         <div className="fixed bottom-20 right-5 z-[60] w-[300px] rounded-xl border bg-card shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/40">
-            <span className="text-sm font-semibold">Softphone</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold">Softphone</span>
+              {/* Dev-only live-channel indicator (hidden in production builds) */}
+              {import.meta.env.DEV && (
+                <span
+                  className={cn(
+                    'inline-block h-2 w-2 rounded-full',
+                    phone.liveConnected ? 'bg-green-500' : 'bg-muted-foreground/40',
+                  )}
+                  title={`Live: ${phone.liveConnected ? 'connected' : 'disconnected'}`}
+                />
+              )}
+            </div>
             <div className="flex items-center gap-1">
               {status === 'ready' && (
                 <Button variant="ghost" size="icon" className="h-6 w-6" title="Log out" onClick={phone.logout}>

@@ -19,6 +19,7 @@ import React, {
 import { toast } from 'sonner';
 import PIOPIY, { type PiopiyEventPayload } from 'piopiyjs';
 import { useTelephony } from '@/hooks/useTelephony';
+import { useTelephonyLiveEvents, type TelephonyLiveEvent } from '@/hooks/useTelephonyLiveEvents';
 import { TelephonyApiError } from '@/services/telephonyService';
 import { setTelephonyDispatcher } from '@/lib/telephonyController';
 
@@ -53,6 +54,8 @@ interface TelephonyPhoneContextValue {
   transferInitiated: boolean;
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
+  /** Whether the realtime live-events channel is connected (false until backend ships it). */
+  liveConnected: boolean;
   // actions
   login: (password: string) => void;
   logout: () => void;
@@ -103,9 +106,13 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
   const statusRef = useRef<PhoneStatus>('loading');
   const callStartRef = useRef<number | null>(null);
   const pendingDialRef = useRef<CallMeta | null>(null);
+  const currentCallRef = useRef<CallMeta | null>(null);
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
+  useEffect(() => {
+    currentCallRef.current = currentCall;
+  }, [currentCall]);
 
   const resetCall = useCallback(() => {
     setCurrentCall(null);
@@ -189,6 +196,36 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
     }, 1000);
     return () => window.clearInterval(id);
   }, [status]);
+
+  // ── reconcile backend live events (§13) with current call state ──
+  // Strictly matches the active call's cmiuid. For in-browser piopiy calls the
+  // SDK already drives these transitions; these webhook events are an idempotent
+  // safety net and the *primary* signal for click-to-call REST flows once the
+  // backend correlates request_id -> cmiuid and broadcasts.
+  const handleLiveEvent = useCallback(
+    (e: TelephonyLiveEvent) => {
+      const cur = currentCallRef.current;
+      if (!cur || !e.cmiuid || cur.cmiuid !== e.cmiuid) return;
+
+      if (e.event === 'ringing') {
+        if (statusRef.current === 'dialling') setStatus('ringing-outbound');
+      } else if (e.event === 'answered') {
+        if (statusRef.current !== 'active' && statusRef.current !== 'on-hold') {
+          if (callStartRef.current == null) {
+            callStartRef.current = Date.now();
+            setDurationSec(0);
+          }
+          setStatus('active');
+        }
+      } else if (e.event === 'ended') {
+        setStatus((s) => (s === 'needs-password' || s === 'not-configured' ? s : 'ready'));
+        resetCall();
+      }
+    },
+    [resetCall],
+  );
+
+  const live = useTelephonyLiveEvents({ onEvent: handleLiveEvent });
 
   // ── actions ──
   const login = useCallback(
@@ -280,6 +317,7 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
     transferInitiated,
     panelOpen,
     setPanelOpen,
+    liveConnected: live.connected,
     login,
     logout,
     dial,
