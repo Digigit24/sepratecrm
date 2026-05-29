@@ -2,7 +2,6 @@
 // External WhatsApp client for Laravel API (whatsappapi.celiyo.com/api)
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { API_CONFIG } from './apiConfig';
-import { tokenManager } from './client';
 
 const USER_KEY = 'celiyo_user';
 
@@ -36,26 +35,14 @@ const externalWhatsappClient: AxiosInstance = axios.create({
 // Request interceptor - attach WhatsApp API token (not user auth token)
 externalWhatsappClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Use WhatsApp API token for external WhatsApp API calls
     const whatsappApiToken = getWhatsappApiToken();
-    // Fallback to user auth token if WhatsApp API token is not set
-    const userAuthToken = tokenManager.getAccessToken();
-    const token = whatsappApiToken || userAuthToken;
 
-    console.log('📤 External WhatsApp API Request:', {
-      url: config.url,
-      method: config.method?.toUpperCase(),
-      hasWhatsappApiToken: !!whatsappApiToken,
-      hasUserAuthToken: !!userAuthToken,
-      usingToken: whatsappApiToken ? 'WhatsApp API Token' : (userAuthToken ? 'User Auth Token' : 'None')
-    });
-
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-      console.log('🔑 Added Bearer token to external WhatsApp request:',
-        whatsappApiToken ? '(WhatsApp API Token)' : '(User Auth Token - fallback)');
+    if (whatsappApiToken) {
+      config.headers.Authorization = `Bearer ${whatsappApiToken}`;
     } else {
-      console.warn('⚠️ No token found for external WhatsApp request! Please configure WhatsApp API Token in Admin Settings.');
+      // Do NOT fall back to user JWT — the backend middleware compares the bearer token
+      // directly against vendor_api_access_token and will reject any other token.
+      console.warn('⚠️ WhatsApp API Token not configured. Set whatsapp_api_token in tenant settings.');
     }
 
     // Add tenant headers if available
@@ -112,55 +99,9 @@ externalWhatsappClient.interceptors.response.use(
       data: error.response?.data
     });
 
-    // Check if we're using WhatsApp API token (static token, no refresh)
-    const whatsappApiToken = getWhatsappApiToken();
-
-    // Handle 401 Unauthorized
+    // Handle 401 Unauthorized — static API key, no refresh possible
     if (error.response?.status === 401) {
-      if (whatsappApiToken) {
-        // If using WhatsApp API token and it's invalid, don't try to refresh
-        // Just log the error - the token needs to be updated in Admin Settings
-        console.error('🔑 WhatsApp API Token is invalid or expired. Please update it in Admin Settings > Tenant Settings.');
-      } else if (!originalRequest._retry) {
-        // Only try to refresh if we're using user auth token
-        originalRequest._retry = true;
-
-        console.log('🔄 Attempting to refresh token for external WhatsApp request...');
-
-        try {
-          const refreshToken = tokenManager.getRefreshToken();
-          if (refreshToken) {
-            const { authClient } = await import('./client');
-
-            const response = await authClient.post(API_CONFIG.AUTH.REFRESH, {
-              refresh: refreshToken
-            });
-
-            const { access, refresh } = response.data;
-            tokenManager.setAccessToken(access);
-
-            if (refresh) {
-              tokenManager.setRefreshToken(refresh);
-            }
-
-            console.log('✅ Token refreshed, retrying external WhatsApp request');
-
-            originalRequest.headers.Authorization = `Bearer ${access}`;
-            return externalWhatsappClient(originalRequest);
-          }
-        } catch (refreshError) {
-          console.error('❌ Token refresh failed:', refreshError);
-
-          tokenManager.removeTokens();
-          localStorage.removeItem(USER_KEY);
-
-          if (!window.location.pathname.includes('/login')) {
-            console.log('↪️ Redirecting to login...');
-            window.location.href = '/login';
-          }
-          return Promise.reject(refreshError);
-        }
-      }
+      console.error('🔑 WhatsApp API Token is invalid. Update vendor_api_access_token in Admin Settings > Tenant Settings.');
     }
 
     // Handle 403 Forbidden

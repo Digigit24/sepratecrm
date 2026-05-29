@@ -81,6 +81,20 @@ class ContactsService {
     return phone.replace(/^\+/, '');
   }
 
+  private isUid(str: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  }
+
+  // Resolve a phone number to a contact UID. UUIDs pass through unchanged.
+  private async resolveUid(phoneOrUid: string): Promise<string> {
+    const cleaned = this.normalizePhoneParam(phoneOrUid);
+    if (this.isUid(cleaned)) return cleaned;
+    const contact = await externalWhatsappService.getContactByPhone(cleaned);
+    if (contact?._uid) return contact._uid;
+    // No UID found — the API call will fail with a meaningful error
+    return cleaned;
+  }
+
   // ==================== CONTACT METHODS ====================
 
   async getContacts(query?: ContactsListQuery): Promise<ContactsListResponse> {
@@ -109,8 +123,8 @@ class ContactsService {
   }
 
   async getContact(phoneOrUid: string): Promise<Contact> {
-    const cleanPhone = this.normalizePhoneParam(phoneOrUid);
-    const response = await externalWhatsappService.getContact(cleanPhone);
+    const uid = await this.resolveUid(phoneOrUid);
+    const response = await externalWhatsappService.getContact(uid);
     return this.mapLaravelContact(response);
   }
 
@@ -153,9 +167,9 @@ class ContactsService {
   }
 
   async deleteContact(phone: string): Promise<DeleteContactResponse> {
-    const cleanPhone = this.normalizePhoneParam(phone);
-    await externalWhatsappService.deleteContact(cleanPhone);
-    return { phone: cleanPhone, deleted: true };
+    const uid = await this.resolveUid(phone);
+    await externalWhatsappService.deleteContact(uid);
+    return { phone, deleted: true };
   }
 
   async searchContacts(searchQuery: string, limit: number = 20): Promise<ContactsListResponse> {
@@ -180,6 +194,10 @@ class ContactsService {
 
   async importContacts(payload: ImportContactsPayload): Promise<any> {
     return externalWhatsappService.importContacts(payload);
+  }
+
+  async getImportStatus(importId: string): Promise<any> {
+    return externalWhatsappService.getImportStatus(importId);
   }
 
   // ==================== LABEL METHODS ====================

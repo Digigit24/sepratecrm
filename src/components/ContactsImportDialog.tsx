@@ -1,5 +1,6 @@
 // src/components/ContactsImportDialog.tsx
 import { useState } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Dialog,
   DialogContent,
@@ -10,13 +11,55 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { contactsService } from '@/services/whatsapp/contactsService';
+import { contactsService, type ImportContactItem } from '@/services/whatsapp/contactsService';
 import { toast } from 'sonner';
 
 interface ContactsImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+}
+
+function parseFileToContacts(file: File): Promise<ImportContactItem[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
+
+        const contacts: ImportContactItem[] = rows
+          .map((row) => {
+            const rawPhone = String(
+              row.phone ?? row.Phone ?? row.phone_number ?? row['Phone Number'] ?? ''
+            ).replace(/\s+/g, '');
+            if (!rawPhone) return null;
+
+            const fullName = String(row.name ?? row.Name ?? '').trim();
+            const firstName = String(row.first_name ?? row['First Name'] ?? (fullName ? fullName.split(' ')[0] : '')).trim();
+            const lastName = String(row.last_name ?? row['Last Name'] ?? (fullName ? fullName.split(' ').slice(1).join(' ') : '')).trim() || undefined;
+
+            return {
+              phone_number: rawPhone,
+              first_name: firstName || undefined,
+              last_name: lastName,
+              email: String(row.email ?? row.Email ?? '').trim() || undefined,
+              country: String(row.country ?? row.Country ?? '').trim() || undefined,
+              language_code: String(row.language_code ?? row.language ?? '').trim() || undefined,
+            } satisfies ImportContactItem;
+          })
+          .filter((c): c is ImportContactItem => c !== null);
+
+        resolve(contacts);
+      } catch (err) {
+        reject(new Error('Failed to parse file. Make sure it is a valid CSV or Excel file.'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsArrayBuffer(file);
+  });
 }
 
 export default function ContactsImportDialog({
@@ -26,10 +69,10 @@ export default function ContactsImportDialog({
 }: ContactsImportDialogProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
   const handleFileSelect = (file: File) => {
-    // Validate file type
     const validTypes = [
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -42,34 +85,27 @@ export default function ContactsImportDialog({
     }
 
     setSelectedFile(file);
+    setImportStatus(null);
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      handleFileSelect(file);
-    }
+    if (file) handleFileSelect(file);
   };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
+    if (e.type === 'dragenter' || e.type === 'dragover') setDragActive(true);
+    else if (e.type === 'dragleave') setDragActive(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-
     const file = e.dataTransfer.files?.[0];
-    if (file) {
-      handleFileSelect(file);
-    }
+    if (file) handleFileSelect(file);
   };
 
   const handleImport = async () => {
@@ -79,22 +115,72 @@ export default function ContactsImportDialog({
     }
 
     setIsImporting(true);
+    setImportStatus('Parsing file…');
+
     try {
-      const result = await contactsService.importContacts(selectedFile);
-      toast.success(result || 'Contacts imported successfully');
+      const contacts = await parseFileToContacts(selectedFile);
+
+      if (contacts.length === 0) {
+        toast.error('No valid contacts found. Ensure the file has a "phone" column with values.');
+        return;
+      }
+
+      setImportStatus(`Uploading ${contacts.length} contacts…`);
+      const result = await contactsService.importContacts({ contacts });
+
+      const importId: string | undefined =
+        result?.import_id ?? result?.id ?? result?.job_id ?? result?.data?.import_id;
+
+      if (importId) {
+        setImportStatus('Processing import…');
+
+        // Poll import status — max 60 seconds (30 × 2 s)
+        let done = false;
+        for (let i = 0; i < 30 && !done; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          try {
+            const status = await contactsService.getImportStatus(importId);
+            const state: string = status?.status ?? status?.state ?? '';
+
+            if (state === 'completed' || state === 'done' || state === 'success') {
+              const imported = status?.imported ?? status?.total ?? contacts.length;
+              toast.success(`Import complete — ${imported} contacts imported`);
+              done = true;
+            } else if (state === 'failed' || state === 'error') {
+              throw new Error(status?.message ?? 'Import failed on the server');
+            } else {
+              setImportStatus(`Processing… (${state || 'queued'})`);
+            }
+          } catch (pollErr: any) {
+            // Ignore transient poll errors; the loop will keep trying
+            if (pollErr?.message?.startsWith('Import failed')) throw pollErr;
+          }
+        }
+
+        if (!done) {
+          toast.success(`${contacts.length} contacts queued for import — they will appear shortly`);
+        }
+      } else {
+        // Backend didn't return a job ID — treat as synchronous success
+        toast.success(`${contacts.length} contacts imported successfully`);
+      }
+
       onSuccess();
       onOpenChange(false);
       setSelectedFile(null);
+      setImportStatus(null);
     } catch (error: any) {
       toast.error(error?.message || 'Failed to import contacts');
     } finally {
       setIsImporting(false);
+      setImportStatus(null);
     }
   };
 
   const handleClose = () => {
     if (!isImporting) {
       setSelectedFile(null);
+      setImportStatus(null);
       onOpenChange(false);
     }
   };
@@ -121,7 +207,6 @@ export default function ContactsImportDialog({
             </h4>
 
             <div className="space-y-2 text-sm">
-              {/* Required Columns */}
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-destructive font-medium">
                   <AlertCircle className="h-4 w-4" />
@@ -129,24 +214,20 @@ export default function ContactsImportDialog({
                 </div>
                 <ul className="ml-6 space-y-1 text-muted-foreground">
                   <li className="list-disc"><span className="font-medium">phone</span> - Contact phone number (with country code)</li>
-                  <li className="list-disc"><span className="font-medium">name</span> - Contact name</li>
+                  <li className="list-disc"><span className="font-medium">name</span> - Contact name (or use first_name + last_name)</li>
                 </ul>
               </div>
 
-              {/* Optional Columns */}
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-green-600 dark:text-green-500 font-medium">
                   <CheckCircle2 className="h-4 w-4" />
                   Optional Columns
                 </div>
                 <ul className="ml-6 space-y-1 text-muted-foreground">
-                  <li className="list-disc"><span className="font-medium">notes</span> - Additional notes</li>
-                  <li className="list-disc"><span className="font-medium">labels</span> - Comma-separated labels</li>
-                  <li className="list-disc"><span className="font-medium">groups</span> - Comma-separated groups</li>
-                  <li className="list-disc"><span className="font-medium">is_business</span> - true/false for business contact</li>
-                  <li className="list-disc"><span className="font-medium">business_description</span> - Business description</li>
-                  <li className="list-disc"><span className="font-medium">assigned_to</span> - Assigned user</li>
-                  <li className="list-disc"><span className="font-medium">status</span> - Contact status</li>
+                  <li className="list-disc"><span className="font-medium">first_name</span>, <span className="font-medium">last_name</span> - Split name</li>
+                  <li className="list-disc"><span className="font-medium">email</span> - Email address</li>
+                  <li className="list-disc"><span className="font-medium">country</span> - Country code (e.g. IN, US)</li>
+                  <li className="list-disc"><span className="font-medium">language_code</span> - e.g. en, hi</li>
                 </ul>
               </div>
             </div>
@@ -202,6 +283,13 @@ export default function ContactsImportDialog({
             )}
           </div>
 
+          {/* Import status */}
+          {importStatus && (
+            <p className="text-sm text-muted-foreground text-center animate-pulse">
+              {importStatus}
+            </p>
+          )}
+
           {/* Example Format */}
           <div className="rounded-lg bg-muted/30 p-3 text-xs">
             <p className="font-medium mb-2">Example Format:</p>
@@ -211,22 +299,22 @@ export default function ContactsImportDialog({
                   <tr className="border-b">
                     <th className="px-2 py-1 text-left">phone</th>
                     <th className="px-2 py-1 text-left">name</th>
-                    <th className="px-2 py-1 text-left">labels</th>
-                    <th className="px-2 py-1 text-left">notes</th>
+                    <th className="px-2 py-1 text-left">email</th>
+                    <th className="px-2 py-1 text-left">country</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td className="px-2 py-1">+919876543210</td>
                     <td className="px-2 py-1">John Doe</td>
-                    <td className="px-2 py-1">VIP,Customer</td>
-                    <td className="px-2 py-1">Regular client</td>
+                    <td className="px-2 py-1">john@example.com</td>
+                    <td className="px-2 py-1">IN</td>
                   </tr>
                   <tr>
                     <td className="px-2 py-1">+919876543211</td>
                     <td className="px-2 py-1">Jane Smith</td>
-                    <td className="px-2 py-1">Lead</td>
-                    <td className="px-2 py-1">New prospect</td>
+                    <td className="px-2 py-1">jane@example.com</td>
+                    <td className="px-2 py-1">IN</td>
                   </tr>
                 </tbody>
               </table>
@@ -242,7 +330,7 @@ export default function ContactsImportDialog({
             {isImporting ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                Importing...
+                {importStatus ?? 'Importing…'}
               </>
             ) : (
               <>

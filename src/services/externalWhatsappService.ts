@@ -2,9 +2,8 @@
 // External WhatsApp API Service - Uses Laravel backend with vendor UID in URL path
 // API Base: https://whatsappapi.celiyo.com/api/{vendorUid}/...
 
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
-import { API_CONFIG } from '@/lib/apiConfig';
-import { tokenManager } from '@/lib/client';
+import { AxiosResponse } from 'axios';
+import { externalWhatsappClient } from '@/lib/externalWhatsappClient';
 
 const USER_KEY = 'celiyo_user';
 
@@ -35,36 +34,6 @@ export const getWhatsappApiToken = (): string | null => {
   }
   return null;
 };
-
-// ==================== API CLIENT ====================
-
-const createExternalWhatsappClient = (): AxiosInstance => {
-  const client = axios.create({
-    baseURL: API_CONFIG.WHATSAPP_EXTERNAL_BASE_URL,
-    timeout: 30000,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  client.interceptors.request.use(
-    (config) => {
-      const whatsappApiToken = getWhatsappApiToken();
-      const userAuthToken = tokenManager.getAccessToken();
-      const token = whatsappApiToken || userAuthToken;
-
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    },
-    (error) => Promise.reject(error)
-  );
-
-  return client;
-};
-
-const externalWhatsappClient = createExternalWhatsappClient();
 
 // ==================== RESPONSE HANDLERS ====================
 
@@ -448,6 +417,25 @@ class ExternalWhatsappService {
     return handleResponse(response);
   }
 
+  async getImportStatus(importId: string): Promise<any> {
+    const url = buildVendorUrl(`/contacts/import/${importId}/status`);
+    const response = await externalWhatsappClient.get(url);
+    return handleResponse(response);
+  }
+
+  async uploadMedia(file: File): Promise<{ media_url: string; file_name: string }> {
+    const url = buildVendorUrl('/media/upload');
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await externalWhatsappClient.post(url, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    const result = handleResponse(response);
+    const media_url = result?.media_url || result?.url;
+    if (!media_url) throw new Error('Upload succeeded but no media URL returned');
+    return { media_url, file_name: result?.file_name || file.name };
+  }
+
   // Legacy contact create/update methods (using /contact/ prefix)
   async createContact(payload: CreateContactPayload): Promise<any> {
     const url = buildVendorUrl('/contact/create');
@@ -670,6 +658,20 @@ class ExternalWhatsappService {
   async assignUserToContact(contactUid: string, payload: { user_uid: string }): Promise<any> {
     const url = buildVendorUrl(`/contacts/${contactUid}/assign-user`);
     const response = await externalWhatsappClient.post(url, payload);
+    return handleResponse(response);
+  }
+
+  // GET /contacts/{uid}/quick-replies - List quick replies for a contact
+  async getQuickReplies(contactUid: string): Promise<any[]> {
+    const url = buildVendorUrl(`/contacts/${contactUid}/quick-replies`);
+    const response = await externalWhatsappClient.get(url);
+    return handleResponse(response);
+  }
+
+  // POST /contacts/{uid}/quick-replies - Send a quick reply to a contact
+  async sendQuickReply(contactUid: string, replyUid: string): Promise<any> {
+    const url = buildVendorUrl(`/contacts/${contactUid}/quick-replies`);
+    const response = await externalWhatsappClient.post(url, { reply_uid: replyUid });
     return handleResponse(response);
   }
 

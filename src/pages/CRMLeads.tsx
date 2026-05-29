@@ -467,7 +467,7 @@ export const CRMLeads: React.FC = () => {
       let leads = result.results;
 
       // Apply client-side filters that mirror what the UI shows
-      if (hideDuplicates) {
+      if (activeFilters.hide_duplicates) {
         const seenPhones = new Set<string>();
         leads = leads.filter((lead) => {
           if (!lead.phone) return true;
@@ -478,10 +478,10 @@ export const CRMLeads: React.FC = () => {
         });
       }
 
-      if (leadScoreFilter !== 'all') {
+      if (activeFilters.lead_score && activeFilters.lead_score !== 'all') {
         leads = leads.filter((lead) => {
           const score = lead.lead_score || 0;
-          switch (leadScoreFilter) {
+          switch (activeFilters.lead_score) {
             case 'no_score': return score === 0;
             case 'below_25': return score > 0 && score < 25;
             case '25_to_50': return score >= 25 && score < 50;
@@ -500,7 +500,7 @@ export const CRMLeads: React.FC = () => {
     } catch (error: any) {
       toast.error(error.message || 'Failed to export leads');
     }
-  }, [leadsData, queryParams, hideDuplicates, leadScoreFilter, configurationsData]);
+  }, [leadsData, queryParams, activeFilters, configurationsData]);
 
   const handleImportClick = useCallback(() => {
     fileInputRef.current?.click();
