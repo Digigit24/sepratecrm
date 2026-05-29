@@ -3,6 +3,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
+import { placeCall } from '@/lib/telephonyController';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useLeadsFilterConfig } from '@/hooks/useLeadsFilterConfig';
 import { DataTable, type DataTableColumn } from '@/components/DataTable';
@@ -358,15 +359,13 @@ export const CRMLeads: React.FC = () => {
       toast.error('No phone number available for this lead');
       return;
     }
-
-    const cleanPhone = lead.phone.replace(/[^\d+]/g, '');
-    window.location.href = `tel:${cleanPhone}`;
-
-    toast.success(`Calling ${lead.name}...`, {
-      description: lead.phone,
-      duration: 2000,
-    });
-  }, []);
+    // Routes through the telephony controller (Click-To-Call now; in-browser
+    // WebRTC in Phase 6 — this call site won't change). It handles its own toasts.
+    void placeCall(
+      { toNumber: lead.phone, leadId: lead.id },
+      { onRequireSetup: () => navigate('/admin/settings') },
+    );
+  }, [navigate]);
 
   const handleWhatsAppLead = useCallback((lead: Lead) => {
     if (!lead.phone) {

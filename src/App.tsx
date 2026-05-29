@@ -44,6 +44,11 @@ import { AdminSettings } from "./pages/AdminSettings";
 import Integrations from "./pages/Integrations";
 import WorkflowEditor from "./pages/WorkflowEditor";
 import { WorkflowLogs } from "./pages/WorkflowLogs";
+import { CallLogsPage } from "./pages/telephony/CallLogsPage";
+import { SMSLogsPage } from "./pages/telephony/SMSLogsPage";
+import { CallerIDsPage } from "./pages/telephony/CallerIDsPage";
+import { BreaksPage } from "./pages/telephony/BreaksPage";
+import { CallbacksPage } from "./pages/telephony/CallbacksPage";
 
 import { WebSocketProvider } from "./context/WebSocketProvider";
 import { RealtimeChatProvider } from "./context/RealtimeChatProvider";
@@ -117,6 +122,13 @@ const AppLayout = () => {
               <Route path="/integrations/workflows/:workflowId" element={<ModuleProtectedRoute requiredModule="integrations"><WorkflowEditor /></ModuleProtectedRoute>} />
               <Route path="/integrations/workflows/:workflowId/logs" element={<ModuleProtectedRoute requiredModule="integrations"><WorkflowLogs /></ModuleProtectedRoute>} />
               <Route path="/integrations/oauth/callback" element={<ModuleProtectedRoute requiredModule="integrations"><OAuthCallback /></ModuleProtectedRoute>} />
+
+              {/* Telephony Routes */}
+              <Route path="/telephony/calls" element={<ModuleProtectedRoute requiredModule="telephony"><CallLogsPage /></ModuleProtectedRoute>} />
+              <Route path="/telephony/sms" element={<ModuleProtectedRoute requiredModule="telephony"><SMSLogsPage /></ModuleProtectedRoute>} />
+              <Route path="/telephony/caller-ids" element={<ModuleProtectedRoute requiredModule="telephony"><CallerIDsPage /></ModuleProtectedRoute>} />
+              <Route path="/telephony/breaks" element={<ModuleProtectedRoute requiredModule="telephony"><BreaksPage /></ModuleProtectedRoute>} />
+              <Route path="/telephony/callbacks" element={<ModuleProtectedRoute requiredModule="telephony"><CallbacksPage /></ModuleProtectedRoute>} />
 
               {/* 404 */}
               <Route path="*" element={<NotFound />} />

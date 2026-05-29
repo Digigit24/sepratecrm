@@ -29,6 +29,11 @@ import {
   PanelLeftClose,
   PanelLeft,
   Bot,
+  PhoneCall,
+  PhoneOutgoing,
+  MessageSquare,
+  Coffee,
+  PhoneForwarded,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -103,6 +108,24 @@ const menuSections: MenuSection[] = [
           { id: "crm-tasks", label: "Tasks", icon: CheckSquare, path: "/crm/tasks" },
           { id: "crm-meetings", label: "Meetings", icon: Calendar, path: "/crm/meetings" },
           { id: "crm-settings", label: "Settings", icon: Settings2, path: "/crm/settings" },
+        ],
+      },
+    ],
+  },
+  {
+    label: "TELEPHONY",
+    items: [
+      {
+        id: "telephony",
+        label: "Telephony",
+        icon: PhoneCall,
+        module: "telephony",
+        children: [
+          { id: "telephony-calls", label: "Call Logs", icon: PhoneCall, path: "/telephony/calls" },
+          { id: "telephony-sms", label: "SMS Logs", icon: MessageSquare, path: "/telephony/sms" },
+          { id: "telephony-caller-ids", label: "Caller IDs", icon: PhoneOutgoing, path: "/telephony/caller-ids" },
+          { id: "telephony-breaks", label: "Breaks", icon: Coffee, path: "/telephony/breaks" },
+          { id: "telephony-callbacks", label: "Callbacks", icon: PhoneForwarded, path: "/telephony/callbacks" },
         ],
       },
     ],

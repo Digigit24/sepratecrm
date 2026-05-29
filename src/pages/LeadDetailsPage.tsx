@@ -8,12 +8,16 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Textarea } from '@/components/ui/textarea';
 import {
   ArrowLeft, Phone, Mail, Loader2, Calendar, Clock,
-  MapPin, Plus, Check, Trash2,
+  MapPin, Plus, Check, Trash2, MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, isPast, isFuture, isToday } from 'date-fns';
 
 import { useCRM } from '@/hooks/useCRM';
+import { useAuth } from '@/hooks/useAuth';
+import { placeCall } from '@/lib/telephonyController';
+import { SendSMSDialog } from '@/components/telephony/SendSMSDialog';
+import { LeadTelephonyHistory } from '@/components/telephony/LeadTelephonyHistory';
 import { useMeeting } from '@/hooks/useMeeting';
 import LeadDetailsForm from '@/components/lead-drawer/LeadDetailsForm';
 import LeadActivities from '@/components/lead-drawer/LeadActivities';
@@ -38,6 +42,11 @@ export const LeadDetailsPage = () => {
   const [meetingDrawerOpen, setMeetingDrawerOpen] = useState(false);
   const [selectedMeetingId, setSelectedMeetingId] = useState<number | null>(null);
   const [meetingDrawerMode, setMeetingDrawerMode] = useState<'view' | 'edit' | 'create'>('view');
+
+  // Telephony
+  const { hasModuleAccess } = useAuth();
+  const telephonyEnabled = hasModuleAccess('telephony');
+  const [smsDialogOpen, setSmsDialogOpen] = useState(false);
 
   const { useLead, useLeadStatuses, updateLead, deleteLead, patchLead } = useCRM();
   const { useMeetingsByLead } = useMeeting();
@@ -108,7 +117,13 @@ export const LeadDetailsPage = () => {
     }
   }, [lead, deleteLead, navigate]);
 
-  const handleCall = useCallback(() => { if (lead?.phone) window.location.href = `tel:${lead.phone}`; }, [lead]);
+  const handleCall = useCallback(() => {
+    if (!lead?.phone) return;
+    void placeCall(
+      { toNumber: lead.phone, leadId: lead.id },
+      { onRequireSetup: () => navigate('/admin/settings') },
+    );
+  }, [lead, navigate]);
   const handleEmail = useCallback(() => { if (lead?.email) window.location.href = `mailto:${lead.email}`; }, [lead]);
 
   const handleScheduleMeeting = useCallback(() => {
@@ -224,11 +239,29 @@ export const LeadDetailsPage = () => {
           {lead.phone && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button onClick={handleCall} variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:bg-green-50">
-                  <Phone className="h-3.5 w-3.5" />
-                </Button>
+                <span className="inline-flex">
+                  <Button onClick={handleCall} variant="ghost" size="icon"
+                    className="h-7 w-7 text-green-600 hover:bg-green-50"
+                    disabled={!telephonyEnabled} aria-label="Call lead">
+                    <Phone className="h-3.5 w-3.5" />
+                  </Button>
+                </span>
               </TooltipTrigger>
-              <TooltipContent side="bottom"><p className="text-xs">Call</p></TooltipContent>
+              <TooltipContent side="bottom"><p className="text-xs">{telephonyEnabled ? 'Call' : 'Telephony not enabled'}</p></TooltipContent>
+            </Tooltip>
+          )}
+          {lead.phone && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button onClick={() => setSmsDialogOpen(true)} variant="ghost" size="icon"
+                    className="h-7 w-7 text-indigo-600 hover:bg-indigo-50"
+                    disabled={!telephonyEnabled} aria-label="Send SMS to lead">
+                    <MessageSquare className="h-3.5 w-3.5" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom"><p className="text-xs">{telephonyEnabled ? 'Send SMS' : 'Telephony not enabled'}</p></TooltipContent>
             </Tooltip>
           )}
           {lead.email && (
@@ -264,7 +297,7 @@ export const LeadDetailsPage = () => {
         {/* Row 2: tab triggers flush left */}
         <div className="px-4 pb-0">
           <TabsList className="h-8 bg-transparent p-0 gap-0 rounded-none">
-            {(['overview', 'activities', 'tasks', 'meetings'] as const).map(tab => (
+            {(['overview', 'activities', 'tasks', 'meetings', ...(telephonyEnabled ? ['calls'] : [])] as string[]).map(tab => (
               <TabsTrigger
                 key={tab}
                 value={tab}
@@ -322,6 +355,18 @@ export const LeadDetailsPage = () => {
         <TabsContent value="tasks" className="mt-3">
           <LeadTasks leadId={lead.id} />
         </TabsContent>
+
+        {telephonyEnabled && (
+          <TabsContent value="calls" className="mt-3">
+            <LeadTelephonyHistory
+              leadId={lead.id}
+              leadName={lead.name}
+              leadPhone={lead.phone}
+              telephonyEnabled={telephonyEnabled}
+              onRequireSetup={() => navigate('/admin/settings')}
+            />
+          </TabsContent>
+        )}
 
         <TabsContent value="meetings" className="mt-3">
           <div className="flex items-center justify-between mb-3">
@@ -385,6 +430,12 @@ export const LeadDetailsPage = () => {
         onDelete={() => mutateMeetings()}
         onModeChange={setMeetingDrawerMode}
         initialLeadId={leadIdNum}
+      />
+
+      <SendSMSDialog
+        open={smsDialogOpen}
+        onOpenChange={setSmsDialogOpen}
+        target={lead.phone ? { leadId: lead.id, phone: lead.phone, name: lead.name } : null}
       />
     </Tabs>
   );

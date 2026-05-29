@@ -533,6 +533,47 @@ export const API_CONFIG = {
       EXECUTION_LOGS: '/integrations/workflows/:workflow_id/execution-logs/',
       EXECUTION_LOG_DETAIL: '/integrations/workflows/:workflow_id/execution-logs/:id/',
     },
+
+    // ==================== TELEPHONY (TeleCMI) ====================
+    // All paths are relative to CRM_BASE_URL (.../api) => .../api/telephony/...
+    // Webhook paths (/telephony/webhook/...) are intentionally omitted — they are
+    // server-to-server only (TeleCMI -> backend) and never called from the frontend.
+    TELEPHONY: {
+      // Tenant credentials (admin) — one record per tenant
+      CREDENTIALS: '/telephony/credentials/',
+      CREDENTIAL_DETAIL: '/telephony/credentials/:id/',
+
+      // Per-user agent config
+      AGENTS: '/telephony/agents/',
+      AGENT_DETAIL: '/telephony/agents/:id/',
+      AGENT_REFRESH_TOKEN: '/telephony/agents/refresh-token/',
+
+      // Call control
+      CLICK_TO_CALL: '/telephony/calls/click-to-call/',
+      HANGUP: '/telephony/calls/hangup/',
+      ADD_NOTE: '/telephony/calls/add-note/',
+
+      // Call logs (CDR)
+      CALLS: '/telephony/calls/',
+      CALL_DETAIL: '/telephony/calls/:id/',
+      CALL_SYNC: '/telephony/calls/sync/',
+
+      // SMS
+      SMS_SEND: '/telephony/sms/send/',
+      SMS: '/telephony/sms/',
+
+      // Caller IDs (GET list / POST set active)
+      CALLER_IDS: '/telephony/caller-ids/',
+
+      // Break management
+      BREAK: '/telephony/break/',
+
+      // Callbacks
+      CALLBACKS: '/telephony/callbacks/',
+
+      // WebRTC config for the in-browser PIOPIY SDK
+      WEBRTC_CONFIG: '/telephony/webrtc-config/',
+    },
   },
 
   // ==================== WHATSAPP ====================

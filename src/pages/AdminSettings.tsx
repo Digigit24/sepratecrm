@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RefreshCw, Loader2, AlertCircle, Save, Building2, Database, Settings as SettingsIcon, Image as ImageIcon, X, User, Plus, Trash2, Moon, Sun, IndianRupee, MessageSquare } from 'lucide-react';
+import { RefreshCw, Loader2, AlertCircle, Save, Building2, Database, Settings as SettingsIcon, Image as ImageIcon, X, User, Plus, Trash2, Moon, Sun, IndianRupee, MessageSquare, Phone } from 'lucide-react';
 import { useTenant } from '@/hooks/useTenant';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -17,6 +17,8 @@ import { authClient } from '@/lib/client';
 import { API_CONFIG, buildUrl } from '@/lib/apiConfig';
 import { CurrencySettingsTab } from '@/components/admin-settings/CurrencySettingsTab';
 import { WhatsAppDefaultsTab } from '@/components/admin-settings/WhatsAppDefaultsTab';
+import { TelephonySettingsTab } from '@/components/admin-settings/TelephonySettingsTab';
+import { MyTelephonyCard } from '@/components/admin-settings/MyTelephonyCard';
 
 export const AdminSettings: React.FC = () => {
   // Get tenant from current session
@@ -425,6 +427,10 @@ export const AdminSettings: React.FC = () => {
             <TabsTrigger value="whatsapp" className="text-xs h-6 px-2.5 gap-1" onClick={() => fetchUserPreferences()}>
               <MessageSquare className="h-3 w-3" />
               WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="telephony" className="text-xs h-6 px-2.5 gap-1">
+              <Phone className="h-3 w-3" />
+              Telephony
             </TabsTrigger>
             <TabsTrigger value="user" className="text-xs h-6 px-2.5 gap-1" onClick={() => fetchUserPreferences()}>
               <User className="h-3 w-3" />
@@ -911,6 +917,11 @@ export const AdminSettings: React.FC = () => {
             />
           </TabsContent>
 
+          {/* Telephony (TeleCMI) Tab */}
+          <TabsContent value="telephony">
+            <TelephonySettingsTab tenantId={tenantId} />
+          </TabsContent>
+
           {/* User Preferences Tab */}
           <TabsContent value="user">
             <div className="space-y-6">
@@ -1118,6 +1129,9 @@ export const AdminSettings: React.FC = () => {
                   </CardContent>
                 </Card>
               )}
+
+              {/* My Telephony (TeleCMI agent self-setup) — hidden if module disabled */}
+              <MyTelephonyCard />
             </div>
           </TabsContent>
         </Tabs>
