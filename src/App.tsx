@@ -53,6 +53,9 @@ import { CallbacksPage } from "./pages/telephony/CallbacksPage";
 import { WebSocketProvider } from "./context/WebSocketProvider";
 import { RealtimeChatProvider } from "./context/RealtimeChatProvider";
 import { OAuthCallback } from "./pages/OAuthCallback";
+import { TelephonyProvider } from "./context/TelephonyProvider";
+import { Softphone } from "./components/telephony/Softphone";
+import { useAuth } from "@/hooks/useAuth";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -65,13 +68,26 @@ const queryClient = new QueryClient({
   },
 });
 
+// Mounts the in-browser softphone provider + widget, but only when the
+// tenant/user has the telephony module. Otherwise renders children untouched.
+const TelephonyShell = ({ children }: { children: React.ReactNode }) => {
+  const { hasModuleAccess } = useAuth();
+  if (!hasModuleAccess("telephony")) return <>{children}</>;
+  return (
+    <TelephonyProvider>
+      {children}
+      <Softphone />
+    </TelephonyProvider>
+  );
+};
+
 const AppLayout = () => {
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
-    <>
+    <TelephonyShell>
       <ThemeSync />
       <div className="flex h-screen overflow-hidden bg-background">
         <UniversalSidebar
@@ -136,7 +152,7 @@ const AppLayout = () => {
           </main>
         </div>
       </div>
-    </>
+    </TelephonyShell>
   );
 };
 

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useTelephony } from '@/hooks/useTelephony';
+import { useTelephonyPhone } from '@/context/TelephonyProvider';
 import { TelephonyApiError } from '@/services/telephonyService';
 import type {
   TeleCMIAgentCreateData,
@@ -272,20 +273,42 @@ const WebRTCReadinessRow: React.FC<WebRTCReadinessRowProps> = ({ enabled }) => {
     );
   }
 
+  return <WebRTCReady sbcHost={data.sbc_host} defaultCallerId={data.default_caller_id} />;
+};
+
+// Rendered only when the module is enabled (parent card returns null otherwise),
+// which is exactly when TelephonyProvider is mounted — so useTelephonyPhone() is safe.
+const WebRTCReady: React.FC<{ sbcHost: string; defaultCallerId: string | null }> = ({
+  sbcHost,
+  defaultCallerId,
+}) => {
+  const phone = useTelephonyPhone();
+  const connected = phone.status !== 'needs-password' && phone.status !== 'connecting' && phone.status !== 'not-configured';
+
   return (
-    <div className="flex items-start gap-2 p-3 rounded-lg border border-green-300 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300">
-      <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
-      <div className="text-sm">
-        <p className="font-medium">Ready for in-browser calls</p>
-        <p className="text-xs mt-0.5 text-green-700/80 dark:text-green-300/80">
-          SBC host: <span className="font-mono">{data.sbc_host}</span>
-          {data.default_caller_id ? (
-            <>
-              {' · '}Caller ID: <span className="font-mono">{data.default_caller_id}</span>
-            </>
-          ) : null}
-        </p>
+    <div className="flex items-start justify-between gap-2 p-3 rounded-lg border border-green-300 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300">
+      <div className="flex items-start gap-2">
+        <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+        <div className="text-sm">
+          <p className="font-medium">Ready for in-browser calls</p>
+          <p className="text-xs mt-0.5 text-green-700/80 dark:text-green-300/80">
+            SBC host: <span className="font-mono">{sbcHost}</span>
+            {defaultCallerId ? (
+              <>
+                {' · '}Caller ID: <span className="font-mono">{defaultCallerId}</span>
+              </>
+            ) : null}
+          </p>
+        </div>
       </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 text-xs shrink-0"
+        onClick={() => phone.setPanelOpen(true)}
+      >
+        {connected ? 'Open softphone' : 'Connect'}
+      </Button>
     </div>
   );
 };

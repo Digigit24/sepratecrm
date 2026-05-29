@@ -31,6 +31,24 @@ export interface PlaceCallOptions {
   onRequireSetup?: () => void;
 }
 
+/**
+ * The in-browser softphone registers a dispatcher here so non-React code
+ * (this controller, event handlers) can place WebRTC calls without importing
+ * React context. TelephonyProvider sets it on mount and clears it on unmount.
+ */
+export interface TelephonyDispatcher {
+  /** Current softphone status (e.g. 'ready', 'active'). */
+  getStatus: () => string;
+  /** Place an in-browser call. Returns true if it was handled here. */
+  call: (params: { toNumber: string; leadId?: number }) => boolean;
+}
+
+let dispatcher: TelephonyDispatcher | null = null;
+
+export const setTelephonyDispatcher = (d: TelephonyDispatcher | null): void => {
+  dispatcher = d;
+};
+
 /** TeleCMI expects the destination number with country code and no '+'. */
 export const normalizePhoneForDial = (raw: string): string => raw.replace(/\D/g, '');
 
@@ -49,8 +67,14 @@ export const placeCall = async (
     return false;
   }
 
+  // Prefer the in-browser softphone when it's connected and idle.
+  if (dispatcher && dispatcher.getStatus() === 'ready') {
+    const handled = dispatcher.call({ toNumber, leadId: params.leadId });
+    if (handled) return true;
+    // If it declined to handle, fall through to REST.
+  }
+
   try {
-    // ── Phase 6 will branch here: if softphone ready -> piopiy.call(...) ──
     const res = await telephonyService.clickToCall({
       to_number: toNumber,
       lead_id: params.leadId,
