@@ -44,12 +44,20 @@ const NOT_CONFIGURED_MSG = 'Set up telephony in Settings';
 
 /**
  * Show a user-facing toast for a telephony error, picking the right message:
+ *  - 401 => no toast; the global axios handler owns auth (refresh / redirect)
+ *  - 403 => "Telephony isn't enabled for your account" (defends against gating drift)
  *  - 424 => "Set up telephony in Settings"
  *  - 502 => the backend `error` string
  *  - else => generic message from the error
  */
 export const toastTelephonyError = (error: unknown, fallback = 'Something went wrong') => {
   if (error instanceof TelephonyApiError) {
+    // 401 is handled globally (token refresh / redirect to login). Don't double-toast.
+    if (error.status === 401) return;
+    if (error.status === 403) {
+      toast.error('Telephony isn’t enabled for your account. Contact your admin.');
+      return;
+    }
     if (error.isNotConfigured) {
       toast.error(NOT_CONFIGURED_MSG);
       return;

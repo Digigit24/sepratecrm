@@ -75,7 +75,7 @@ export const Softphone: React.FC = () => {
 
       {/* Panel */}
       {panelOpen && (
-        <div className="fixed bottom-20 right-5 z-[60] w-[300px] rounded-xl border bg-card shadow-2xl overflow-hidden">
+        <div className="fixed bottom-20 right-5 z-[60] w-[calc(100vw-2.5rem)] sm:w-[320px] max-w-[360px] rounded-xl border bg-card shadow-2xl max-h-[calc(100vh-7rem)] overflow-y-auto overflow-x-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/40">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold">Softphone</span>

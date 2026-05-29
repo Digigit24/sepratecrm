@@ -22,7 +22,8 @@ import { MyTelephonyCard } from '@/components/admin-settings/MyTelephonyCard';
 
 export const AdminSettings: React.FC = () => {
   // Get tenant from current session
-  const { getTenant, user } = useAuth();
+  const { getTenant, user, hasModuleAccess } = useAuth();
+  const telephonyEnabled = hasModuleAccess('telephony');
   const tenant = getTenant();
   const tenantId = tenant?.id || null;
   const userId = user?.id || null;
@@ -428,10 +429,12 @@ export const AdminSettings: React.FC = () => {
               <MessageSquare className="h-3 w-3" />
               WhatsApp
             </TabsTrigger>
-            <TabsTrigger value="telephony" className="text-xs h-6 px-2.5 gap-1">
-              <Phone className="h-3 w-3" />
-              Telephony
-            </TabsTrigger>
+            {telephonyEnabled && (
+              <TabsTrigger value="telephony" className="text-xs h-6 px-2.5 gap-1">
+                <Phone className="h-3 w-3" />
+                Telephony
+              </TabsTrigger>
+            )}
             <TabsTrigger value="user" className="text-xs h-6 px-2.5 gap-1" onClick={() => fetchUserPreferences()}>
               <User className="h-3 w-3" />
               Preferences
@@ -918,9 +921,11 @@ export const AdminSettings: React.FC = () => {
           </TabsContent>
 
           {/* Telephony (TeleCMI) Tab */}
-          <TabsContent value="telephony">
-            <TelephonySettingsTab tenantId={tenantId} />
-          </TabsContent>
+          {telephonyEnabled && (
+            <TabsContent value="telephony">
+              <TelephonySettingsTab tenantId={tenantId} />
+            </TabsContent>
+          )}
 
           {/* User Preferences Tab */}
           <TabsContent value="user">

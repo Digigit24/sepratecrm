@@ -42,7 +42,7 @@ export interface CallMeta {
   cmiuid?: string;
 }
 
-interface TelephonyPhoneContextValue {
+export interface TelephonyPhoneContextValue {
   status: PhoneStatus;
   telecmiUserId: string | null;
   sbcHost: string | null;
