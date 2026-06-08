@@ -111,3 +111,38 @@
     color: hsl(var(--sidebar-active-border));
   }
 }
+
+/* ─── Universal slim scrollbar ──────────────────────────────────────────────
+   Applies globally to every scrollable element.
+   Webkit (Chrome / Edge / Safari): custom pseudo-elements.
+   Firefox: scrollbar-width + scrollbar-color shorthand.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.2) transparent;
+}
+
+/* Webkit */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.2);
+  border-radius: 100px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.45);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

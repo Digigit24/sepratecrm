@@ -447,6 +447,8 @@ export const API_CONFIG = {
     LEAD_IMPORT: '/crm/leads/import_leads/',
     LEAD_BULK_DELETE: '/crm/leads/bulk-delete/',
     LEAD_BULK_STATUS_UPDATE: '/crm/leads/bulk-status-update/',
+    LEAD_ATTACHMENTS: '/crm/leads/:id/attachments/',
+    LEAD_ATTACHMENT_DETAIL: '/crm/leads/:id/attachments/:attachmentId/',
 
     // Lead Status endpoints
     LEAD_STATUSES: '/crm/statuses/',
@@ -483,6 +485,16 @@ export const API_CONFIG = {
     MEETING_UPDATE: '/meetings/:id/',
     MEETING_DELETE: '/meetings/:id/',
     MEETING_CALENDAR: '/meetings/calendar/',
+
+    // Lead Group endpoints
+    LEAD_GROUPS: '/crm/lead-groups/',
+    LEAD_GROUP_DETAIL: '/crm/lead-groups/:id/',
+    LEAD_GROUP_CREATE: '/crm/lead-groups/',
+    LEAD_GROUP_UPDATE: '/crm/lead-groups/:id/',
+    LEAD_GROUP_DELETE: '/crm/lead-groups/:id/',
+    LEAD_GROUP_ADD_LEADS: '/crm/lead-groups/:id/add-leads/',
+    LEAD_GROUP_REMOVE_LEADS: '/crm/lead-groups/:id/remove-leads/',
+    LEAD_GROUP_LEADS: '/crm/lead-groups/:id/leads/',
 
     // Field Configuration endpoints
     FIELD_CONFIGURATIONS: '/crm/field-configurations/',

@@ -34,6 +34,7 @@ import {
   MessageSquare,
   Coffee,
   PhoneForwarded,
+  Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -42,6 +43,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
 
@@ -103,6 +105,7 @@ const menuSections: MenuSection[] = [
         module: "crm",
         children: [
           { id: "crm-leads", label: "Leads", icon: Users, path: "/crm/leads" },
+          { id: "crm-groups", label: "Lead Groups", icon: Layers, path: "/crm/groups" },
           { id: "crm-activities", label: "Activities", icon: Activity, path: "/crm/activities" },
           { id: "crm-statuses", label: "Lead Statuses", icon: ClipboardList, path: "/crm/statuses" },
           { id: "crm-tasks", label: "Tasks", icon: CheckSquare, path: "/crm/tasks" },
@@ -225,6 +228,49 @@ export function UniversalSidebar({
     if (item.children) {
       const isOpen = openSections.includes(item.id);
       const hasActiveChild = isParentActive(item.children);
+
+      if (collapsed) {
+        return (
+          <Popover key={item.id}>
+            <PopoverTrigger asChild>
+              <button
+                className={cn(
+                  "w-full flex items-center justify-center h-9 rounded-lg text-[13px] font-medium transition-all duration-150",
+                  "text-muted-foreground hover:text-foreground hover:bg-muted/80",
+                  hasActiveChild && "text-foreground"
+                )}
+                title={item.label}
+              >
+                <item.icon className={cn(
+                  "h-[18px] w-[18px] shrink-0 transition-colors",
+                  hasActiveChild && "sidebar-active-icon"
+                )} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto min-w-[200px] p-2" align="right">
+              <div className="space-y-1">
+                <div className="px-3 pb-2 text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                  {item.label}
+                </div>
+                {item.children.map((child) => (
+                  <Link key={child.id} to={child.path || "#"} onClick={closeMobileSidebar}>
+                    <div
+                      className={cn(
+                        "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all duration-150",
+                        "text-muted-foreground hover:text-foreground hover:bg-muted/80",
+                        isActive(child.path) && "text-foreground font-medium bg-muted/90"
+                      )}
+                    >
+                      <child.icon className="h-4 w-4 shrink-0" />
+                      <span>{child.label}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        );
+      }
 
       return (
         <Collapsible

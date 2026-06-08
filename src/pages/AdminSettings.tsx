@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import type { TenantUpdateData, TenantSettings } from '@/types/tenant.types';
 import type { UserPreferences, WhatsAppDefaults } from '@/types/user.types';
 import { authClient } from '@/lib/client';
+import { authService } from '@/services/authService';
 import { API_CONFIG, buildUrl } from '@/lib/apiConfig';
 import { CurrencySettingsTab } from '@/components/admin-settings/CurrencySettingsTab';
 import { WhatsAppDefaultsTab } from '@/components/admin-settings/WhatsAppDefaultsTab';
@@ -73,6 +74,10 @@ export const AdminSettings: React.FC = () => {
   const [whatsappVendorUid, setWhatsappVendorUid] = useState('');
   const [whatsappApiToken, setWhatsappApiToken] = useState('');
 
+  // Zata Cloud Storage Settings
+  const [zataWorkspaceBucket, setZataWorkspaceBucket] = useState('');
+  const [zataFolderId, setZataFolderId] = useState('');
+
   // Branding settings (all go into settings JSON)
   const [headerBgColor, setHeaderBgColor] = useState('#3b82f6');
   const [headerTextColor, setHeaderTextColor] = useState('#ffffff');
@@ -131,6 +136,11 @@ export const AdminSettings: React.FC = () => {
       setWhatsappVendorUid(settings.whatsapp_vendor_uid || '');
       setWhatsappApiToken(settings.whatsapp_api_token || '');
 
+      // Zata Cloud Storage settings
+      const zataConfig = settings.zata_config || {};
+      setZataWorkspaceBucket(zataConfig.workspace_bucket || '');
+      setZataFolderId(zataConfig.folder_id || '');
+
       // Currency settings
       setCurrencyCode(settings.currency_code || 'INR');
       setCurrencySymbol(settings.currency_symbol || '₹');
@@ -188,6 +198,11 @@ export const AdminSettings: React.FC = () => {
         // WhatsApp API settings
         whatsapp_vendor_uid: whatsappVendorUid,
         whatsapp_api_token: whatsappApiToken,
+        // Zata Cloud Storage settings
+        zata_config: {
+          workspace_bucket: zataWorkspaceBucket,
+          folder_id: zataFolderId,
+        },
         // Currency settings
         currency_code: currencyCode,
         currency_symbol: currencySymbol,
@@ -211,6 +226,10 @@ export const AdminSettings: React.FC = () => {
       };
 
       await updateTenant(tenantId, updateData);
+
+      // Sync enabled_modules into the stored user so sidebar reflects changes immediately
+      authService.updateUserTenant({ enabled_modules: enabledModules });
+
       toast.success('Tenant settings saved successfully');
       mutate();
     } catch (err: any) {
@@ -262,7 +281,6 @@ export const AdminSettings: React.FC = () => {
       setEditedPreferences(response.data?.preferences || {});
 
       // Update local storage and apply preferences immediately
-      const { authService } = await import('@/services/authService');
       authService.updateUserPreferences(response.data?.preferences || {});
 
       toast.success('Preferences saved successfully');
@@ -321,7 +339,6 @@ export const AdminSettings: React.FC = () => {
       setWhatsappDefaults(response.data?.preferences?.whatsappDefaults || {});
 
       // Update local storage and apply preferences immediately
-      const { authService } = await import('@/services/authService');
       authService.updateUserPreferences(response.data?.preferences || {});
 
       toast.success('WhatsApp defaults saved successfully');
@@ -608,6 +625,49 @@ export const AdminSettings: React.FC = () => {
                       Active
                     </Label>
                   </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Zata Cloud Storage Configuration */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Database className="h-5 w-5 text-blue-500" />
+                <CardTitle>Zata Cloud Storage Configuration</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Configure your Zata storage bucket and folder options to enable generic file attachments (audio, PDFs, documents, images) for lead management.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="zataWorkspaceBucket">Zata Workspace Bucket</Label>
+                  <Input
+                    id="zataWorkspaceBucket"
+                    placeholder="e.g. dgtedgtech"
+                    value={zataWorkspaceBucket}
+                    onChange={(e) => setZataWorkspaceBucket(e.target.value)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    The Zata S3 workspace bucket identifier where files are securely uploaded.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="zataFolderId">Zata Target Folder ID</Label>
+                  <Input
+                    id="zataFolderId"
+                    placeholder="e.g. f5fb4707-b673-45cd-95c5-2856e719602e"
+                    value={zataFolderId}
+                    onChange={(e) => setZataFolderId(e.target.value)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    The UUID of the specific target folder in Zata cloud storage.
+                  </p>
                 </div>
               </div>
             </CardContent>

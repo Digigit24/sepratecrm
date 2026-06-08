@@ -196,6 +196,16 @@ class AuthService {
     return user?.preferences || {};
   }
 
+  // Update user tenant data in storage (e.g. after enabled_modules change)
+  updateUserTenant(partialTenant: Partial<import('@/types/authTypes').Tenant>): void {
+    const user = this.getUser();
+    if (user) {
+      user.tenant = { ...user.tenant, ...partialTenant };
+      this.setUser(user);
+      console.log('✅ User tenant updated in storage:', user.tenant);
+    }
+  }
+
   // Update user preferences in storage
   updateUserPreferences(preferences: any): void {
     const user = this.getUser();
@@ -331,10 +341,12 @@ class AuthService {
 
   setUser(user: User): void {
     localStorage.setItem(USER_KEY, JSON.stringify(user));
+    window.dispatchEvent(new CustomEvent('celiyo:user-updated', { detail: user }));
   }
 
   removeUser(): void {
     localStorage.removeItem(USER_KEY);
+    window.dispatchEvent(new CustomEvent('celiyo:user-updated', { detail: null }));
   }
 
   // Check if user is authenticated

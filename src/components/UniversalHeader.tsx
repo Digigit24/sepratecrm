@@ -21,12 +21,82 @@ const routeTitles: Record<string, string> = {
   "/opd": "OPD",
   "/patients": "Patient Master",
   "/opd/consultation": "OPD Consultations",
+  "/crm/leads": "Leads",
+  "/crm/activities": "Activities",
+  "/crm/statuses": "Lead Statuses",
+  "/crm/tasks": "Tasks",
+  "/crm/meetings": "Meetings",
+  "/crm/settings": "CRM Settings",
+  "/whatsapp/onboarding": "Onboarding",
+  "/whatsapp/contacts": "Contacts",
+  "/whatsapp/chats": "Chats",
+  "/whatsapp/groups": "Groups",
+  "/whatsapp/templates": "Templates",
+  "/whatsapp/campaigns": "Campaigns",
+  "/whatsapp/flows": "Flows",
+  "/whatsapp/bot-flows": "Bot Flows",
+  "/whatsapp/qrcode": "QR Codes",
+  "/whatsapp/scheduling": "Scheduling",
+  "/admin/users": "Users",
+  "/admin/roles": "Roles",
+  "/admin/settings": "Settings",
+  "/admin/debug": "Debug",
+  "/integrations": "Integrations",
+  "/integrations/workflows/new": "New Workflow",
+  "/telephony/calls": "Call Logs",
+  "/telephony/sms": "SMS Logs",
+  "/telephony/caller-ids": "Caller IDs",
+  "/telephony/breaks": "Breaks",
+  "/telephony/callbacks": "Callbacks",
 };
 
 const getDynamicTitle = (pathname: string): string | null => {
   if (pathname.startsWith("/opd/consultation/")) return "OPD Consultations";
   if (pathname.startsWith("/patients/") && pathname !== "/patients") return "Patient Details Page";
+  if (pathname.startsWith("/crm/leads/")) return "Lead Details";
+  if (pathname.startsWith("/whatsapp/flows/")) return "Flow Details";
+  if (pathname.startsWith("/whatsapp/bot-flows/")) return "Bot Flow Builder";
+  if (pathname.startsWith("/integrations/workflows/") && pathname !== "/integrations/workflows/new") return "Workflow Details";
   return null;
+};
+
+const formatPathSegment = (segment: string) => {
+  const replacements: Record<string, string> = {
+    whatsapp: "WhatsApp",
+    crm: "CRM",
+    admin: "Admin",
+    telephony: "Telephony",
+    integrations: "Integrations",
+    "bot-flows": "Bot Flows",
+    qrcode: "QR Codes",
+    onboarding: "Onboarding",
+    templates: "Templates",
+    campaigns: "Campaigns",
+    chats: "Chats",
+    contacts: "Contacts",
+    groups: "Groups",
+    statuses: "Lead Statuses",
+    activities: "Activities",
+    meetings: "Meetings",
+    tasks: "Tasks",
+    users: "Users",
+    roles: "Roles",
+    settings: "Settings",
+    debug: "Debug",
+    scheduling: "Scheduling",
+    calls: "Call Logs",
+    sms: "SMS Logs",
+    "caller-ids": "Caller IDs",
+    breaks: "Breaks",
+    callbacks: "Callbacks",
+    flows: "Flows",
+  };
+
+  return replacements[segment] ||
+    segment
+      .split("-")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
 };
 
 const getTimeBasedGreeting = (): string => {
@@ -55,9 +125,13 @@ export const UniversalHeader = ({ onMenuClick }: UniversalHeaderProps) => {
   const getPageTitle = (): string => {
     const exactMatch = routeTitles[location.pathname];
     if (exactMatch) return exactMatch;
+
     const dynamicMatch = getDynamicTitle(location.pathname);
     if (dynamicMatch) return dynamicMatch;
-    return "HMS";
+
+    const pathSegments = location.pathname.split("/").filter(Boolean);
+    if (pathSegments.length === 0) return "Dashboard";
+    return formatPathSegment(pathSegments[pathSegments.length - 1]);
   };
 
   const pageTitle = getPageTitle();
@@ -79,14 +153,13 @@ export const UniversalHeader = ({ onMenuClick }: UniversalHeaderProps) => {
     <header className="h-14 border-b border-border bg-background px-4 md:px-5 flex items-center justify-between">
       {/* Left */}
       <div className="flex items-center gap-3">
-        {isMobile && (
-          <button
-            onClick={onMenuClick}
-            className="p-1.5 rounded-lg hover:bg-accent"
-          >
-            <Menu className="w-4 h-4 text-muted-foreground" />
-          </button>
-        )}
+        <button
+          onClick={onMenuClick}
+          title="Toggle sidebar"
+          className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+        >
+          <Menu className="w-4 h-4 text-muted-foreground" />
+        </button>
         <div>
           <h1 className="text-sm font-semibold text-foreground">{pageTitle}</h1>
           <p className="text-xs text-muted-foreground hidden sm:block">
@@ -126,18 +199,16 @@ export const UniversalHeader = ({ onMenuClick }: UniversalHeaderProps) => {
           )}
         </button>
 
-        {/* Settings */}
-        <button className="p-2 rounded-lg hover:bg-accent transition-colors">
-          <Settings className="w-4 h-4 text-muted-foreground" />
-        </button>
-
         {/* Theme Toggle */}
         <button
           onClick={handleThemeToggle}
-          className="p-2 rounded-lg hover:bg-accent transition-colors"
+          className="relative p-2 rounded-lg hover:bg-accent transition-colors"
         >
-          <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-muted-foreground" />
-          <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-muted-foreground" />
+          {resolvedTheme === 'dark' ? (
+            <Sun className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <Moon className="h-4 w-4 text-muted-foreground" />
+          )}
         </button>
 
         {/* Profile */}

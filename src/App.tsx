@@ -17,6 +17,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import { CRMLeads } from "./pages/CRMLeads";
+import { CRMLeadGroups } from "./pages/CRMLeadGroups";
 import { CRMActivities } from "./pages/CRMActivities";
 import { CRMLeadStatuses } from "./pages/CRMLeadStatuses";
 import { CRMFieldConfigurations } from "./pages/CRMFieldConfigurations";
@@ -105,6 +106,7 @@ const AppLayout = () => {
               {/* CRM Routes */}
               <Route path="/crm/leads" element={<ModuleProtectedRoute requiredModule="crm"><CRMLeads /></ModuleProtectedRoute>} />
               <Route path="/crm/leads/:leadId" element={<ModuleProtectedRoute requiredModule="crm"><LeadDetailsPage /></ModuleProtectedRoute>} />
+              <Route path="/crm/groups" element={<ModuleProtectedRoute requiredModule="crm"><CRMLeadGroups /></ModuleProtectedRoute>} />
               <Route path="/crm/activities" element={<ModuleProtectedRoute requiredModule="crm"><CRMActivities /></ModuleProtectedRoute>} />
               <Route path="/crm/statuses" element={<ModuleProtectedRoute requiredModule="crm"><CRMLeadStatuses /></ModuleProtectedRoute>} />
               <Route path="/crm/settings" element={<ModuleProtectedRoute requiredModule="crm"><CRMFieldConfigurations /></ModuleProtectedRoute>} />
@@ -157,7 +159,15 @@ const AppLayout = () => {
 };
 
 const App = () => {
-  const isAuthenticated = authService.isAuthenticated();
+  // useState so App re-renders on login/logout — plain authService.isAuthenticated()
+  // is stale after logout and causes a Navigate loop with ProtectedRoute.
+  const [isAuthenticated, setIsAuthenticated] = useState(() => authService.isAuthenticated());
+
+  useEffect(() => {
+    const handler = () => setIsAuthenticated(authService.isAuthenticated());
+    window.addEventListener('celiyo:user-updated', handler);
+    return () => window.removeEventListener('celiyo:user-updated', handler);
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {

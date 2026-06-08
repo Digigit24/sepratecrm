@@ -51,6 +51,24 @@ export interface LeadStatus {
   updated_at: string;
 }
 
+export interface LeadGroup {
+  id: number;
+  tenant_id?: string;
+  name: string;
+  description?: string;
+  color_hex?: string;
+  created_by?: string;
+  lead_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeadGroupMinimal {
+  id: number;
+  name: string;
+  color_hex?: string;
+}
+
 export interface LeadActivity {
   id: number;
   tenant_id: string;
@@ -145,6 +163,7 @@ export interface Lead {
   created_at: string;
   updated_at: string;
   activities?: LeadActivity[]; // From serializer
+  groups?: LeadGroupMinimal[]; // Groups this lead belongs to
 }
 
 // API Response Types
@@ -153,6 +172,13 @@ export interface LeadsResponse {
   next: string | null;
   previous: string | null;
   results: Lead[];
+}
+
+export interface LeadGroupsResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: LeadGroup[];
 }
 
 export interface LeadStatusesResponse {
@@ -244,6 +270,37 @@ export interface BulkStatusUpdateResponse {
   message: string;
 }
 
+// LeadGroup Payload types
+export interface CreateLeadGroupPayload {
+  name: string;
+  description?: string;
+  color_hex?: string;
+}
+
+export interface UpdateLeadGroupPayload {
+  name?: string;
+  description?: string;
+  color_hex?: string;
+}
+
+export interface BulkLeadGroupMembershipPayload {
+  lead_ids: number[];
+}
+
+export interface BulkLeadGroupMembershipResponse {
+  added?: number;
+  removed?: number;
+  already_in_group?: number;
+  not_found?: number;
+}
+
+export interface LeadGroupsQueryParams {
+  page?: number;
+  page_size?: number;
+  search?: string;
+  ordering?: string;
+}
+
 // Query Parameters Types
 export interface LeadsQueryParams {
   page?: number;
@@ -266,6 +323,7 @@ export interface LeadsQueryParams {
   state__icontains?: string;
   country?: string;
   country__icontains?: string;
+  groups?: number;
   ordering?: string;
   [key: string]: string | number | boolean | undefined;
 }

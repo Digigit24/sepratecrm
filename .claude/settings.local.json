@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(node -p \"require\\('./node_modules/piopiyjs/package.json'\\).version\")",
+      "Bash(node -p \"const p=require\\('./node_modules/piopiyjs/package.json'\\); \\({types:p.types||p.typings||null, main:p.main, module:p.module}\\)\")",
+      "Bash(node -e \"const d=require\\('../node_modules/date-fns'\\); console.log\\(typeof d.formatDistanceToNow, typeof d.format\\)\")",
+      "Bash(node -e \"const l=require\\('../node_modules/lucide-react'\\); ['PhoneIncoming','PhoneOutgoing','PhoneMissed','RefreshCw','ChevronDown','MessageSquare','Phone'].forEach\\(n=>console.log\\(n, !!l[n]\\)\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(node -e \"const P=require\\('./node_modules/piopiyjs'\\); console.log\\('default type:', typeof P, typeof P.default\\); const C = P.default||P; console.log\\('proto methods:', Object.getOwnPropertyNames\\(C.prototype||{}\\).slice\\(0,40\\)\\)\")",
+      "Bash(npx eslint *)",
+      "Bash(grep -n \"useAuth\\\\|getTenant, user\\\\|const { .* } = useAuth\" pages/AdminSettings.tsx)",
+      "Bash(npx vitest *)"
+    ]
+  }
+}

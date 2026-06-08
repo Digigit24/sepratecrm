@@ -764,6 +764,85 @@ class CRMService {
       throw new Error(message);
     }
   }
+
+  // ==================== LEAD GROUPS ====================
+
+  async getLeadGroups(params?: import('@/types/crmTypes').LeadGroupsQueryParams): Promise<import('@/types/crmTypes').LeadGroupsResponse> {
+    try {
+      const queryString = buildQueryString(params);
+      const response = await crmClient.get<import('@/types/crmTypes').LeadGroupsResponse>(
+        `${API_CONFIG.CRM.LEAD_GROUPS}${queryString}`
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || error.response?.data?.message || 'Failed to fetch lead groups');
+    }
+  }
+
+  async getLeadGroup(id: number): Promise<import('@/types/crmTypes').LeadGroup> {
+    try {
+      const response = await crmClient.get<import('@/types/crmTypes').LeadGroup>(
+        API_CONFIG.CRM.LEAD_GROUP_DETAIL.replace(':id', id.toString())
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || error.response?.data?.message || 'Failed to fetch lead group');
+    }
+  }
+
+  async createLeadGroup(data: import('@/types/crmTypes').CreateLeadGroupPayload): Promise<import('@/types/crmTypes').LeadGroup> {
+    try {
+      const response = await crmClient.post<import('@/types/crmTypes').LeadGroup>(
+        API_CONFIG.CRM.LEAD_GROUP_CREATE, data
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || error.response?.data?.message || 'Failed to create lead group');
+    }
+  }
+
+  async updateLeadGroup(id: number, data: import('@/types/crmTypes').UpdateLeadGroupPayload): Promise<import('@/types/crmTypes').LeadGroup> {
+    try {
+      const response = await crmClient.patch<import('@/types/crmTypes').LeadGroup>(
+        API_CONFIG.CRM.LEAD_GROUP_UPDATE.replace(':id', id.toString()), data
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || error.response?.data?.message || 'Failed to update lead group');
+    }
+  }
+
+  async deleteLeadGroup(id: number): Promise<void> {
+    try {
+      await crmClient.delete(API_CONFIG.CRM.LEAD_GROUP_DELETE.replace(':id', id.toString()));
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || error.response?.data?.message || 'Failed to delete lead group');
+    }
+  }
+
+  async addLeadsToGroup(groupId: number, leadIds: number[]): Promise<import('@/types/crmTypes').BulkLeadGroupMembershipResponse> {
+    try {
+      const response = await crmClient.post<import('@/types/crmTypes').BulkLeadGroupMembershipResponse>(
+        API_CONFIG.CRM.LEAD_GROUP_ADD_LEADS.replace(':id', groupId.toString()),
+        { lead_ids: leadIds }
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || error.response?.data?.message || 'Failed to add leads to group');
+    }
+  }
+
+  async removeLeadsFromGroup(groupId: number, leadIds: number[]): Promise<import('@/types/crmTypes').BulkLeadGroupMembershipResponse> {
+    try {
+      const response = await crmClient.post<import('@/types/crmTypes').BulkLeadGroupMembershipResponse>(
+        API_CONFIG.CRM.LEAD_GROUP_REMOVE_LEADS.replace(':id', groupId.toString()),
+        { lead_ids: leadIds }
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || error.response?.data?.message || 'Failed to remove leads from group');
+    }
+  }
 }
 
 export const crmService = new CRMService();

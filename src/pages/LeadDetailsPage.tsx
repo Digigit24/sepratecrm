@@ -24,6 +24,7 @@ import LeadActivities from '@/components/lead-drawer/LeadActivities';
 import LeadTasks from '@/components/lead-drawer/LeadTasks';
 import MeetingsFormDrawer from '@/components/MeetingsFormDrawer';
 import { LeadScoreSlider } from '@/components/crm/LeadScoreSlider';
+import { LeadAttachments } from '@/components/crm/LeadAttachments';
 import type { Lead, LeadStatus } from '@/types/crmTypes';
 import type { Meeting } from '@/types/meeting.types';
 import { LeadFormHandle } from '@/components/LeadsFormDrawer';
@@ -297,7 +298,7 @@ export const LeadDetailsPage = () => {
         {/* Row 2: tab triggers flush left */}
         <div className="px-4 pb-0">
           <TabsList className="h-8 bg-transparent p-0 gap-0 rounded-none">
-            {(['overview', 'activities', 'tasks', 'meetings', ...(telephonyEnabled ? ['calls'] : [])] as string[]).map(tab => (
+            {(['overview', 'activities', 'tasks', 'meetings', 'attachments', ...(telephonyEnabled ? ['calls'] : [])] as string[]).map(tab => (
               <TabsTrigger
                 key={tab}
                 value={tab}
@@ -354,6 +355,10 @@ export const LeadDetailsPage = () => {
 
         <TabsContent value="tasks" className="mt-3">
           <LeadTasks leadId={lead.id} />
+        </TabsContent>
+
+        <TabsContent value="attachments" className="mt-3">
+          <LeadAttachments leadId={lead.id} />
         </TabsContent>
 
         {telephonyEnabled && (

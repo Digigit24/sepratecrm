@@ -16,11 +16,22 @@ export const useAuth = () => {
   // Check authentication status
   const isAuthenticated = authService.isAuthenticated();
 
-  // Update user state when auth service user changes
+  // Update user state when auth service user changes (login/logout)
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
     setUser(currentUser);
   }, [isAuthenticated]);
+
+  // Sync React state when preferences are updated without re-login
+  useEffect(() => {
+    const handleUserUpdated = (event: CustomEvent<User>) => {
+      setUser(event.detail);
+    };
+    window.addEventListener('celiyo:user-updated', handleUserUpdated as EventListener);
+    return () => {
+      window.removeEventListener('celiyo:user-updated', handleUserUpdated as EventListener);
+    };
+  }, []);
 
   // Login function
   const login = useCallback(async (payload: LoginPayload) => {
@@ -80,7 +91,12 @@ export const useAuth = () => {
   }, []);
 
   // Check if user has access to a specific module
+  // Reads from React user state so sidebar re-renders immediately when modules change
   const hasModuleAccess = useCallback((module: string) => {
+    if (user?.tenant && Array.isArray(user.tenant.enabled_modules)) {
+      return user.tenant.enabled_modules.includes(module);
+    }
+    // Fallback: read from localStorage/JWT (covers super-admin and edge cases)
     return authService.hasModuleAccess(module);
   }, [user]);
 

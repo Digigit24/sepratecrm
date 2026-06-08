@@ -213,66 +213,64 @@ const Dashboard = () => {
     <div className={`flex-1 p-4 overflow-auto ${isDark ? 'bg-gray-950' : 'bg-gray-50/80'}`}>
       <div className="space-y-3">
 
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className={`text-base font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-            Dashboard
-          </h1>
-          <div className="flex items-center gap-1.5">
-            {navItems.map((item) => (
-              <button
-                key={item.label}
-                onClick={() => navigate(item.path)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  isDark
-                    ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                    : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
-                }`}
-              >
-                <item.icon className="w-3.5 h-3.5" />
-                {item.label}
-              </button>
-            ))}
-          </div>
+        {/* Quick action buttons */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {navItems.map((item) => (
+            <button
+              key={item.label}
+              onClick={() => navigate(item.path)}
+              className={`w-full rounded-3xl px-3 py-3 text-left transition duration-200 ${isDark ? 'bg-slate-900/80 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.85)]' : 'bg-white shadow-[0_8px_24px_-16px_rgba(15,23,42,0.08)]'}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${isDark ? 'bg-indigo-500/15 text-indigo-300' : 'bg-indigo-50 text-indigo-600'}`}>
+                  <item.icon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-sm font-semibold ${headText}`}>{item.label}</p>
+                  <p className={`text-[11px] ${mutedText}`}>Open {item.label.toLowerCase()}</p>
+                </div>
+              </div>
+            </button>
+          ))}
         </div>
 
-        {/* Stats + Priority Bar Row */}
-        <div className="flex items-center gap-6 flex-wrap">
-          {/* Stats */}
-          <div className="flex items-center gap-4">
-            {stats.map((stat) => (
-              <div key={stat.label} className="flex items-center gap-2">
-                <stat.icon className={`w-3.5 h-3.5 ${dimText}`} />
-                <span className={`text-xs ${dimText}`}>{stat.label}</span>
-                {stat.loading ? (
-                  <Loader2 className={`w-3 h-3 animate-spin ${dimText}`} />
-                ) : (
-                  <span className={`text-sm font-semibold ${headText}`}>{stat.value}</span>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Priority distribution mini bar */}
-          <div className="flex items-center gap-2 ml-auto">
-            <span className={`text-[10px] uppercase tracking-wider font-medium ${dimText}`}>Priority</span>
-            <div className="flex items-center gap-1.5">
-              {priorityStats.map((p) => (
-                <div key={p.label} className="flex items-center gap-1">
-                  <div className={`w-1.5 h-1.5 rounded-full ${p.color}`} />
-                  <span className={`text-[11px] ${mutedText}`}>{p.label}</span>
-                  <span className={`text-[11px] font-semibold ${bodyText}`}>{p.count}</span>
+        {/* Stats cards */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map((stat) => (
+            <div key={stat.label} className={`w-full rounded-3xl p-3 text-left ${isDark ? 'bg-slate-900/80' : 'bg-slate-50/90'}`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className={`text-[10px] uppercase tracking-[0.24em] font-semibold ${dimText}`}>{stat.label}</p>
+                  <p className={`mt-2 text-xl font-semibold ${headText}`}>
+                    {stat.loading ? <Loader2 className={`inline-block w-5 h-5 animate-spin ${dimText}`} /> : stat.value}
+                  </p>
                 </div>
-              ))}
+                <div className={`flex h-9 w-9 items-center justify-center rounded-2xl ${isDark ? 'bg-white/5 text-gray-300' : 'bg-white text-slate-600'}`}>
+                  <stat.icon className="h-4 w-4" />
+                </div>
+              </div>
             </div>
-            {/* mini bar */}
-            <div className="flex h-1.5 w-20 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-800">
+          ))}
+        </div>
+
+        {/* Priority overview */}
+        <div className={`rounded-3xl p-3 min-w-0 ${isDark ? 'bg-slate-900/80' : 'bg-slate-50/90'}`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className={`text-xs font-semibold ${dimText}`}>Priority</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {priorityStats.map((p) => (
+                  <div key={p.label} className={`flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-medium ${isDark ? 'bg-white/5' : 'bg-white'}`}>
+                    <span className={`inline-block h-2.5 w-2.5 rounded-full ${p.color}`} />
+                    <span className={mutedText}>{p.label}</span>
+                    <span className={`font-semibold ${bodyText}`}>{p.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex h-2.5 w-full max-w-md overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
               {priorityStats.map((p) => (
-                <div
-                  key={p.label}
-                  className={p.color}
-                  style={{ width: `${(p.count / priorityTotal) * 100}%` }}
-                />
+                <div key={p.label} className={p.color} style={{ width: `${(p.count / priorityTotal) * 100}%` }} />
               ))}
             </div>
           </div>
@@ -408,26 +406,24 @@ const Dashboard = () => {
             {recentLeads.length === 0 ? (
               <p className={`text-xs py-4 text-center ${dimText}`}>No leads yet</p>
             ) : (
-              <div className="divide-y divide-border/40">
+              <div className="space-y-2">
                 {recentLeads.map((lead) => {
                   const statusObj = getStatusObj(lead.status);
                   return (
                     <div
                       key={lead.id}
-                      className={`flex items-center gap-2.5 py-2 cursor-pointer ${hoverBg} -mx-1 px-1 rounded`}
+                      className={`flex items-center gap-2.5 rounded-3xl p-3 cursor-pointer ${isDark ? 'bg-slate-950/60' : 'bg-slate-100/80'}`}
                       onClick={() => navigate(`/crm/leads/${lead.id}`)}
                     >
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ${
-                        isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
-                      }`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ${isDark ? 'bg-slate-800 text-gray-300' : 'bg-white text-slate-700'}`}>
                         {lead.name.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-xs font-medium truncate ${headText}`}>{lead.name}</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`text-sm font-semibold truncate ${headText}`}>{lead.name}</span>
                           {statusObj && (
                             <span
-                              className="text-[9px] px-1 py-0 rounded font-medium shrink-0"
+                              className="text-[9px] px-2 py-0.5 rounded-full font-medium"
                               style={{
                                 backgroundColor: `${statusObj.color_hex || '#6B7280'}20`,
                                 color: statusObj.color_hex || '#6B7280',
@@ -437,9 +433,9 @@ const Dashboard = () => {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {lead.phone && <span className={`text-[10px] ${dimText}`}>{lead.phone}</span>}
-                          {lead.company && <span className={`text-[10px] ${dimText}`}>· {lead.company}</span>}
+                        <div className="flex flex-wrap items-center gap-2 mt-1 text-[10px] ${dimText}">
+                          {lead.phone && <span className={dimText}>{lead.phone}</span>}
+                          {lead.company && <span className={dimText}>· {lead.company}</span>}
                         </div>
                       </div>
                       <span className={`text-[10px] shrink-0 ${dimText}`}>
@@ -466,28 +462,28 @@ const Dashboard = () => {
             {tasks.length === 0 ? (
               <p className={`text-xs py-4 text-center ${dimText}`}>No tasks</p>
             ) : (
-              <div className="divide-y divide-border/40">
+              <div className="space-y-2">
                 {tasks.map((task) => {
                   const isOverdue = task.due_date && task.status !== 'DONE' && task.status !== 'CANCELLED' && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date));
                   const isDone = task.status === 'DONE';
                   return (
-                    <div key={task.id} className={`flex items-start gap-2.5 py-2 ${isDone ? 'opacity-50' : ''}`}>
+                    <div key={task.id} className={`flex items-start gap-2.5 rounded-3xl p-3 ${isDark ? 'bg-slate-950/60' : 'bg-slate-100/80'} ${isDone ? 'opacity-70' : ''}`}>
                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 shrink-0 ${
                         isDone ? 'border-green-500 bg-green-500' : isOverdue ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'
                       }`}>
                         {isDone && <CheckCircle2 className="w-3 h-3 text-white" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <span className={`text-xs font-medium ${isDone ? 'line-through' : ''} ${headText}`}>{task.title}</span>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {task.lead_name && <span className={`text-[10px] ${dimText}`}>{task.lead_name}</span>}
+                        <span className={`text-sm font-medium ${isDone ? 'line-through' : ''} ${headText}`}>{task.title}</span>
+                        <div className="flex flex-wrap items-center gap-2 mt-1 text-[10px] ${dimText}">
+                          {task.lead_name && <span className={dimText}>{task.lead_name}</span>}
                           {task.due_date && (
-                            <span className={`text-[10px] flex items-center gap-0.5 ${isOverdue ? 'text-red-500 font-medium' : dimText}`}>
+                            <span className={`flex items-center gap-0.5 ${isOverdue ? 'text-red-500 font-medium' : dimText}`}>
                               {isOverdue && <AlertTriangle className="w-2.5 h-2.5" />}
                               {format(parseISO(task.due_date), 'MMM dd')}
                             </span>
                           )}
-                          <span className={`text-[9px] px-1 py-0 rounded ${
+                          <span className={`rounded-full px-2 py-0.5 text-[9px] ${
                             task.priority === 'HIGH' ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
                             : task.priority === 'LOW' ? 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'
                             : 'bg-yellow-50 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400'
@@ -517,17 +513,17 @@ const Dashboard = () => {
             {upcomingMeetings.length === 0 ? (
               <p className={`text-xs py-4 text-center ${dimText}`}>No upcoming meetings</p>
             ) : (
-              <div className="divide-y divide-border/40">
+              <div className="space-y-2">
                 {upcomingMeetings.map((meeting) => {
                   const startDate = parseISO(meeting.start_at);
                   const endDate = parseISO(meeting.end_at);
                   const meetingToday = isToday(startDate);
                   return (
-                    <div key={meeting.id} className={`flex items-start gap-2.5 py-2`}>
-                      <div className={`w-9 h-9 rounded-lg flex flex-col items-center justify-center shrink-0 ${
+                    <div key={meeting.id} className={`flex items-start gap-2.5 rounded-3xl p-3 ${isDark ? 'bg-slate-950/60' : 'bg-slate-100/80'}`}>
+                      <div className={`w-10 h-10 rounded-2xl flex flex-col items-center justify-center shrink-0 ${
                         meetingToday
                           ? 'bg-indigo-100 dark:bg-indigo-900/40'
-                          : isDark ? 'bg-gray-800' : 'bg-gray-50'
+                          : isDark ? 'bg-slate-800' : 'bg-white'
                       }`}>
                         <span className={`text-[9px] font-medium leading-none ${meetingToday ? 'text-indigo-600 dark:text-indigo-400' : dimText}`}>
                           {format(startDate, 'MMM')}
@@ -537,19 +533,19 @@ const Dashboard = () => {
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <span className={`text-xs font-medium truncate block ${headText}`}>{meeting.title}</span>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className={`text-[10px] ${dimText}`}>
+                        <span className={`text-sm font-semibold truncate block ${headText}`}>{meeting.title}</span>
+                        <div className="flex flex-wrap items-center gap-2 mt-1 text-[10px] ${dimText}">
+                          <span className={dimText}>
                             {format(startDate, 'hh:mm a')} – {format(endDate, 'hh:mm a')}
                           </span>
                           {meetingToday && (
-                            <span className="text-[9px] px-1 py-0 rounded bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400 font-medium">
+                            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[9px] font-medium text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400">
                               Today
                             </span>
                           )}
                         </div>
                         {meeting.lead_name && (
-                          <span className={`text-[10px] ${dimText} mt-0.5 block`}>{meeting.lead_name}</span>
+                          <span className={`text-[10px] ${dimText} mt-1 block`}>{meeting.lead_name}</span>
                         )}
                       </div>
                     </div>

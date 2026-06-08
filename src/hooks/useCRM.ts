@@ -813,6 +813,65 @@ export const useCRM = () => {
     }
   }, [hasCRMAccess]);
 
+  // ==================== LEAD GROUPS ====================
+
+  const useLeadGroups = (params?: import('@/types/crmTypes').LeadGroupsQueryParams) => {
+    return useSWR<import('@/types/crmTypes').LeadGroupsResponse>(
+      ['lead-groups', params],
+      () => crmService.getLeadGroups(params),
+      { revalidateOnFocus: false, shouldRetryOnError: false, keepPreviousData: true }
+    );
+  };
+
+  const createLeadGroup = useCallback(async (data: import('@/types/crmTypes').CreateLeadGroupPayload) => {
+    if (!hasCRMAccess) throw new Error('No CRM access');
+    setIsLoading(true);
+    try {
+      return await crmService.createLeadGroup(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create lead group');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [hasCRMAccess]);
+
+  const updateLeadGroup = useCallback(async (id: number, data: import('@/types/crmTypes').UpdateLeadGroupPayload) => {
+    if (!hasCRMAccess) throw new Error('No CRM access');
+    setIsLoading(true);
+    try {
+      return await crmService.updateLeadGroup(id, data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update lead group');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [hasCRMAccess]);
+
+  const deleteLeadGroup = useCallback(async (id: number) => {
+    if (!hasCRMAccess) throw new Error('No CRM access');
+    setIsLoading(true);
+    try {
+      await crmService.deleteLeadGroup(id);
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete lead group');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [hasCRMAccess]);
+
+  const addLeadsToGroup = useCallback(async (groupId: number, leadIds: number[]) => {
+    if (!hasCRMAccess) throw new Error('No CRM access');
+    return await crmService.addLeadsToGroup(groupId, leadIds);
+  }, [hasCRMAccess]);
+
+  const removeLeadsFromGroup = useCallback(async (groupId: number, leadIds: number[]) => {
+    if (!hasCRMAccess) throw new Error('No CRM access');
+    return await crmService.removeLeadsFromGroup(groupId, leadIds);
+  }, [hasCRMAccess]);
+
   return {
     hasCRMAccess,
     isLoading,
@@ -866,5 +925,13 @@ export const useCRM = () => {
     updateFieldConfiguration,
     patchFieldConfiguration,
     deleteFieldConfiguration,
+
+    // Lead Groups
+    useLeadGroups,
+    createLeadGroup,
+    updateLeadGroup,
+    deleteLeadGroup,
+    addLeadsToGroup,
+    removeLeadsFromGroup,
   };
 };

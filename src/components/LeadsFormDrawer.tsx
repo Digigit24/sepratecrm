@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 
 import type { Lead, CreateLeadPayload, UpdateLeadPayload } from '@/types/crmTypes';
 import { useCRM } from '@/hooks/useCRM';
+import { LeadGroupsSelector } from '@/components/crm/LeadGroupsSelector';
 
 import LeadDetailsForm from './lead-drawer/LeadDetailsForm';
 import LeadActivities from './lead-drawer/LeadActivities';
@@ -289,8 +290,17 @@ export function LeadsFormDrawer({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="details" className="mt-5">
+        <TabsContent value="details" className="mt-5 space-y-4">
           <LeadDetailsForm ref={detailsFormRef} lead={lead} mode={currentMode} />
+          {/* Groups selector — only shown when editing/viewing an existing lead */}
+          {leadId && (
+            <LeadGroupsSelector
+              leadId={leadId}
+              currentGroups={lead?.groups || []}
+              readOnly={currentMode === 'view'}
+              onGroupsChanged={revalidate}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="activities" className="mt-5">

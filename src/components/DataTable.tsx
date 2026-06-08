@@ -408,7 +408,7 @@ export function DataTable<T>({
     return (
       <>
         <div className="flex flex-col h-full">
-          <div className="flex-1 p-4 space-y-3 overflow-auto">
+          <div className="flex-1 overflow-auto divide-y divide-border">
             {processedRows.map((row) => {
               const rowActions: RowActions<T> = {
                 view: onView ? () => onView(row) : undefined,
@@ -419,7 +419,7 @@ export function DataTable<T>({
               };
 
               return (
-                <div key={getRowId(row)} className="bg-card border rounded-lg p-4 space-y-3 hover:shadow-md transition-shadow">
+                <div key={getRowId(row)} className="px-4 py-3.5 bg-background hover:bg-muted/20 active:bg-muted/40 transition-colors space-y-2.5">
                   {renderMobileCard(row, rowActions)}
                 </div>
               );

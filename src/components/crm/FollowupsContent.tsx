@@ -6,15 +6,14 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { DataTable, type DataTableColumn } from '@/components/DataTable';
 import { FollowupScheduleDialog } from '@/components/FollowupScheduleDialog';
 import { EditableFollowupCell } from '@/components/crm/EditableFollowupCell';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Phone, Mail, MessageCircle, Eye, CalendarClock, MoreVertical } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns';
+import { isToday, isTomorrow, isPast, parseISO } from 'date-fns';
 import { toast } from 'sonner';
-import type { Lead, LeadsQueryParams, LeadStatus } from '@/types/crmTypes';
+import type { Lead } from '@/types/crmTypes';
 import { leadStatusCache } from '@/lib/leadStatusCache';
 
 type FollowupFilter = 'all' | 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'no-date';
@@ -292,26 +291,125 @@ export const FollowupsContent: React.FC<FollowupsContentProps> = ({
   // Render mobile card view
   const renderMobileCard = (lead: Lead, actions: any) => {
     return (
-      <Card className="mb-3">
-        <CardContent className="p-4 space-y-3">
-          {/* Header */}
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h3 className="font-semibold">{lead.name}</h3>
-              {lead.title && <p className="text-sm text-muted-foreground">{lead.title}</p>}
-              {lead.company && <p className="text-xs text-muted-foreground">{lead.company}</p>}
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleViewLead(lead)}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  View Details
+      <>
+        {/* Header row: name + actions menu */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-sm truncate">{lead.name}</h3>
+            {lead.company && <p className="text-xs text-muted-foreground truncate">{lead.company}</p>}
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 -mr-1">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleViewLead(lead)}>
+                <Eye className="mr-2 h-4 w-4" />
+                View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleScheduleFollowup(lead)}>
+                <CalendarClock className="mr-2 h-4 w-4" />
+                Schedule Follow-up
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => lead.phone && handleCall(lead.phone)}>
+                <Phone className="mr-2 h-4 w-4" />
+                Call
+              </DropdownMenuItem>
+              {lead.email && (
+                <DropdownMenuItem onClick={() => handleEmail(lead.email)}>
+                  <Mail className="mr-2 h-4 w-4" />
+                  Email
                 </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => lead.phone && handleWhatsApp(lead.phone)}>
+                <MessageCircle className="mr-2 h-4 w-4" />
+                WhatsApp
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Phone + follow-up date in one row */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0">
+            <Phone className="h-3 w-3 flex-shrink-0" />
+            <span className="truncate">{lead.phone}</span>
+          </div>
+          <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+            <EditableFollowupCell
+              dateValue={lead.next_follow_up_at}
+              onSave={async (date) => {
+                await handleUpdateFollowup(lead.id, date);
+              }}
+              leadName={lead.name}
+            />
+          </div>
+        </div>
+
+        {/* Status + Priority + Value */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {getLeadStatusBadge(lead)}
+          <Badge variant="secondary" className={
+            lead.priority === 'HIGH' ? 'bg-red-100 text-red-800 border-0' :
+            lead.priority === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800 border-0' :
+            'bg-blue-100 text-blue-800 border-0'
+          }>
+            {lead.priority}
+          </Badge>
+          {lead.value_amount && (() => {
+            const numericAmount = parseFloat(lead.value_amount);
+            if (isNaN(numericAmount)) return null;
+            return (
+              <span className="text-xs font-medium text-green-600">
+                {formatCurrencyDynamic(numericAmount, true, 2)}
+              </span>
+            );
+          })()}
+        </div>
+      </>
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Follow-up Filter Tabs */}
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as FollowupFilter)}>
+        <div className="overflow-x-auto">
+          <TabsList className="flex flex-nowrap h-9 w-max min-w-full">
+            <TabsTrigger value="all" className="flex-shrink-0 text-xs whitespace-nowrap px-3">
+              All ({counts.all})
+            </TabsTrigger>
+            <TabsTrigger value="overdue" className="flex-shrink-0 text-xs whitespace-nowrap px-3 text-red-600 data-[state=active]:bg-red-50">
+              Overdue ({counts.overdue})
+            </TabsTrigger>
+            <TabsTrigger value="today" className="flex-shrink-0 text-xs whitespace-nowrap px-3 text-orange-600 data-[state=active]:bg-orange-50">
+              Today ({counts.today})
+            </TabsTrigger>
+            <TabsTrigger value="tomorrow" className="flex-shrink-0 text-xs whitespace-nowrap px-3 text-blue-600 data-[state=active]:bg-blue-50">
+              Tomorrow ({counts.tomorrow})
+            </TabsTrigger>
+            <TabsTrigger value="upcoming" className="flex-shrink-0 text-xs whitespace-nowrap px-3 text-green-600 data-[state=active]:bg-green-50">
+              Upcoming ({counts.upcoming})
+            </TabsTrigger>
+            <TabsTrigger value="no-date" className="flex-shrink-0 text-xs whitespace-nowrap px-3 text-gray-600 data-[state=active]:bg-gray-50">
+              No Date ({counts.noDate})
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value={activeTab} className="mt-3">
+          <DataTable
+            rows={filteredLeads}
+            columns={columns}
+            renderMobileCard={renderMobileCard}
+            getRowId={(lead) => lead.id}
+            getRowLabel={(lead) => lead.name}
+            isLoading={isLoading}
+            onView={handleViewLead}
+            extraActions={(lead) => (
+              <>
                 <DropdownMenuItem onClick={() => handleScheduleFollowup(lead)}>
                   <CalendarClock className="mr-2 h-4 w-4" />
                   Schedule Follow-up
@@ -330,139 +428,11 @@ export const FollowupsContent: React.FC<FollowupsContentProps> = ({
                   <MessageCircle className="mr-2 h-4 w-4" />
                   WhatsApp
                 </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {/* Contact Info */}
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm">
-              <Phone className="h-3 w-3 text-muted-foreground" />
-              <span>{lead.phone}</span>
-            </div>
-            {lead.email && (
-              <div className="flex items-center gap-2 text-sm">
-                <Mail className="h-3 w-3 text-muted-foreground" />
-                <span>{lead.email}</span>
-              </div>
+              </>
             )}
-          </div>
-
-          {/* Follow-up Info */}
-          <div className="space-y-2">
-            <div onClick={(e) => e.stopPropagation()}>
-              <EditableFollowupCell
-                dateValue={lead.next_follow_up_at}
-                onSave={async (date) => {
-                  await handleUpdateFollowup(lead.id, date);
-                }}
-                leadName={lead.name}
-              />
-            </div>
-          </div>
-
-          {/* Status Info */}
-          <div className="flex flex-wrap items-center gap-2">
-            {getLeadStatusBadge(lead)}
-          </div>
-
-          {/* Priority & Value */}
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className={
-              lead.priority === 'HIGH' ? 'bg-red-100 text-red-800' :
-              lead.priority === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
-              'bg-blue-100 text-blue-800'
-            }>
-              {lead.priority}
-            </Badge>
-            {lead.value_amount && (
-              <span className="text-sm font-medium text-green-600">
-                {(() => {
-                  const numericAmount = parseFloat(lead.value_amount);
-                  if (isNaN(numericAmount)) return '-';
-                  return formatCurrencyDynamic(numericAmount, true, 2);
-                })()}
-              </span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Follow-up Filter Tabs */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as FollowupFilter)}>
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="all">
-            All ({counts.all})
-          </TabsTrigger>
-          <TabsTrigger value="overdue" className="text-red-600 data-[state=active]:bg-red-50">
-            Overdue ({counts.overdue})
-          </TabsTrigger>
-          <TabsTrigger value="today" className="text-orange-600 data-[state=active]:bg-orange-50">
-            Today ({counts.today})
-          </TabsTrigger>
-          <TabsTrigger value="tomorrow" className="text-blue-600 data-[state=active]:bg-blue-50">
-            Tomorrow ({counts.tomorrow})
-          </TabsTrigger>
-          <TabsTrigger value="upcoming" className="text-green-600 data-[state=active]:bg-green-50">
-            Upcoming ({counts.upcoming})
-          </TabsTrigger>
-          <TabsTrigger value="no-date" className="text-gray-600 data-[state=active]:bg-gray-50">
-            No Date ({counts.noDate})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value={activeTab} className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {activeTab === 'all' && 'All Follow-ups'}
-                {activeTab === 'overdue' && 'Overdue Follow-ups'}
-                {activeTab === 'today' && "Today's Follow-ups"}
-                {activeTab === 'tomorrow' && "Tomorrow's Follow-ups"}
-                {activeTab === 'upcoming' && 'Upcoming Follow-ups'}
-                {activeTab === 'no-date' && 'Leads Without Follow-up Date'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                rows={filteredLeads}
-                columns={columns}
-                renderMobileCard={renderMobileCard}
-                getRowId={(lead) => lead.id}
-                getRowLabel={(lead) => lead.name}
-                isLoading={isLoading}
-                onView={handleViewLead}
-                extraActions={(lead) => (
-                  <>
-                    <DropdownMenuItem onClick={() => handleScheduleFollowup(lead)}>
-                      <CalendarClock className="mr-2 h-4 w-4" />
-                      Schedule Follow-up
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => lead.phone && handleCall(lead.phone)}>
-                      <Phone className="mr-2 h-4 w-4" />
-                      Call
-                    </DropdownMenuItem>
-                    {lead.email && (
-                      <DropdownMenuItem onClick={() => handleEmail(lead.email)}>
-                        <Mail className="mr-2 h-4 w-4" />
-                        Email
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem onClick={() => lead.phone && handleWhatsApp(lead.phone)}>
-                      <MessageCircle className="mr-2 h-4 w-4" />
-                      WhatsApp
-                    </DropdownMenuItem>
-                  </>
-                )}
-                emptyTitle={`No ${activeTab === 'all' ? '' : activeTab} follow-ups found`}
-                emptySubtitle="Try adjusting your filters"
-              />
-            </CardContent>
-          </Card>
+            emptyTitle={`No ${activeTab === 'all' ? '' : activeTab} follow-ups found`}
+            emptySubtitle="Try adjusting your filters"
+          />
         </TabsContent>
       </Tabs>
 

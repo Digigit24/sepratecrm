@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { authClient } from '@/lib/client';
 import { API_CONFIG } from '@/lib/apiConfig';
 import type { LeadStatus } from '@/types/crmTypes';
+import { crmService } from '@/services/crmService';
 import type {
   FilterFieldDef,
   FilterPlacement,
@@ -258,6 +259,40 @@ export const LeadsFilterDrawer: React.FC<LeadsFilterDrawerProps> = ({
         );
       }
 
+      case 'group_select': {
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const { data: groupsData } = useSWR(
+          'lead-groups-filter',
+          () => crmService.getLeadGroups({ page_size: 200, ordering: 'name' }),
+          { revalidateOnFocus: false }
+        );
+        const groups = groupsData?.results || [];
+        return (
+          <Select
+            value={activeFilters.groups?.toString() || '__any__'}
+            onValueChange={v => setFilter('groups', v === '__any__' ? undefined : Number(v))}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Any group" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__any__">Any group</SelectItem>
+              {groups.map(g => (
+                <SelectItem key={g.id} value={g.id.toString()}>
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className="w-2 h-2 rounded-full inline-block flex-shrink-0"
+                      style={{ backgroundColor: g.color_hex || '#6366F1' }}
+                    />
+                    {g.name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      }
+
       case 'text_contains': {
         const val = def.isCustom
           ? activeFilters[`meta_${def.key}`] || ''
@@ -427,6 +462,7 @@ export const LeadsFilterDrawer: React.FC<LeadsFilterDrawerProps> = ({
       case 'multi_priority': return ['priority'];
       case 'lead_score_range': return ['lead_score'];
       case 'user_select': return ['owner_user_id'];
+      case 'group_select': return ['groups'];
       case 'date_range': return [`${baseKey}_gte`, `${baseKey}_lte`, `${baseKey}_isnull`];
       case 'number_range': return [`${baseKey}_min`, `${baseKey}_max`];
       default: return [baseKey];

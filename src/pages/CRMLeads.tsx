@@ -24,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, RefreshCw, Building2, Phone, Mail, IndianRupee, LayoutGrid, List, Download, Upload, FileSpreadsheet, ChevronDown, MessageCircle, Trash2, FileText, CalendarClock, MoreVertical, Eye, EyeOff, SlidersHorizontal, X } from 'lucide-react';
+import { Plus, RefreshCw, Building2, Phone, Mail, IndianRupee, LayoutGrid, List, Download, Upload, FileSpreadsheet, ChevronDown, MessageCircle, Trash2, FileText, CalendarClock, MoreVertical, Eye, EyeOff, SlidersHorizontal, X, Layers } from 'lucide-react';
 // Note: Target import removed - lead score filter is now in LeadsFilterDrawer
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -47,7 +47,7 @@ type ViewMode = 'list' | 'kanban' | 'followups';
 export const CRMLeads: React.FC = () => {
   const navigate = useNavigate();
   const { user, hasModuleAccess } = useAuth();
-  const { hasCRMAccess, useLeads, useLeadStatuses, useFieldConfigurations, deleteLead, patchLead, updateLeadStatus, deleteLeadStatus, bulkCreateLeads, bulkDeleteLeads, bulkUpdateLeadStatus, exportLeads, importLeads } = useCRM();
+  const { hasCRMAccess, useLeads, useLeadStatuses, useFieldConfigurations, deleteLead, patchLead, updateLeadStatus, deleteLeadStatus, bulkCreateLeads, bulkDeleteLeads, bulkUpdateLeadStatus, exportLeads, importLeads, useLeadGroups, addLeadsToGroup } = useCRM();
   const { formatCurrency: formatCurrencyDynamic, getCurrencyCode, getCurrencySymbol } = useCurrency();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -72,6 +72,7 @@ export const CRMLeads: React.FC = () => {
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<number>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [isBulkUpdatingStatus, setIsBulkUpdatingStatus] = useState(false);
+  const [isBulkAddingToGroup, setIsBulkAddingToGroup] = useState(false);
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({ hide_duplicates: true });
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
@@ -83,6 +84,7 @@ export const CRMLeads: React.FC = () => {
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [selectedLeadForTemplate, setSelectedLeadForTemplate] = useState<Lead | null>(null);
 
+  const { data: groupsData } = useLeadGroups({ page_size: 200, ordering: 'name' });
   const { data: leadsData, error, isLoading, mutate } = useLeads(queryParams);
   const { data: statusesData, mutate: mutateStatuses } = useLeadStatuses({
     page_size: 100,
@@ -203,6 +205,25 @@ export const CRMLeads: React.FC = () => {
       setIsBulkUpdatingStatus(false);
     }
   }, [selectedLeadIds, bulkUpdateLeadStatus, mutate]);
+
+  const handleBulkAddToGroup = useCallback(async (groupId: number, groupName: string) => {
+    if (selectedLeadIds.size === 0) {
+      toast.error('No leads selected');
+      return;
+    }
+    setIsBulkAddingToGroup(true);
+    try {
+      const leadIdsArray = Array.from(selectedLeadIds);
+      const result = await addLeadsToGroup(groupId, leadIdsArray);
+      toast.success(`Added ${result.added} lead(s) to "${groupName}"`);
+      setSelectedLeadIds(new Set());
+      mutate();
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to add leads to group');
+    } finally {
+      setIsBulkAddingToGroup(false);
+    }
+  }, [selectedLeadIds, addLeadsToGroup, mutate]);
 
   const toggleLeadSelection = useCallback((leadId: number) => {
     setSelectedLeadIds((prev) => {
@@ -1257,6 +1278,48 @@ export const CRMLeads: React.FC = () => {
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+              {/* Bulk Add to Group */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={isBulkAddingToGroup}
+                    className="h-6 text-xs px-1.5"
+                  >
+                    {isBulkAddingToGroup ? (
+                      <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <Layers className="h-3 w-3 mr-1" />
+                    )}
+                    Add to Group
+                    <ChevronDown className="h-3 w-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[180px]">
+                  {(groupsData?.results || []).length === 0 && (
+                    <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                      No groups — create one first
+                    </DropdownMenuItem>
+                  )}
+                  {(groupsData?.results || []).map((group) => (
+                    <DropdownMenuItem
+                      key={group.id}
+                      onClick={() => handleBulkAddToGroup(group.id, group.name)}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: group.color_hex || '#6366F1' }}
+                        />
+                        <span>{group.name}</span>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -1335,8 +1398,8 @@ export const CRMLeads: React.FC = () => {
         className="hidden"
       />
 
-      {/* Toolbar row: view mode tabs + toolbar filters + filter icon */}
-      <div className="flex items-center gap-2 flex-wrap">
+      {/* Row 1: View tabs + filter button */}
+      <div className="flex items-center justify-between gap-2">
         <Tabs value={viewMode} onValueChange={(value) => handleViewModeChange(value as ViewMode)}>
           <TabsList className="h-8">
             <TabsTrigger value="list" className="text-xs h-6 px-2.5 gap-1.5">
@@ -1354,188 +1417,31 @@ export const CRMLeads: React.FC = () => {
           </TabsList>
         </Tabs>
 
-        {/* Toolbar placement filters */}
-        {toolbarPlacementFilters.map(def => {
-          const filterKey = def.isCustom ? `meta_${def.key}` : def.key;
-
-          if (def.filterType === 'lead_score_range') {
-            return (
-              <Select
-                key={def.key}
-                value={activeFilters.lead_score || '__all__'}
-                onValueChange={v => setActiveFilters(prev => ({ ...prev, lead_score: v === '__all__' ? undefined : v }))}
-              >
-                <SelectTrigger className="h-8 w-[140px] text-xs">
-                  <SelectValue placeholder={def.label} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">All Scores</SelectItem>
-                  <SelectItem value="no_score">No Score</SelectItem>
-                  <SelectItem value="below_25">Below 25</SelectItem>
-                  <SelectItem value="25_to_50">25 – 50</SelectItem>
-                  <SelectItem value="50_to_75">50 – 75</SelectItem>
-                  <SelectItem value="75_above">75+</SelectItem>
-                </SelectContent>
-              </Select>
-            );
-          }
-
-          if (def.filterType === 'multi_priority') {
-            return (
-              <Select
-                key={def.key}
-                value={activeFilters.priority?.[0] || '__all__'}
-                onValueChange={v => setActiveFilters(prev => ({ ...prev, priority: v === '__all__' ? undefined : [v] }))}
-              >
-                <SelectTrigger className="h-8 w-[120px] text-xs">
-                  <SelectValue placeholder="Priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Any Priority</SelectItem>
-                  <SelectItem value="HIGH">High</SelectItem>
-                  <SelectItem value="MEDIUM">Medium</SelectItem>
-                  <SelectItem value="LOW">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            );
-          }
-
-          if (def.filterType === 'multi_status') {
-            return (
-              <Select
-                key={def.key}
-                value={activeFilters.status?.[0]?.toString() || '__all__'}
-                onValueChange={v => setActiveFilters(prev => ({ ...prev, status: v === '__all__' ? undefined : [Number(v)] }))}
-              >
-                <SelectTrigger className="h-8 w-[130px] text-xs">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Any Status</SelectItem>
-                  {(statusesData?.results || []).map(s => (
-                    <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            );
-          }
-
-          if (def.filterType === 'user_select') {
-            const users = usersData?.results || [];
-            return (
-              <Select
-                key={def.key}
-                value={activeFilters[filterKey] || '__all__'}
-                onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__all__' ? undefined : v }))}
-              >
-                <SelectTrigger className="h-8 w-[130px] text-xs">
-                  <SelectValue placeholder={def.label} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Any {def.label}</SelectItem>
-                  {users.map(u => (
-                    <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            );
-          }
-
-          if (def.filterType === 'single_select') {
-            return (
-              <Select
-                key={def.key}
-                value={activeFilters[filterKey] || '__any__'}
-                onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__any__' ? undefined : v }))}
-              >
-                <SelectTrigger className="h-8 w-[140px] text-xs">
-                  <SelectValue placeholder={def.label} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__any__">Any {def.label}</SelectItem>
-                  {(def.options || []).map(opt => (
-                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            );
-          }
-
-          if (def.filterType === 'multi_select') {
-            return (
-              <Select
-                key={def.key}
-                value={activeFilters[filterKey]?.[0] || '__any__'}
-                onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__any__' ? undefined : [v] }))}
-              >
-                <SelectTrigger className="h-8 w-[140px] text-xs">
-                  <SelectValue placeholder={def.label} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__any__">Any {def.label}</SelectItem>
-                  {(def.options || []).map(opt => (
-                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            );
-          }
-
-          if (def.filterType === 'boolean_toggle') {
-            return (
-              <Select
-                key={def.key}
-                value={activeFilters[filterKey] === true ? 'true' : activeFilters[filterKey] === false ? 'false' : '__any__'}
-                onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__any__' ? undefined : v === 'true' }))}
-              >
-                <SelectTrigger className="h-8 w-[130px] text-xs">
-                  <SelectValue placeholder={def.label} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__any__">Any</SelectItem>
-                  <SelectItem value="true">Yes</SelectItem>
-                  <SelectItem value="false">No</SelectItem>
-                </SelectContent>
-              </Select>
-            );
-          }
-
-          if (def.filterType === 'text_contains') {
-            return (
-              <Input
-                key={def.key}
-                value={activeFilters[filterKey] || ''}
-                onChange={e => setActiveFilters(prev => ({ ...prev, [filterKey]: e.target.value || undefined }))}
-                placeholder={def.label}
-                className="h-8 w-[150px] text-xs"
-              />
-            );
-          }
-
-          return null;
-        })}
-
-        <div className="ml-auto flex items-center gap-1.5">
-          {/* Active filter count chip */}
+        <div className="flex items-center gap-1.5">
           {activeFilterCount > 0 && (
             <button
               onClick={() => setFilterDrawerOpen(true)}
-              className="flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
+              className="flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/25 hover:bg-primary/15 transition-colors"
             >
-              <SlidersHorizontal className="h-3 w-3" />
               {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''}
-              <X
-                className="h-2.5 w-2.5 ml-0.5 hover:text-primary/60"
+              <span
+                role="button"
+                aria-label="Clear filters"
+                className="rounded-full p-0.5 hover:bg-primary/20 transition-colors"
                 onClick={e => { e.stopPropagation(); setActiveFilters({ hide_duplicates: true }); }}
-              />
+              >
+                <X className="h-2.5 w-2.5" />
+              </span>
             </button>
           )}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant={activeFilterCount > 0 ? 'secondary' : 'ghost'}
+                variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className={`h-7 w-7 rounded-full transition-colors ${
+                  activeFilterCount > 0 ? 'text-primary hover:bg-primary/10' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
                 onClick={() => setFilterDrawerOpen(true)}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -1548,26 +1454,177 @@ export const CRMLeads: React.FC = () => {
         </div>
       </div>
 
-      {/* Tabs-placement filter rows (e.g. Status tabs) */}
+      {/* Row 2: Toolbar filter pills (only shown when configured) */}
+      {toolbarPlacementFilters.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {toolbarPlacementFilters.map(def => {
+            const filterKey = def.isCustom ? `meta_${def.key}` : def.key;
+            const pill = "w-[130px] h-7 rounded-full border text-xs font-medium px-3 gap-1.5 transition-all [&>svg:last-child]:h-3 [&>svg:last-child]:w-3 [&>svg:last-child]:opacity-60";
+            const inactive = "border-border/60 text-muted-foreground bg-transparent hover:border-border hover:bg-muted/40 hover:text-foreground";
+            const active = "border-primary/35 bg-primary/10 text-primary hover:bg-primary/15";
+
+            if (def.filterType === 'lead_score_range') {
+              const isActive = !!activeFilters.lead_score;
+              return (
+                <Select key={def.key} value={activeFilters.lead_score || '__all__'} onValueChange={v => setActiveFilters(prev => ({ ...prev, lead_score: v === '__all__' ? undefined : v }))}>
+                  <SelectTrigger className={`${pill} ${isActive ? active : inactive}`}>
+                    <SelectValue placeholder="All Scores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All Scores</SelectItem>
+                    <SelectItem value="no_score">No Score</SelectItem>
+                    <SelectItem value="below_25">Below 25</SelectItem>
+                    <SelectItem value="25_to_50">25 – 50</SelectItem>
+                    <SelectItem value="50_to_75">50 – 75</SelectItem>
+                    <SelectItem value="75_above">75+</SelectItem>
+                  </SelectContent>
+                </Select>
+              );
+            }
+
+            if (def.filterType === 'multi_priority') {
+              const isActive = (activeFilters.priority?.length ?? 0) > 0;
+              return (
+                <Select key={def.key} value={activeFilters.priority?.[0] || '__all__'} onValueChange={v => setActiveFilters(prev => ({ ...prev, priority: v === '__all__' ? undefined : [v] }))}>
+                  <SelectTrigger className={`${pill} ${isActive ? active : inactive}`}>
+                    <SelectValue placeholder="Any Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Any Priority</SelectItem>
+                    <SelectItem value="HIGH">High</SelectItem>
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+                    <SelectItem value="LOW">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              );
+            }
+
+            if (def.filterType === 'multi_status') {
+              const isActive = (activeFilters.status?.length ?? 0) > 0;
+              return (
+                <Select key={def.key} value={activeFilters.status?.[0]?.toString() || '__all__'} onValueChange={v => setActiveFilters(prev => ({ ...prev, status: v === '__all__' ? undefined : [Number(v)] }))}>
+                  <SelectTrigger className={`${pill} ${isActive ? active : inactive}`}>
+                    <SelectValue placeholder="Any Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Any Status</SelectItem>
+                    {(statusesData?.results || []).map(s => (
+                      <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              );
+            }
+
+            if (def.filterType === 'user_select') {
+              const users = usersData?.results || [];
+              const isActive = !!activeFilters[filterKey];
+              return (
+                <Select key={def.key} value={activeFilters[filterKey] || '__all__'} onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__all__' ? undefined : v }))}>
+                  <SelectTrigger className={`${pill} ${isActive ? active : inactive}`}>
+                    <SelectValue placeholder={`Any ${def.label}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Any {def.label}</SelectItem>
+                    {users.map(u => (
+                      <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              );
+            }
+
+            if (def.filterType === 'single_select') {
+              const isActive = !!activeFilters[filterKey];
+              return (
+                <Select key={def.key} value={activeFilters[filterKey] || '__any__'} onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__any__' ? undefined : v }))}>
+                  <SelectTrigger className={`${pill} ${isActive ? active : inactive}`}>
+                    <SelectValue placeholder={`Any ${def.label}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">Any {def.label}</SelectItem>
+                    {(def.options || []).map(opt => (
+                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              );
+            }
+
+            if (def.filterType === 'multi_select') {
+              const isActive = (activeFilters[filterKey]?.length ?? 0) > 0;
+              return (
+                <Select key={def.key} value={activeFilters[filterKey]?.[0] || '__any__'} onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__any__' ? undefined : [v] }))}>
+                  <SelectTrigger className={`${pill} ${isActive ? active : inactive}`}>
+                    <SelectValue placeholder={`Any ${def.label}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">Any {def.label}</SelectItem>
+                    {(def.options || []).map(opt => (
+                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              );
+            }
+
+            if (def.filterType === 'boolean_toggle') {
+              const isActive = activeFilters[filterKey] !== undefined;
+              return (
+                <Select key={def.key} value={activeFilters[filterKey] === true ? 'true' : activeFilters[filterKey] === false ? 'false' : '__any__'} onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__any__' ? undefined : v === 'true' }))}>
+                  <SelectTrigger className={`${pill} ${isActive ? active : inactive}`}>
+                    <SelectValue placeholder={def.label} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">Any</SelectItem>
+                    <SelectItem value="true">Yes</SelectItem>
+                    <SelectItem value="false">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              );
+            }
+
+            if (def.filterType === 'text_contains') {
+              const isActive = !!activeFilters[filterKey];
+              return (
+                <Input
+                  key={def.key}
+                  value={activeFilters[filterKey] || ''}
+                  onChange={e => setActiveFilters(prev => ({ ...prev, [filterKey]: e.target.value || undefined }))}
+                  placeholder={def.label}
+                  className={`w-[130px] h-7 rounded-full text-xs px-3 transition-all ${
+                    isActive ? 'border-primary/35 bg-primary/10 text-primary placeholder:text-primary/50' : 'border-border/60 hover:border-border'
+                  }`}
+                />
+              );
+            }
+
+            return null;
+          })}
+        </div>
+      )}
+
+      {/* Tabs-placement filter rows (e.g. Status tabs / Priority tabs) */}
       {tabsPlacementFilters.length > 0 && (
         <div className="space-y-1.5">
           {tabsPlacementFilters.map(def => {
             if (def.filterType === 'multi_status') {
               const selected: number[] = activeFilters.status || [];
               return (
-                <div key={def.key} className="flex items-center gap-1.5 flex-wrap">
+                <div key={def.key} className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-px">
                   <button
                     onClick={() => setActiveFilters(prev => { const n = { ...prev }; delete n.status; return n; })}
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-all ${
+                    className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all ${
                       selected.length === 0
                         ? 'bg-foreground text-background border-foreground'
-                        : 'border-border text-muted-foreground hover:border-foreground/30'
+                        : 'border-border/60 text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground'
                     }`}
                   >
                     All
                   </button>
                   {(statusesData?.results || []).map(s => {
                     const isSelected = selected.includes(s.id);
+                    const hex = s.color_hex || '#6B7280';
                     return (
                       <button
                         key={s.id}
@@ -1575,13 +1632,13 @@ export const CRMLeads: React.FC = () => {
                           const next = isSelected ? selected.filter(id => id !== s.id) : [...selected, s.id];
                           setActiveFilters(prev => ({ ...prev, status: next.length ? next : undefined }));
                         }}
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-all ${
-                          isSelected ? 'opacity-100' : 'opacity-50 hover:opacity-80'
+                        className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                          isSelected ? 'shadow-sm' : 'opacity-50 hover:opacity-75'
                         }`}
                         style={{
-                          backgroundColor: isSelected ? `${s.color_hex || '#6B7280'}20` : 'transparent',
-                          borderColor: s.color_hex || '#6B7280',
-                          color: s.color_hex || '#6B7280',
+                          backgroundColor: isSelected ? `${hex}22` : 'transparent',
+                          borderColor: hex,
+                          color: hex,
                         }}
                       >
                         {s.name}
@@ -1593,9 +1650,14 @@ export const CRMLeads: React.FC = () => {
             }
             if (def.filterType === 'multi_priority') {
               const selected: string[] = activeFilters.priority || [];
+              const cfg: Record<string, { label: string; sel: string; unsel: string }> = {
+                HIGH:   { label: 'High',   sel: 'border-red-300 bg-red-50 text-red-600',       unsel: 'border-border/60 text-muted-foreground hover:border-red-200 hover:text-red-500' },
+                MEDIUM: { label: 'Medium', sel: 'border-yellow-300 bg-yellow-50 text-yellow-700', unsel: 'border-border/60 text-muted-foreground hover:border-yellow-200 hover:text-yellow-600' },
+                LOW:    { label: 'Low',    sel: 'border-blue-300 bg-blue-50 text-blue-600',     unsel: 'border-border/60 text-muted-foreground hover:border-blue-200 hover:text-blue-500' },
+              };
               return (
                 <div key={def.key} className="flex items-center gap-1.5">
-                  {['HIGH', 'MEDIUM', 'LOW'].map(p => {
+                  {(['HIGH', 'MEDIUM', 'LOW'] as const).map(p => {
                     const isSelected = selected.includes(p);
                     return (
                       <button
@@ -1604,11 +1666,11 @@ export const CRMLeads: React.FC = () => {
                           const next = isSelected ? selected.filter(v => v !== p) : [...selected, p];
                           setActiveFilters(prev => ({ ...prev, priority: next.length ? next : undefined }));
                         }}
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-all ${
-                          isSelected ? 'bg-muted border-foreground/30' : 'border-border hover:bg-muted/50 text-muted-foreground'
+                        className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                          isSelected ? cfg[p].sel : cfg[p].unsel
                         }`}
                       >
-                        {p.charAt(0) + p.slice(1).toLowerCase()}
+                        {cfg[p].label}
                       </button>
                     );
                   })}

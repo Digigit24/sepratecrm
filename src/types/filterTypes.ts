@@ -8,6 +8,7 @@ export type FilterFieldType =
   | 'multi_priority'
   | 'lead_score_range'
   | 'user_select'
+  | 'group_select'
   | 'text_contains'
   | 'date_range'
   | 'boolean_toggle'
@@ -56,6 +57,7 @@ export const DEFAULT_FILTER_CONFIG: CrmLeadsFilterConfig = {
     { key: 'updated_at', placement: 'hidden' },
     { key: 'next_follow_up_at', placement: 'drawer' },
     { key: 'hide_duplicates', placement: 'drawer' },
+    { key: 'groups', placement: 'drawer' },
   ],
 };
 
@@ -78,4 +80,5 @@ export const STANDARD_FILTER_DEFS: FilterFieldDef[] = [
   { key: 'updated_at', label: 'Updated Date', filterType: 'date_range', isCustom: false },
   { key: 'next_follow_up_at', label: 'Next Follow-Up', filterType: 'date_range', isCustom: false },
   { key: 'hide_duplicates', label: 'Hide Duplicates', filterType: 'boolean_toggle', isCustom: false },
+  { key: 'groups', label: 'Group', filterType: 'group_select', isCustom: false },
 ];
