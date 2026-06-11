@@ -1,5 +1,5 @@
 // src/pages/telephony/CallLogsPage.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Table,
@@ -46,7 +46,11 @@ import {
   ExternalLink,
   DownloadCloud,
   ArrowUpDown,
+  Play,
+  X,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { tokenManager } from '@/lib/client';
 import { useTelephony } from '@/hooks/useTelephony';
 import { useUsers } from '@/hooks/useUsers';
 import { Pager } from '@/components/telephony/Pager';
@@ -124,6 +128,37 @@ export const CallLogsPage: React.FC = () => {
       // hook toasts
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // ── recording playback ──
+  const [recording, setRecording] = useState<{ callId: number; url: string | null } | null>(null);
+
+  useEffect(() => {
+    const url = recording?.url;
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [recording?.url]);
+
+  const loadRecording = async (callId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (recording?.callId === callId) {
+      if (recording.url) URL.revokeObjectURL(recording.url);
+      setRecording(null);
+      return;
+    }
+    if (recording?.url) URL.revokeObjectURL(recording.url);
+    setRecording({ callId, url: null });
+    try {
+      const token = tokenManager.getAccessToken();
+      const res = await fetch(`/api/telephony/calls/${callId}/recording/`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!res.ok) throw new Error('Recording unavailable');
+      const blob = await res.blob();
+      setRecording({ callId, url: URL.createObjectURL(blob) });
+    } catch {
+      toast.error('Could not load recording');
+      setRecording(null);
     }
   };
 
@@ -263,17 +298,42 @@ export const CallLogsPage: React.FC = () => {
                       </Tooltip>
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      {call.lead_id ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          title="View lead"
-                          onClick={() => navigate(`/crm/leads/${call.lead_id}`)}
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </Button>
-                      ) : null}
+                      <div className="flex items-center justify-end gap-0.5">
+                        {call.has_recording && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-7 w-7 ${recording?.callId === call.id ? 'text-primary' : ''}`}
+                                onClick={(e) => loadRecording(call.id, e)}
+                              >
+                                {recording?.callId === call.id && recording.url === null ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : recording?.callId === call.id ? (
+                                  <X className="h-3.5 w-3.5" />
+                                ) : (
+                                  <Play className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">
+                              <p className="text-xs">{recording?.callId === call.id ? 'Stop' : 'Play recording'}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {call.lead_id ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="View lead"
+                            onClick={() => navigate(`/crm/leads/${call.lead_id}`)}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : null}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -285,6 +345,29 @@ export const CallLogsPage: React.FC = () => {
           <Pager page={page} pageSize={PAGE_SIZE} count={count} onPrev={() => setPage((p) => Math.max(1, p - 1))} onNext={() => setPage((p) => p + 1)} />
         </div>
       </div>
+
+      {/* Floating recording player */}
+      {recording?.url && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-background border rounded-xl shadow-lg px-3 py-2 w-[min(90vw,420px)]">
+          <Play className="h-3.5 w-3.5 shrink-0 text-primary" />
+          <audio
+            className="flex-1 h-8"
+            src={recording.url}
+            controls
+            autoPlay
+            style={{ minWidth: 0 }}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            title="Close player"
+            onClick={() => { if (recording.url) URL.revokeObjectURL(recording.url); setRecording(null); }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
 
       {/* Sync modal */}
       <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
@@ -330,6 +413,28 @@ export const CallLogsPage: React.FC = () => {
                 <DetailRow label="When" value={safeExact(selected.call_time)} />
                 <DetailRow label="cmiuid" value={selected.cmiuid} mono />
                 <DetailRow label="Synced via" value={selected.synced_via} />
+                {selected.has_recording && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-1.5">Recording</p>
+                    {recording?.callId === selected.id && recording.url ? (
+                      <audio className="w-full h-9" src={recording.url} controls />
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-1.5"
+                        disabled={recording?.callId === selected.id && recording.url === null}
+                        onClick={(e) => loadRecording(selected.id, e)}
+                      >
+                        {recording?.callId === selected.id && recording.url === null ? (
+                          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…</>
+                        ) : (
+                          <><Play className="h-3.5 w-3.5" /> Play Recording</>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                )}
                 {selected.lead_id ? (
                   <Button variant="outline" size="sm" className="w-full" onClick={() => navigate(`/crm/leads/${selected.lead_id}`)}>
                     <ExternalLink className="h-3.5 w-3.5 mr-2" /> View Lead #{selected.lead_id}

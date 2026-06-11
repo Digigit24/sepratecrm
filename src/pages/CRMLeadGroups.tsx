@@ -16,21 +16,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Plus, RefreshCw, Users, Pencil, Trash2, Layers } from 'lucide-react';
+import { Plus, RefreshCw, Users, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import type { LeadGroup, CreateLeadGroupPayload, UpdateLeadGroupPayload, LeadGroupsQueryParams } from '@/types/crmTypes';
-import type { RowActions } from '@/components/DataTable';
 
 const COLOR_PRESETS = [
   '#6366F1', '#8B5CF6', '#EC4899', '#EF4444',
@@ -61,7 +50,6 @@ export const CRMLeadGroups: React.FC = () => {
   const [editingGroup, setEditingGroup] = useState<LeadGroup | null>(null);
   const [form, setForm] = useState<GroupFormState>(defaultForm());
   const [isSaving, setIsSaving] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<LeadGroup | null>(null);
 
   const { data, error, isLoading, mutate } = useLeadGroups(queryParams);
 
@@ -124,25 +112,18 @@ export const CRMLeadGroups: React.FC = () => {
     }
   }, [form, editingGroup, createLeadGroup, updateLeadGroup, mutate]);
 
-  const handleDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    try {
-      await deleteLeadGroup(deleteTarget.id);
-      toast.success(`Deleted group "${deleteTarget.name}"`);
-      mutate();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete group');
-    } finally {
-      setDeleteTarget(null);
-    }
-  }, [deleteTarget, deleteLeadGroup, mutate]);
+  const handleDelete = useCallback(async (group: LeadGroup) => {
+    await deleteLeadGroup(group.id);
+    toast.success(`Deleted group "${group.name}"`);
+    mutate();
+  }, [deleteLeadGroup, mutate]);
 
   const columns: DataTableColumn<LeadGroup>[] = [
     {
       key: 'name',
       header: 'Group Name',
       sortable: true,
-      render: (group) => (
+      cell: (group) => (
         <div className="flex items-center gap-2">
           <span
             className="inline-block w-3 h-3 rounded-full flex-shrink-0"
@@ -155,15 +136,14 @@ export const CRMLeadGroups: React.FC = () => {
     {
       key: 'description',
       header: 'Description',
-      render: (group) => (
+      cell: (group) => (
         <span className="text-muted-foreground text-sm">{group.description || '—'}</span>
       ),
     },
     {
       key: 'lead_count',
       header: 'Leads',
-      sortable: false,
-      render: (group) => (
+      cell: (group) => (
         <Badge variant="secondary" className="gap-1">
           <Users className="w-3 h-3" />
           {group.lead_count ?? 0}
@@ -174,29 +154,13 @@ export const CRMLeadGroups: React.FC = () => {
       key: 'created_at',
       header: 'Created',
       sortable: true,
-      render: (group) => (
+      cell: (group) => (
         <span className="text-sm text-muted-foreground">
           {formatDistanceToNow(new Date(group.created_at), { addSuffix: true })}
         </span>
       ),
     },
   ];
-
-  const rowActions: RowActions<LeadGroup> = {
-    items: [
-      {
-        label: 'Edit',
-        icon: <Pencil className="w-4 h-4" />,
-        onClick: openEdit,
-      },
-      {
-        label: 'Delete',
-        icon: <Trash2 className="w-4 h-4" />,
-        onClick: (group) => setDeleteTarget(group),
-        variant: 'destructive',
-      },
-    ],
-  };
 
   const groups = data?.results || [];
   const totalCount = data?.count || 0;
@@ -235,12 +199,35 @@ export const CRMLeadGroups: React.FC = () => {
       <Card>
         <CardContent className="p-0">
           <DataTable
-            data={groups}
+            rows={groups}
             columns={columns}
-            rowActions={rowActions}
             isLoading={isLoading}
-            emptyMessage="No groups yet. Create your first group to start organising leads."
+            getRowId={(g) => g.id}
+            getRowLabel={(g) => g.name}
+            renderMobileCard={(group) => (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: group.color_hex || '#6366F1' }}
+                    />
+                    <span className="font-medium text-sm truncate">{group.name}</span>
+                  </div>
+                  <Badge variant="secondary" className="gap-1 text-xs flex-shrink-0">
+                    <Users className="w-3 h-3" />
+                    {group.lead_count ?? 0}
+                  </Badge>
+                </div>
+                {group.description && (
+                  <p className="text-xs text-muted-foreground line-clamp-2">{group.description}</p>
+                )}
+              </div>
+            )}
             onRowClick={openEdit}
+            onEdit={openEdit}
+            onDelete={handleDelete}
+            emptyTitle="No groups yet. Create your first group to start organising leads."
           />
         </CardContent>
       </Card>
@@ -327,23 +314,6 @@ export const CRMLeadGroups: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirm */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Group</AlertDialogTitle>
-            <AlertDialogDescription>
-              Delete <strong>{deleteTarget?.name}</strong>? Leads in this group will not be deleted — they just won't be in the group anymore.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

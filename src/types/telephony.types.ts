@@ -166,6 +166,8 @@ export interface CallLog {
   lead_id: number | null;
   agent_user_id: string | null;
   synced_via: CallSyncedVia;
+  /** True when a recording file exists for this call and can be fetched via GET /api/telephony/calls/{id}/recording/. */
+  has_recording: boolean;
   created_at: string;
 }
 
