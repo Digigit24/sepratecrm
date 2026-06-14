@@ -12,6 +12,7 @@ import { LeadsFormDrawer } from '@/components/LeadsFormDrawer';
 import { LeadStatusFormDrawer } from '@/components/LeadStatusFormDrawer';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { LeadImportMappingDialog } from '@/components/LeadImportMappingDialog';
+import { LeadWhatsAppDrawer } from '@/components/crm/LeadWhatsAppDrawer';
 import { EditableNotesCell } from '@/components/crm/EditableNotesCell';
 import { EditableFollowupCell } from '@/components/crm/EditableFollowupCell';
 import { EditableStatusCell } from '@/components/crm/EditableStatusCell';
@@ -27,6 +28,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, RefreshCw, Building2, Phone, Mail, IndianRupee, LayoutGrid, List, Download, Upload, FileSpreadsheet, ChevronDown, MessageCircle, Trash2, FileText, CalendarClock, MoreVertical, Eye, EyeOff, SlidersHorizontal, X, Layers } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 // Note: Target import removed - lead score filter is now in LeadsFilterDrawer
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -73,6 +75,7 @@ export const CRMLeads: React.FC = () => {
 
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<number>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [isBulkUpdatingStatus, setIsBulkUpdatingStatus] = useState(false);
   const [isBulkAddingToGroup, setIsBulkAddingToGroup] = useState(false);
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({ hide_duplicates: true });
@@ -89,6 +92,9 @@ export const CRMLeads: React.FC = () => {
 
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [selectedLeadForTemplate, setSelectedLeadForTemplate] = useState<Lead | null>(null);
+
+  const [whatsAppDrawerOpen, setWhatsAppDrawerOpen] = useState(false);
+  const [selectedLeadForWhatsApp, setSelectedLeadForWhatsApp] = useState<Lead | null>(null);
 
   const { data: groupsData } = useLeadGroups({ page_size: 200, ordering: 'name' });
   const { data: leadsData, error, isLoading, mutate } = useLeads(queryParams);
@@ -239,33 +245,46 @@ export const CRMLeads: React.FC = () => {
     [deleteLead, mutate]
   );
 
-  const handleBulkDelete = useCallback(async () => {
+  const handleBulkDelete = useCallback(() => {
     if (selectedLeadIds.size === 0) {
       toast.error('No leads selected');
       return;
     }
+    setBulkDeleteConfirmOpen(true);
+  }, [selectedLeadIds]);
 
-    const confirmed = window.confirm(
-      `Delete ${selectedLeadIds.size} lead(s)? This action cannot be undone.`
+  const handleBulkDeleteConfirmed = useCallback(async () => {
+    const leadIdsArray = Array.from(selectedLeadIds);
+    const deletedSet = new Set(leadIdsArray);
+
+    // Optimistically remove from infinite scroll table immediately
+    mutateInfinite(
+      (pages) =>
+        pages?.map((page) => ({
+          ...page,
+          count: Math.max(0, page.count - leadIdsArray.filter((id) => page.results.some((l) => l.id === id)).length),
+          results: page.results.filter((l) => !deletedSet.has(l.id)),
+        })),
+      false
     );
 
-    if (!confirmed) return;
-
+    setSelectedLeadIds(new Set());
     setIsDeleting(true);
 
     try {
-      const leadIdsArray = Array.from(selectedLeadIds);
       const result = await bulkDeleteLeads(leadIdsArray);
-
       toast.success(result.message || `Deleted ${result.deleted_count} lead(s)`);
-      setSelectedLeadIds(new Set());
+      // Revalidate both caches to sync with server
       mutate();
+      mutateInfinite();
     } catch (error: any) {
       toast.error(error?.message || 'Failed to delete leads');
+      // Revert optimistic update on error
+      mutateInfinite();
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedLeadIds, bulkDeleteLeads, mutate]);
+  }, [selectedLeadIds, bulkDeleteLeads, mutate, mutateInfinite]);
 
   const handleBulkStatusChange = useCallback(async (newStatusId: number) => {
     if (selectedLeadIds.size === 0) {
@@ -491,26 +510,8 @@ export const CRMLeads: React.FC = () => {
   }, [navigate]);
 
   const handleWhatsAppLead = useCallback((lead: Lead) => {
-    if (!lead.phone) {
-      toast.error('No phone number available for this lead');
-      return;
-    }
-
-    let cleanPhone = lead.phone.replace(/[^\d+]/g, '');
-
-    if (cleanPhone.startsWith('+')) {
-      cleanPhone = cleanPhone.substring(1);
-    }
-
-    const message = `Hi ${lead.name}, I'm reaching out regarding your inquiry.`;
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
-    window.open(whatsappUrl, '_blank');
-
-    toast.success(`Opening WhatsApp for ${lead.name}...`, {
-      description: lead.phone,
-      duration: 2000,
-    });
+    setSelectedLeadForWhatsApp(lead);
+    setWhatsAppDrawerOpen(true);
   }, []);
 
   const handleWhatsAppTemplateLead = useCallback((lead: Lead) => {
@@ -1965,6 +1966,41 @@ export const CRMLeads: React.FC = () => {
         onSaveForEveryone={saveForEveryone}
         isSaving={isSavingFilter}
       />
+
+      {/* WhatsApp Drawer */}
+      {selectedLeadForWhatsApp && (
+        <LeadWhatsAppDrawer
+          open={whatsAppDrawerOpen}
+          onOpenChange={(open) => {
+            setWhatsAppDrawerOpen(open);
+            if (!open) setSelectedLeadForWhatsApp(null);
+          }}
+          leadId={selectedLeadForWhatsApp.id}
+          leadName={selectedLeadForWhatsApp.name}
+          leadPhone={selectedLeadForWhatsApp.phone}
+        />
+      )}
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedLeadIds.size} lead{selectedLeadIds.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedLeadIds.size} selected lead{selectedLeadIds.size !== 1 ? 's' : ''}. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleBulkDeleteConfirmed}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

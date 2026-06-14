@@ -267,12 +267,12 @@ function useChatMessages(leadId: number, enabled: boolean) {
   // We keep a flat map by id to avoid duplicates
   useEffect(() => {
     if (!data) return;
-    setTotal(data.total);
+    setTotal(data.total ?? 0);
     setAllMessages(prev => {
       // Drop any optimistic placeholders — the real server messages replace them
       const withoutOptimistic = prev.filter(m => !m.id.startsWith('opt-'));
       const byId = new Map(withoutOptimistic.map(m => [m.id, m]));
-      for (const m of data.messages) byId.set(m.id, m);
+      for (const m of (Array.isArray(data.messages) ? data.messages : [])) byId.set(m.id, m);
       return Array.from(byId.values());
     });
   }, [data]);
