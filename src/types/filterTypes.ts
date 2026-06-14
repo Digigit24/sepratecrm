@@ -57,7 +57,8 @@ export const DEFAULT_FILTER_CONFIG: CrmLeadsFilterConfig = {
     { key: 'updated_at', placement: 'hidden' },
     { key: 'next_follow_up_at', placement: 'drawer' },
     { key: 'hide_duplicates', placement: 'drawer' },
-    { key: 'groups', placement: 'drawer' },
+    // NOTE: 'groups' is intentionally omitted — it's always shown as a
+    // permanent dropdown in the toolbar, not managed by the filter config.
   ],
 };
 
@@ -80,5 +81,6 @@ export const STANDARD_FILTER_DEFS: FilterFieldDef[] = [
   { key: 'updated_at', label: 'Updated Date', filterType: 'date_range', isCustom: false },
   { key: 'next_follow_up_at', label: 'Next Follow-Up', filterType: 'date_range', isCustom: false },
   { key: 'hide_duplicates', label: 'Hide Duplicates', filterType: 'boolean_toggle', isCustom: false },
-  { key: 'groups', label: 'Group', filterType: 'group_select', isCustom: false },
+  // 'groups' is NOT in STANDARD_FILTER_DEFS — handled as a permanent toolbar
+  // dropdown in CRMLeads, not through the configurable filter layout.
 ];

@@ -1,6 +1,7 @@
 // src/hooks/useCRM.ts
 import { useState, useCallback } from 'react';
 import useSWR from 'swr';
+import useSWRInfinite from 'swr/infinite';
 import { crmService } from '@/services/crmService';
 import {
   Lead,
@@ -69,6 +70,26 @@ export const useCRM = () => {
           console.error('Failed to fetch leads:', err);
           setError(err.message || 'Failed to fetch leads');
         }
+      }
+    );
+  };
+
+  // Infinite-scroll leads — page_size=100, accumulates pages
+  const useLeadsInfinite = (params?: Omit<LeadsQueryParams, 'page' | 'page_size'>) => {
+    const PAGE_SIZE = 100;
+    return useSWRInfinite<LeadsResponse>(
+      (pageIndex, previousPageData) => {
+        // Stop fetching if last page had no next
+        if (previousPageData && !previousPageData.next) return null;
+        return ['leads-infinite', { ...params, page: pageIndex + 1, page_size: PAGE_SIZE }];
+      },
+      ([_key, queryParams]) => crmService.getLeads(queryParams as LeadsQueryParams),
+      {
+        revalidateOnFocus: false,
+        revalidateOnReconnect: false,
+        shouldRetryOnError: false,
+        revalidateFirstPage: false,
+        persistSize: false,
       }
     );
   };
@@ -879,6 +900,7 @@ export const useCRM = () => {
 
     // Leads
     useLeads,
+    useLeadsInfinite,
     useLead,
     createLead,
     updateLead,

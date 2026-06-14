@@ -1,6 +1,6 @@
 // src/components/crm/LeadScoreSlider.tsx
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+// Minimal sleek score pill — opens a horizontal slider popover
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -9,231 +9,163 @@ interface LeadScoreSliderProps {
   score: number;
   onSave: (score: number) => Promise<void>;
   leadName: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg'; // kept for compat — we ignore it, always render slim
   showLabel?: boolean;
 }
 
-const getScoreEmoji = (score: number): string => {
-  if (score <= 20) return '😴';
-  if (score <= 40) return '😐';
-  if (score <= 60) return '🙂';
-  if (score <= 80) return '😊';
-  return '🔥';
-};
+// ── Colour ramp ─────────────────────────────────────────────────────
+function scoreColor(s: number) {
+  if (s === 0)  return { dot: '#94a3b8', bar: '#e2e8f0', text: 'text-slate-400' };
+  if (s <= 25)  return { dot: '#3b82f6', bar: '#bfdbfe', text: 'text-blue-500' };
+  if (s <= 50)  return { dot: '#f59e0b', bar: '#fde68a', text: 'text-amber-500' };
+  if (s <= 75)  return { dot: '#f97316', bar: '#fed7aa', text: 'text-orange-500' };
+  return         { dot: '#ef4444', bar: '#fecaca', text: 'text-red-500' };
+}
 
-const getScoreLabel = (score: number): string => {
-  if (score <= 20) return 'Cold';
-  if (score <= 40) return 'Low';
-  if (score <= 60) return 'Warm';
-  if (score <= 80) return 'Hot';
-  return 'Very Hot';
-};
-
-const getScoreColor = (score: number): string => {
-  if (score <= 20) return 'text-slate-500 bg-slate-100 border-slate-200';
-  if (score <= 40) return 'text-blue-500 bg-blue-50 border-blue-200';
-  if (score <= 60) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-  if (score <= 80) return 'text-orange-600 bg-orange-50 border-orange-200';
-  return 'text-red-600 bg-red-50 border-red-200';
-};
+function scoreLabel(s: number) {
+  if (s === 0)  return 'Unset';
+  if (s <= 25)  return 'Cold';
+  if (s <= 50)  return 'Warm';
+  if (s <= 75)  return 'Hot';
+  return         'On fire';
+}
 
 export const LeadScoreSlider: React.FC<LeadScoreSliderProps> = ({
   score = 0,
   onSave,
   leadName,
-  size = 'md',
-  showLabel = false,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [displayScore, setDisplayScore] = useState(score);
-  const [isSaving, setIsSaving] = useState(false);
-  const sliderRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
-  const hasChanged = useRef(false);
-  const originalScore = useRef(score);
+  const [open, setOpen]         = useState(false);
+  const [local, setLocal]       = useState(score);
+  const [saving, setSaving]     = useState(false);
+  const committed               = useRef(score);
+  const saveTimer               = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Update display score when prop changes
   useEffect(() => {
-    setDisplayScore(score);
-    originalScore.current = score;
+    setLocal(score);
+    committed.current = score;
   }, [score]);
 
-  const handleScoreChange = useCallback((newScore: number) => {
-    const clampedScore = Math.max(0, Math.min(100, Math.round(newScore)));
-    setDisplayScore(clampedScore);
-    hasChanged.current = clampedScore !== originalScore.current;
-  }, []);
+  // Debounced auto-save after dragging stops
+  const handleChange = useCallback((val: number) => {
+    setLocal(val);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      if (val === committed.current) return;
+      setSaving(true);
+      try {
+        await onSave(val);
+        committed.current = val;
+        toast.success(`Score updated · ${leadName}`);
+      } catch {
+        setLocal(committed.current);
+        toast.error('Failed to update score');
+      } finally {
+        setSaving(false);
+      }
+    }, 500);
+  }, [onSave, leadName]);
 
-  const saveScore = useCallback(async (finalScore: number) => {
-    if (!hasChanged.current || isSaving) return;
-    
-    try {
-      setIsSaving(true);
-      // Optimistic update - already showing the new score
-      await onSave(finalScore);
-      originalScore.current = finalScore;
-      hasChanged.current = false;
-      toast.success(`Lead score updated for ${leadName}`);
-    } catch (error) {
-      // Revert on error
-      setDisplayScore(originalScore.current);
-      toast.error('Failed to update lead score');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [onSave, leadName, isSaving]);
-
-  const handleDragEnd = useCallback(() => {
-    isDragging.current = false;
-    // Auto-save when drag ends
-    if (hasChanged.current) {
-      saveScore(displayScore);
-    }
-  }, [displayScore, saveScore]);
-
-  // Handle click on slider track
-  const handleTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!sliderRef.current) return;
-    const rect = sliderRef.current.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    const height = rect.height;
-    const percentage = 1 - (y / height);
-    const newScore = Math.max(0, Math.min(100, Math.round(percentage * 100)));
-    
-    handleScoreChange(newScore);
-    // Auto-save on click
-    saveScore(newScore);
-  }, [handleScoreChange, saveScore]);
-
-  // Handle mouse/touch drag
-  const handleDragStart = useCallback(() => {
-    isDragging.current = true;
-  }, []);
-
-  const handleDragMove = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!isDragging.current || !sliderRef.current) return;
-    e.preventDefault();
-    
-    const rect = sliderRef.current.getBoundingClientRect();
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    const y = clientY - rect.top;
-    const height = rect.height;
-    const percentage = 1 - (y / height);
-    handleScoreChange(percentage * 100);
-  }, [handleScoreChange]);
-
-  // Add global mouse/touch listeners
-  useEffect(() => {
-    const handleMove = (e: MouseEvent | TouchEvent) => handleDragMove(e);
-    const handleUp = () => handleDragEnd();
-
-    if (isOpen) {
-      document.addEventListener('mousemove', handleMove, { passive: false });
-      document.addEventListener('mouseup', handleUp);
-      document.addEventListener('touchmove', handleMove, { passive: false });
-      document.addEventListener('touchend', handleUp);
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMove);
-      document.removeEventListener('mouseup', handleUp);
-      document.removeEventListener('touchmove', handleMove);
-      document.removeEventListener('touchend', handleUp);
-    };
-  }, [isOpen, handleDragMove, handleDragEnd]);
-
-  const getScoreTextColor = (s: number): string => {
-    if (s <= 20) return 'text-slate-500';
-    if (s <= 40) return 'text-blue-500';
-    if (s <= 60) return 'text-yellow-600';
-    if (s <= 80) return 'text-orange-600';
-    return 'text-red-600';
-  };
+  const { dot, bar, text } = scoreColor(local);
+  const label = scoreLabel(local);
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
+        {/* ── Pill trigger ─── */}
         <button
+          type="button"
           className={cn(
-            'text-sm font-medium hover:underline cursor-pointer bg-transparent border-none p-0',
-            getScoreTextColor(score)
+            'inline-flex items-center gap-1.5 h-6 px-2 rounded-full transition-all',
+            'border border-border/50 hover:border-border bg-muted/40 hover:bg-muted/70',
+            'text-xs font-medium select-none cursor-pointer',
+            saving && 'opacity-60 pointer-events-none',
           )}
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsOpen(true);
-          }}
         >
-          {score > 0 ? score : '-'}
+          {/* Colour dot */}
+          <span
+            className="w-2 h-2 rounded-full flex-shrink-0 transition-colors"
+            style={{ backgroundColor: dot }}
+          />
+          {/* Number */}
+          <span className={cn('tabular-nums leading-none', text)}>
+            {local > 0 ? local : '—'}
+          </span>
         </button>
       </PopoverTrigger>
-      
+
       <PopoverContent
-        className="w-auto p-1.5"
-        align="center"
         side="bottom"
-        sideOffset={4}
-        onClick={(e) => e.stopPropagation()}
+        align="end"
+        sideOffset={6}
+        className="w-56 p-4"
+        onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center gap-1.5">
-          {/* Score Display */}
-          <div className="flex flex-col items-center min-w-[36px]">
-            <span className="text-xl">{getScoreEmoji(displayScore)}</span>
-            <span className="text-base font-bold leading-tight">{displayScore}</span>
-            <span className="text-[9px] text-muted-foreground leading-tight">{getScoreLabel(displayScore)}</span>
-          </div>
-
-          {/* Vertical Slider - Compact */}
-          <div
-            ref={sliderRef}
-            className="relative w-6 h-[120px] bg-secondary rounded-full cursor-pointer touch-none select-none"
-            onClick={handleTrackClick}
-            onMouseDown={handleDragStart}
-            onTouchStart={handleDragStart}
-          >
-            {/* Background gradient */}
-            <div
-              className="absolute inset-x-0 bottom-0 rounded-full transition-all duration-75"
-              style={{
-                height: `${displayScore}%`,
-                background: `linear-gradient(to top,
-                  ${displayScore > 80 ? '#ef4444' : displayScore > 60 ? '#f97316' : displayScore > 40 ? '#eab308' : displayScore > 20 ? '#3b82f6' : '#64748b'},
-                  ${displayScore > 80 ? '#fca5a5' : displayScore > 60 ? '#fdba74' : displayScore > 40 ? '#fde047' : displayScore > 20 ? '#93c5fd' : '#cbd5e1'}
-                )`,
-              }}
-            />
-
-            {/* Thumb handle */}
-            <div
-              className="absolute left-1/2 -translate-x-1/2 w-5 h-5 bg-white rounded-full shadow-md border-2 border-primary flex items-center justify-center cursor-grab active:cursor-grabbing transition-all duration-75 hover:scale-110"
-              style={{
-                bottom: `calc(${displayScore}% - 10px)`,
-              }}
-              onMouseDown={handleDragStart}
-              onTouchStart={handleDragStart}
-            >
-              <span className="text-[10px]">{getScoreEmoji(displayScore)}</span>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Lead score</p>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className={cn('text-2xl font-bold tabular-nums leading-none', text)}>
+                {local}
+              </span>
+              <span className="text-xs text-muted-foreground">{label}</span>
             </div>
           </div>
-
-          {/* Quick select buttons - Compact */}
-          <div className="flex flex-col gap-0.5">
-            {[100, 75, 50, 25, 0].map((value) => (
-              <Button
-                key={value}
-                variant={displayScore === value ? 'default' : 'ghost'}
-                size="sm"
-                className="h-5 px-1 text-[10px] min-w-[24px] py-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleScoreChange(value);
-                  saveScore(value);
-                }}
-              >
-                {value}
-              </Button>
-            ))}
-          </div>
+          {saving && (
+            <span className="text-[10px] text-muted-foreground animate-pulse">Saving…</span>
+          )}
         </div>
+
+        {/* Horizontal slider */}
+        <div className="relative">
+          {/* Track fill */}
+          <div className="relative h-1.5 rounded-full bg-muted overflow-hidden mb-1">
+            <div
+              className="absolute inset-y-0 left-0 rounded-full transition-all duration-75"
+              style={{
+                width: `${local}%`,
+                backgroundColor: dot,
+              }}
+            />
+          </div>
+
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={local}
+            onChange={e => handleChange(Number(e.target.value))}
+            className="absolute inset-0 w-full opacity-0 cursor-pointer h-1.5"
+            style={{ margin: 0 }}
+          />
+        </div>
+
+        {/* Tick marks */}
+        <div className="flex justify-between mt-2 mb-3">
+          {[0, 25, 50, 75, 100].map(v => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => handleChange(v)}
+              className={cn(
+                'text-[10px] tabular-nums transition-colors hover:text-foreground',
+                local === v ? 'text-foreground font-semibold' : 'text-muted-foreground',
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+
+        {/* Mini colour bar showing the range */}
+        <div
+          className="h-1 rounded-full w-full"
+          style={{
+            background: 'linear-gradient(to right, #94a3b8 0%, #3b82f6 25%, #f59e0b 50%, #f97316 75%, #ef4444 100%)',
+          }}
+        />
       </PopoverContent>
     </Popover>
   );

@@ -68,6 +68,13 @@ export interface SideDrawerProps {
   maxWidth?: number;
   storageKey?: string; // Key for localStorage to persist width
 
+  /**
+   * When true, children are rendered directly in the content area WITHOUT the
+   * ScrollArea + px-5 py-5 wrapper. Use this for full-height custom content
+   * like chat windows that manage their own scrolling.
+   */
+  rawContent?: boolean;
+
   // Callbacks
   onClose?: () => void;
 
@@ -106,6 +113,7 @@ export function SideDrawer({
   minWidth = 320,
   maxWidth = 1200,
   storageKey,
+  rawContent = false,
   onClose,
   className,
   contentClassName,
@@ -352,7 +360,7 @@ export function SideDrawer({
         </div>
 
         {/* ===== CONTENT ===== */}
-        <div className={cn('flex-1 min-h-0 relative', contentClassName)}>
+        <div className={cn('flex-1 min-h-0 relative', rawContent && 'flex flex-col overflow-hidden', contentClassName)}>
           {isLoading ? (
             <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-3 text-muted-foreground">
@@ -360,6 +368,9 @@ export function SideDrawer({
                 <p className="text-sm font-medium">{loadingText}</p>
               </div>
             </div>
+          ) : rawContent ? (
+            /* Raw mode — no ScrollArea, no padding. Children own their layout. */
+            <>{children}</>
           ) : (
             <ScrollArea className="h-full">
               <div className="px-5 py-5">{children}</div>

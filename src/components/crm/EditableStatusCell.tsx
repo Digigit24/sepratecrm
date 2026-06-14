@@ -1,6 +1,6 @@
 // src/components/crm/EditableStatusCell.tsx
-// Component for inline status updates in the leads table
-import { useState } from 'react';
+// Component for inline status updates in the leads table — with optimistic UI
+import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -27,43 +27,47 @@ export const EditableStatusCell: React.FC<EditableStatusCellProps> = ({
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  // Optimistic local state — updates immediately on selection, reverts on error
+  const [localStatusId, setLocalStatusId] = useState<number | undefined>(currentStatusId);
 
-  // Find the current status object
-  const currentStatus = statuses.find((s) => s.id === currentStatusId);
+  // Sync from prop when NOT mid-save (handles external SWR revalidation)
+  useEffect(() => {
+    if (!isSaving) {
+      setLocalStatusId(currentStatusId);
+    }
+  }, [currentStatusId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const currentStatus = statuses.find((s) => s.id === localStatusId);
 
   const handleStatusChange = async (newStatusId: string) => {
     const statusId = parseInt(newStatusId, 10);
-    if (statusId === currentStatusId || isNaN(statusId)) {
+    if (statusId === localStatusId || isNaN(statusId)) {
       setIsOpen(false);
       return;
     }
 
+    const previousId = localStatusId;
+    // Optimistic: update display immediately, close dropdown
+    setLocalStatusId(statusId);
+    setIsOpen(false);
     setIsSaving(true);
     try {
       await onSave(statusId);
     } catch (error) {
+      // Revert on failure
+      setLocalStatusId(previousId);
       console.error('Failed to update status:', error);
     } finally {
       setIsSaving(false);
-      setIsOpen(false);
     }
   };
 
-  // Get badge styles based on status color
   const getBadgeStyle = (status?: LeadStatus) => {
     if (!status) {
-      return {
-        backgroundColor: '#6B728020',
-        borderColor: '#6B7280',
-        color: '#6B7280',
-      };
+      return { backgroundColor: '#6B728020', borderColor: '#6B7280', color: '#6B7280' };
     }
     const bgColor = status.color_hex || '#6B7280';
-    return {
-      backgroundColor: `${bgColor}20`,
-      borderColor: bgColor,
-      color: bgColor,
-    };
+    return { backgroundColor: `${bgColor}20`, borderColor: bgColor, color: bgColor };
   };
 
   if (disabled) {
@@ -77,7 +81,7 @@ export const EditableStatusCell: React.FC<EditableStatusCellProps> = ({
   return (
     <div onClick={(e) => e.stopPropagation()} className="relative">
       <Select
-        value={currentStatusId?.toString() || ''}
+        value={localStatusId?.toString() || ''}
         onValueChange={handleStatusChange}
         disabled={isSaving}
         open={isOpen}
@@ -98,35 +102,21 @@ export const EditableStatusCell: React.FC<EditableStatusCellProps> = ({
         </SelectTrigger>
         <SelectContent align="start" className="min-w-[180px]">
           {statuses.map((status) => {
-            const isSelected = status.id === currentStatusId;
+            const isSelected = status.id === localStatusId;
             const bgColor = status.color_hex || '#6B7280';
-
             return (
-              <SelectItem
-                key={status.id}
-                value={status.id.toString()}
-                className="cursor-pointer"
-              >
+              <SelectItem key={status.id} value={status.id.toString()} className="cursor-pointer">
                 <div className="flex items-center gap-2">
                   <div
                     className="w-3 h-3 rounded-full border"
-                    style={{
-                      backgroundColor: bgColor,
-                      borderColor: bgColor,
-                    }}
+                    style={{ backgroundColor: bgColor, borderColor: bgColor }}
                   />
-                  <span className={isSelected ? 'font-medium' : ''}>
-                    {status.name}
-                  </span>
+                  <span className={isSelected ? 'font-medium' : ''}>{status.name}</span>
                   {status.is_won && (
-                    <Badge variant="outline" className="text-[10px] px-1 py-0 ml-auto">
-                      Won
-                    </Badge>
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 ml-auto">Won</Badge>
                   )}
                   {status.is_lost && (
-                    <Badge variant="outline" className="text-[10px] px-1 py-0 ml-auto text-red-500 border-red-200">
-                      Lost
-                    </Badge>
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 ml-auto text-red-500 border-red-200">Lost</Badge>
                   )}
                 </div>
               </SelectItem>

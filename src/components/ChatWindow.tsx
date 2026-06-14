@@ -73,6 +73,8 @@ type Props = {
   onBack?: () => void;
   onToggleContactPanel?: () => void;
   showContactPanel?: boolean;
+  /** When true, suppresses the built-in chat header (for embedding inside a parent drawer/panel) */
+  hideHeader?: boolean;
 };
 
 type AttachmentType = 'image' | 'video' | 'document' | 'audio' | 'camera' | 'contact' | 'location';
@@ -296,7 +298,7 @@ const InteractiveMessageBubble = ({ msg }: { msg: any }) => {
   );
 };
 
-export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onBack, onToggleContactPanel, showContactPanel }: Props) => {
+export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onBack, onToggleContactPanel, showContactPanel, hideHeader }: Props) => {
   const { messages, isLoading, error, hasMoreMessages, isLoadingMoreMessages, loadMoreMessages, sendMessage, sendMediaMessage, sendTemplateMessage } = useMessages(selectedConversation?.phone || null);
   const clearChatMutation = useClearChatHistory();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -923,8 +925,8 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
-      {/* Fixed Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 bg-card border-b border-border">
+      {/* Fixed Header — hidden when embedded inside another panel */}
+      {!hideHeader && <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 bg-card border-b border-border">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           {isMobile && (
             <Button
@@ -1002,7 +1004,7 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
+      </div>}
 
       {/* Messages Area - Scrollable with messages at bottom */}
       <div

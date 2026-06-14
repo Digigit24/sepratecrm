@@ -45,6 +45,9 @@ import { AdminSettings } from "./pages/AdminSettings";
 import Integrations from "./pages/Integrations";
 import WorkflowEditor from "./pages/WorkflowEditor";
 import { WorkflowLogs } from "./pages/WorkflowLogs";
+import { CRMCampaigns } from "./pages/CRMCampaigns";
+import { CRMCampaignDetail } from "./pages/CRMCampaignDetail";
+import { CRMSequences } from "./pages/CRMSequences";
 import { CallLogsPage } from "./pages/telephony/CallLogsPage";
 import { SMSLogsPage } from "./pages/telephony/SMSLogsPage";
 import { CallerIDsPage } from "./pages/telephony/CallerIDsPage";
@@ -113,6 +116,9 @@ const AppLayout = () => {
               <Route path="/crm/tasks" element={<ModuleProtectedRoute requiredModule="crm"><CRMTasks /></ModuleProtectedRoute>} />
               <Route path="/crm/meetings" element={<ModuleProtectedRoute requiredModule="crm"><Meetings /></ModuleProtectedRoute>} />
               <Route path="/crm/pipeline" element={<ModuleProtectedRoute requiredModule="crm"><Navigate to="/crm/leads" replace /></ModuleProtectedRoute>} />
+              <Route path="/crm/campaigns" element={<ModuleProtectedRoute requiredModule="crm"><CRMCampaigns /></ModuleProtectedRoute>} />
+              <Route path="/crm/campaigns/:campaignId" element={<ModuleProtectedRoute requiredModule="crm"><CRMCampaignDetail /></ModuleProtectedRoute>} />
+              <Route path="/crm/sequences" element={<ModuleProtectedRoute requiredModule="crm"><CRMSequences /></ModuleProtectedRoute>} />
 
               {/* WhatsApp Routes */}
               <Route path="/whatsapp/onboarding" element={<ModuleProtectedRoute requiredModule="whatsapp"><WhatsAppOnboarding /></ModuleProtectedRoute>} />

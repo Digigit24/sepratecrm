@@ -35,6 +35,7 @@ import {
   Coffee,
   PhoneForwarded,
   Layers,
+  Megaphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -111,6 +112,8 @@ const menuSections: MenuSection[] = [
           { id: "crm-tasks", label: "Tasks", icon: CheckSquare, path: "/crm/tasks" },
           { id: "crm-meetings", label: "Meetings", icon: Calendar, path: "/crm/meetings" },
           { id: "crm-settings", label: "Settings", icon: Settings2, path: "/crm/settings" },
+          { id: "crm-campaigns", label: "WA Campaigns", icon: Megaphone, path: "/crm/campaigns" },
+          { id: "crm-sequences", label: "WA Sequences", icon: Zap, path: "/crm/sequences" },
         ],
       },
     ],

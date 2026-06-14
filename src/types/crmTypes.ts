@@ -317,6 +317,9 @@ export interface LeadsQueryParams {
   next_follow_up_at__gte?: string;
   next_follow_up_at__lte?: string;
   next_follow_up_at__isnull?: boolean;
+  lead_score__gte?: number;
+  lead_score__lte?: number;
+  lead_score__isnull?: boolean;
   city?: string;
   city__icontains?: string;
   state?: string;

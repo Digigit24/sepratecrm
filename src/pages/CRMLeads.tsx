@@ -1,5 +1,6 @@
 // src/pages/CRMLeads.tsx
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect, useDeferredValue } from 'react';
+import { InfiniteLeadsTable } from '@/components/crm/InfiniteLeadsTable';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,6 +15,7 @@ import { LeadImportMappingDialog } from '@/components/LeadImportMappingDialog';
 import { EditableNotesCell } from '@/components/crm/EditableNotesCell';
 import { EditableFollowupCell } from '@/components/crm/EditableFollowupCell';
 import { EditableStatusCell } from '@/components/crm/EditableStatusCell';
+import { EditablePriorityCell } from '@/components/crm/EditablePriorityCell';
 import { LeadScoreSlider } from '@/components/crm/LeadScoreSlider';
 import { WhatsAppTemplateModal } from '@/components/WhatsAppTemplateModal';
 import { FollowupsContent } from '@/components/crm/FollowupsContent';
@@ -47,14 +49,14 @@ type ViewMode = 'list' | 'kanban' | 'followups';
 export const CRMLeads: React.FC = () => {
   const navigate = useNavigate();
   const { user, hasModuleAccess } = useAuth();
-  const { hasCRMAccess, useLeads, useLeadStatuses, useFieldConfigurations, deleteLead, patchLead, updateLeadStatus, deleteLeadStatus, bulkCreateLeads, bulkDeleteLeads, bulkUpdateLeadStatus, exportLeads, importLeads, useLeadGroups, addLeadsToGroup } = useCRM();
+  const { hasCRMAccess, useLeads, useLeadsInfinite, useLeadStatuses, useFieldConfigurations, deleteLead, patchLead, updateLeadStatus, deleteLeadStatus, bulkCreateLeads, bulkDeleteLeads, bulkUpdateLeadStatus, exportLeads, importLeads, useLeadGroups, addLeadsToGroup } = useCRM();
   const { formatCurrency: formatCurrencyDynamic, getCurrencyCode, getCurrencySymbol } = useCurrency();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [queryParams, setQueryParams] = useState<LeadsQueryParams>({
     page: 1,
-    page_size: viewMode === 'kanban' ? 1000 : 50,
+    page_size: 50,
     ordering: '-created_at',
   });
 
@@ -76,6 +78,10 @@ export const CRMLeads: React.FC = () => {
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({ hide_duplicates: true });
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
+  // ---- Inline search (list view only, server-side) ----
+  const [searchInput, setSearchInput] = useState('');
+  const deferredSearch = useDeferredValue(searchInput);
+
   const { config: filterConfig, saveForMe, saveForEveryone, isSaving: isSavingFilter } = useLeadsFilterConfig();
 
   const { useUsersList } = useUsers();
@@ -86,6 +92,83 @@ export const CRMLeads: React.FC = () => {
 
   const { data: groupsData } = useLeadGroups({ page_size: 200, ordering: 'name' });
   const { data: leadsData, error, isLoading, mutate } = useLeads(queryParams);
+
+  // Infinite-scroll data for list view
+  const infiniteParams = useMemo(() => {
+    const { page: _p, page_size: _ps, ...rest } = queryParams;
+    return { ...rest, search: deferredSearch || rest.search };
+  }, [queryParams, deferredSearch]);
+
+  // Filter params for kanban columns (strips page/page_size/status — each column adds its own status)
+  const kanbanFilterParams = useMemo(() => {
+    const { page: _p, page_size: _ps, status: _s, ...rest } = queryParams as any;
+    return rest;
+  }, [queryParams]);
+
+  const {
+    data: infinitePages,
+    isLoading: infiniteLoading,
+    isValidating: infiniteValidating,
+    size: infiniteSize,
+    setSize: setInfiniteSize,
+    mutate: mutateInfinite,
+  } = useLeadsInfinite(infiniteParams);
+
+  const infiniteLeads = useMemo(
+    () => (infinitePages ?? []).flatMap((p) => p.results),
+    [infinitePages]
+  );
+  const infiniteTotalCount = infinitePages?.[0]?.count ?? 0;
+  const infiniteHasMore = !!infinitePages?.[infinitePages.length - 1]?.next;
+  const infiniteFetchingMore = infiniteValidating && (infinitePages?.length ?? 0) > 0 && !infiniteLoading;
+
+  // Sync activeFilters → queryParams so the server is queried with the correct params.
+  // Without this, dropdown/tab filter changes only update client-side state and never
+  // reach the API, so the infinite list never refreshes with filtered results.
+  useEffect(() => {
+    setQueryParams(prev => ({
+      ...prev,
+      page: 1,
+      // Single-value filters
+      groups: activeFilters.groups,
+      owner_user_id: activeFilters.owner_user_id,
+      // Status: single → exact; multiple → comma-sep __in
+      status: activeFilters.status?.length === 1 ? activeFilters.status[0] : undefined,
+      'status__in': (activeFilters.status?.length ?? 0) > 1 ? activeFilters.status!.join(',') : undefined,
+      // Priority: single → exact; multiple → comma-sep __in
+      priority: activeFilters.priority?.length === 1 ? (activeFilters.priority[0] as PriorityEnum) : undefined,
+      'priority__in': (activeFilters.priority?.length ?? 0) > 1 ? activeFilters.priority!.join(',') : undefined,
+      // Date ranges (activeFilters uses _gte/_lte; API uses __gte/__lte)
+      created_at__gte: activeFilters['created_at_gte'],
+      created_at__lte: activeFilters['created_at_lte'],
+      updated_at__gte: activeFilters['updated_at_gte'],
+      updated_at__lte: activeFilters['updated_at_lte'],
+      next_follow_up_at__gte: activeFilters['next_follow_up_at_gte'],
+      next_follow_up_at__lte: activeFilters['next_follow_up_at_lte'],
+      next_follow_up_at__isnull: activeFilters.next_follow_up_at_isnull,
+      // Lead score range → server-side gte/lte/isnull
+      ...((() => {
+        switch (activeFilters.lead_score) {
+          case 'no_score':   return { lead_score__isnull: true,  lead_score__gte: undefined, lead_score__lte: undefined };
+          case 'below_25':   return { lead_score__isnull: undefined, lead_score__gte: 1,  lead_score__lte: 24 };
+          case '25_to_50':   return { lead_score__isnull: undefined, lead_score__gte: 25, lead_score__lte: 49 };
+          case '50_to_75':   return { lead_score__isnull: undefined, lead_score__gte: 50, lead_score__lte: 74 };
+          case '75_above':   return { lead_score__isnull: undefined, lead_score__gte: 75, lead_score__lte: undefined };
+          default:           return { lead_score__isnull: undefined, lead_score__gte: undefined, lead_score__lte: undefined };
+        }
+      })()),
+    }));
+  }, [activeFilters]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset infinite list to page 1 when search or filters change
+  const prevInfiniteParamsKey = useRef('');
+  useEffect(() => {
+    const key = JSON.stringify(infiniteParams);
+    if (key !== prevInfiniteParamsKey.current) {
+      prevInfiniteParamsKey.current = key;
+      setInfiniteSize(1);
+    }
+  }, [infiniteParams, setInfiniteSize]);
   const { data: statusesData, mutate: mutateStatuses } = useLeadStatuses({
     page_size: 100,
     ordering: 'order_index',
@@ -257,87 +340,106 @@ export const CRMLeads: React.FC = () => {
     setDrawerMode(mode);
   }, []);
 
+  // Helper: optimistically update a single lead field in the infinite SWR cache
+  const optimisticInfiniteUpdate = useCallback(
+    (leadId: number, patch: Partial<Lead>) => {
+      mutateInfinite(
+        (pages) =>
+          pages?.map((page) => ({
+            ...page,
+            results: page.results.map((l) =>
+              l.id === leadId ? { ...l, ...patch, updated_at: new Date().toISOString() } : l
+            ),
+          })),
+        false // don't revalidate yet
+      );
+    },
+    [mutateInfinite]
+  );
+
   const handleUpdateNotes = useCallback(
     async (leadId: number, notes: string) => {
+      // Optimistic update in infinite list
+      optimisticInfiniteUpdate(leadId, { notes });
       try {
         await patchLead(leadId, { notes });
-        mutate();
-        toast.success('Notes updated');
+        mutateInfinite(); // confirm with server
       } catch (error: any) {
         toast.error(error?.message || 'Failed to update notes');
+        mutateInfinite(); // revert via revalidation
         throw error;
       }
     },
-    [patchLead, mutate]
+    [patchLead, mutateInfinite, optimisticInfiniteUpdate]
   );
 
   const handleUpdateFollowup = useCallback(
     async (leadId: number, nextFollowUpAt: string | null) => {
+      optimisticInfiniteUpdate(leadId, { next_follow_up_at: nextFollowUpAt });
       try {
         await patchLead(leadId, { next_follow_up_at: nextFollowUpAt });
-        mutate();
+        mutateInfinite();
       } catch (error: any) {
         toast.error(error?.message || 'Failed to update follow-up');
+        mutateInfinite();
         throw error;
       }
     },
-    [patchLead, mutate]
+    [patchLead, mutateInfinite, optimisticInfiniteUpdate]
   );
 
   const handleUpdateLeadScore = useCallback(
     async (leadId: number, score: number) => {
+      optimisticInfiniteUpdate(leadId, { lead_score: score });
       try {
         await patchLead(leadId, { lead_score: score });
-        mutate();
+        mutateInfinite();
       } catch (error: any) {
         toast.error(error?.message || 'Failed to update lead score');
+        mutateInfinite();
         throw error;
       }
     },
-    [patchLead, mutate]
+    [patchLead, mutateInfinite, optimisticInfiniteUpdate]
+  );
+
+  const handleUpdateLeadPriority = useCallback(
+    async (leadId: number, priority: string) => {
+      optimisticInfiniteUpdate(leadId, { priority: priority as any });
+      try {
+        await patchLead(leadId, { priority });
+        mutateInfinite();
+      } catch (error: any) {
+        toast.error(error?.message || 'Failed to update priority');
+        mutateInfinite();
+        throw error;
+      }
+    },
+    [patchLead, mutateInfinite, optimisticInfiniteUpdate]
   );
 
   const handleUpdateLeadStatus = useCallback(
     async (leadId: number, newStatusId: number) => {
-      const currentData = leadsData;
-      if (!currentData) {
-        throw new Error('No leads data available');
-      }
-
-      const lead = currentData.results.find(l => l.id === leadId);
-      if (!lead) {
-        throw new Error('Lead not found');
-      }
-
       const newStatus = statusesData?.results.find(s => s.id === newStatusId);
       const isWonStatus = newStatus?.is_won === true;
 
-      const optimisticData = {
-        ...currentData,
-        results: currentData.results.map(l =>
-          l.id === leadId
-            ? { ...l, status: newStatusId, updated_at: new Date().toISOString() }
-            : l
-        )
-      };
+      // Optimistic update in infinite list immediately
+      optimisticInfiniteUpdate(leadId, { status: newStatusId });
 
       try {
-        await mutate(optimisticData, false);
         await patchLead(leadId, { status: newStatusId });
 
         if (isWonStatus) {
-          toast.success('Lead marked as won!', {
-            duration: 3000,
-          });
+          toast.success('Lead marked as won!', { duration: 3000 });
         }
 
-        await mutate();
+        mutateInfinite(); // confirm with server
       } catch (error: any) {
-        await mutate();
+        mutateInfinite(); // revert via revalidation
         throw new Error(error?.message || 'Failed to update lead status');
       }
     },
-    [patchLead, mutate, leadsData, statusesData]
+    [patchLead, mutateInfinite, statusesData, optimisticInfiniteUpdate]
   );
 
   const handleEditStatus = useCallback((status: LeadStatus) => {
@@ -459,7 +561,7 @@ export const CRMLeads: React.FC = () => {
     setQueryParams(prev => ({
       ...prev,
       page: 1,
-      page_size: newMode === 'kanban' ? 1000 : 50
+      page_size: 50,
     }));
   }, []);
 
@@ -731,6 +833,13 @@ export const CRMLeads: React.FC = () => {
       results = results.filter(lead => lead.owner_user_id === activeFilters.owner_user_id);
     }
 
+    // Group — lead.groups is an array of {id, name, color_hex}
+    if (activeFilters.groups) {
+      results = results.filter(lead =>
+        (lead.groups || []).some((g: { id: number }) => g.id === activeFilters.groups)
+      );
+    }
+
     // Text contains — standard fields
     const textStandardFields = ['name', 'phone', 'email', 'company', 'source', 'city', 'state', 'country', 'notes'] as const;
     for (const field of textStandardFields) {
@@ -878,29 +987,6 @@ export const CRMLeads: React.FC = () => {
       allFields.map((field) => [field.field_name, { order: field.display_order, visible: field.is_visible, config: field }])
     );
 
-    const allLeadsSelected = filteredLeads.length > 0 && filteredLeads.every((lead) => selectedLeadIds.has(lead.id));
-
-    const checkboxColumn: DataTableColumn<Lead> = {
-      header: (
-        <Checkbox
-          checked={allLeadsSelected}
-          onCheckedChange={() => toggleAllLeads(filteredLeads)}
-          onClick={(e) => e.stopPropagation()}
-        />
-      ),
-      key: 'checkbox',
-      cell: (lead) => (
-        <Checkbox
-          checked={selectedLeadIds.has(lead.id)}
-          onCheckedChange={() => toggleLeadSelection(lead.id)}
-          onClick={(e) => e.stopPropagation()}
-        />
-      ),
-      className: 'w-[40px]',
-      sortable: false,
-      filterable: false,
-    };
-
     const columnDefinitions: Record<string, DataTableColumn<Lead>> = {
       name: {
         header: 'Name',
@@ -962,7 +1048,16 @@ export const CRMLeads: React.FC = () => {
       priority: {
         header: 'Priority',
         key: 'priority',
-        cell: (lead) => getPriorityBadge(lead.priority),
+        cell: (lead) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            <EditablePriorityCell
+              priority={lead.priority}
+              onSave={async (priority) => {
+                await handleUpdateLeadPriority(lead.id, priority);
+              }}
+            />
+          </div>
+        ),
         sortable: true,
         filterable: true,
         accessor: (lead) => lead.priority,
@@ -1076,8 +1171,6 @@ export const CRMLeads: React.FC = () => {
       .sort((a, b) => a.order - b.order)
       .map((item) => item.column);
 
-    sortedColumns.unshift(checkboxColumn);
-
     sortedColumns.push({
       header: 'Updated',
       key: 'updated',
@@ -1097,7 +1190,7 @@ export const CRMLeads: React.FC = () => {
     });
 
     return sortedColumns;
-  }, [configurationsData?.results, statusesData?.results, selectedLeadIds, toggleLeadSelection, filteredLeads, toggleAllLeads, handleUpdateNotes, handleUpdateFollowup, handleUpdateLeadScore, handleUpdateLeadStatus]);
+  }, [configurationsData?.results, statusesData?.results, selectedLeadIds, toggleLeadSelection, filteredLeads, toggleAllLeads, handleUpdateNotes, handleUpdateFollowup, handleUpdateLeadScore, handleUpdateLeadStatus, handleUpdateLeadPriority]);
 
   const columns: DataTableColumn<Lead>[] = dynamicColumns;
 
@@ -1454,9 +1547,46 @@ export const CRMLeads: React.FC = () => {
         </div>
       </div>
 
-      {/* Row 2: Toolbar filter pills (only shown when configured) */}
-      {toolbarPlacementFilters.length > 0 && (
+      {/* Row 2: Groups dropdown (always) + toolbar filter pills (when configured) */}
+      {(toolbarPlacementFilters.length > 0 || (groupsData?.results?.length ?? 0) > 0) && (
         <div className="flex flex-wrap items-center gap-2">
+          {/* Permanent Groups dropdown — always shown when groups exist */}
+          {(groupsData?.results?.length ?? 0) > 0 && (() => {
+            const isGrpActive = !!activeFilters.groups;
+            const grpPill = "w-[130px] h-7 rounded-full border text-xs font-medium px-3 gap-1.5 transition-all [&>svg:last-child]:h-3 [&>svg:last-child]:w-3 [&>svg:last-child]:opacity-60";
+            const grpInactive = "border-border/60 text-muted-foreground bg-transparent hover:border-border hover:bg-muted/40 hover:text-foreground";
+            const grpActive = "border-primary/35 bg-primary/10 text-primary hover:bg-primary/15";
+            return (
+              <Select
+                key="__groups__"
+                value={activeFilters.groups?.toString() || '__all__'}
+                onValueChange={v =>
+                  setActiveFilters(prev => ({
+                    ...prev,
+                    groups: v === '__all__' ? undefined : Number(v),
+                  }))
+                }
+              >
+                <SelectTrigger className={`${grpPill} ${isGrpActive ? grpActive : grpInactive}`}>
+                  <SelectValue placeholder="Any Group" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Any Group</SelectItem>
+                  {(groupsData?.results || []).map(g => (
+                    <SelectItem key={g.id} value={g.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: g.color_hex || '#6366F1' }}
+                        />
+                        {g.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          })()}
           {toolbarPlacementFilters.map(def => {
             const filterKey = def.isCustom ? `meta_${def.key}` : def.key;
             const pill = "w-[130px] h-7 rounded-full border text-xs font-medium px-3 gap-1.5 transition-all [&>svg:last-child]:h-3 [&>svg:last-child]:w-3 [&>svg:last-child]:opacity-60";
@@ -1689,14 +1819,46 @@ export const CRMLeads: React.FC = () => {
           onMutate={mutate}
         />
       ) : viewMode === 'list' ? (
-        <div className="border rounded-lg overflow-hidden">
-          <DataTable
-            rows={filteredLeads}
-            isLoading={isLoading}
+        <div className="border rounded-lg overflow-hidden flex flex-col">
+          {/* ── Search bar ── */}
+          <div className="px-3 py-2 border-b border-border/50 bg-background">
+            <div className="relative max-w-sm">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <Input
+                placeholder="Search by name, phone or email…"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-8 h-8 text-sm"
+              />
+              {searchInput && (
+                <button
+                  onClick={() => setSearchInput('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ── Infinite scroll table ── */}
+          <InfiniteLeadsTable
+            leads={infiniteLeads}
+            isLoading={infiniteLoading}
+            hasMore={infiniteHasMore}
+            onLoadMore={() => setInfiniteSize((s) => s + 1)}
+            isFetchingMore={infiniteFetchingMore}
+            totalCount={infiniteTotalCount}
             columns={columns}
-            renderMobileCard={renderMobileCard}
-            getRowId={(lead) => lead.id}
-            getRowLabel={(lead) => lead.name}
+            selectedIds={selectedLeadIds}
+            onToggleSelect={(lead) => {
+              setSelectedLeadIds((prev) => {
+                const next = new Set(prev);
+                next.has(lead.id) ? next.delete(lead.id) : next.add(lead.id);
+                return next;
+              });
+            }}
+            onToggleSelectAll={toggleAllLeads}
             onView={handleViewLead}
             onEdit={handleEditLead}
             onDelete={handleDeleteLead}
@@ -1739,15 +1901,12 @@ export const CRMLeads: React.FC = () => {
                 </Tooltip>
               </>
             )}
-            emptyTitle="No leads found"
-            emptySubtitle="Get started by creating your first lead"
-            onPageSizeChange={handlePageSizeChange}
           />
         </div>
       ) : (
         <KanbanBoard
-          leads={filteredLeads}
           statuses={statusesData?.results || []}
+          filterParams={kanbanFilterParams}
           onViewLead={handleViewLead}
           onCallLead={handleCallLead}
           onWhatsAppLead={handleWhatsAppLead}
@@ -1757,7 +1916,6 @@ export const CRMLeads: React.FC = () => {
           onCreateStatus={handleCreateStatus}
           onMoveStatus={handleMoveStatus}
           onUpdateLeadStatus={handleUpdateLeadStatus}
-          isLoading={isLoading}
         />
       )}
 

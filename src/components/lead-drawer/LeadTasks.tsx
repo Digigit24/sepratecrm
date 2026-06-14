@@ -3,7 +3,6 @@ import { useState, useCallback, useMemo } from 'react';
 import { useCRM } from '@/hooks/useCRM';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Calendar, Loader2, CheckCircle2, Circle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO, isToday, isPast, isFuture, startOfDay, differenceInDays } from 'date-fns';
@@ -12,6 +11,7 @@ import TaskFormDrawer from '@/components/TaskFormDrawer';
 
 interface LeadTasksProps {
   leadId: number;
+  leadAssignedTo?: string | null;
 }
 
 type TaskGroup = {
@@ -21,7 +21,7 @@ type TaskGroup = {
   color: string;
 };
 
-export const LeadTasks: React.FC<LeadTasksProps> = ({ leadId }) => {
+export const LeadTasks: React.FC<LeadTasksProps> = ({ leadId, leadAssignedTo }) => {
   const { useTasks, patchTask } = useCRM();
 
   // Drawer state
@@ -190,106 +190,118 @@ export const LeadTasks: React.FC<LeadTasksProps> = ({ leadId }) => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Create Task Button */}
-      <div className="flex justify-end">
-        <Button onClick={handleCreateClick}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Task
+    <div className="space-y-1">
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+          Tasks{tasks.length > 0 ? ` · ${tasks.length}` : ''}
+        </span>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleCreateClick}
+          className="h-7 text-xs px-2.5 rounded-md gap-1 border-border/60 hover:border-primary/40 hover:text-primary"
+        >
+          <Plus className="h-3 w-3" />
+          Add task
         </Button>
       </div>
 
-      {/* Tasks List */}
+      {/* Body */}
       {tasksLoading ? (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin" />
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       ) : tasks.length === 0 ? (
-        <Card>
-          <CardContent className="py-8">
-            <div className="text-center">
-              <p className="text-muted-foreground">No tasks yet for this lead</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Create your first task using the form above
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-14 text-center">
+          <div className="w-9 h-9 rounded-xl bg-muted/60 flex items-center justify-center mb-3">
+            <CheckCircle2 className="h-4 w-4 text-muted-foreground/40" />
+          </div>
+          <p className="text-sm text-muted-foreground">No tasks yet</p>
+          <button
+            type="button"
+            onClick={handleCreateClick}
+            className="mt-2 text-xs text-primary hover:underline underline-offset-2"
+          >
+            Add the first task
+          </button>
+        </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {groupedTasks.map((group) => (
-            <Card key={group.title}>
-              <CardHeader className="pb-4">
-                <div className="flex items-center gap-2">
-                  <span className={group.color}>{group.icon}</span>
-                  <CardTitle className={`text-lg ${group.color}`}>
-                    {group.title} ({group.tasks.length})
-                  </CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
+            <div key={group.title}>
+              {/* Group header */}
+              <div className="flex items-center gap-2 mb-1.5 px-1">
+                <span className={`${group.color} flex-shrink-0`} style={{ fontSize: 12 }}>
+                  {group.icon}
+                </span>
+                <span className={`text-[11px] font-semibold uppercase tracking-wider ${group.color}`}>
+                  {group.title}
+                </span>
+                <span className="text-[10px] text-muted-foreground/60">· {group.tasks.length}</span>
+              </div>
+
+              {/* Task rows — flat, Notion-style */}
+              <div className="border border-border/50 rounded-lg overflow-hidden shadow-sm divide-y divide-border/40">
                 {group.tasks.map((task) => (
                   <div
                     key={task.id}
-                    className={`flex items-start gap-3 p-3 border rounded-lg hover:bg-accent transition-colors cursor-pointer ${
-                      task.status === 'DONE' ? 'opacity-60' : ''
-                    }`}
                     onClick={() => handleViewTask(task)}
+                    className={`flex items-start gap-3 px-3 py-2.5 bg-card hover:bg-muted/40 transition-colors cursor-pointer ${
+                      task.status === 'DONE' ? 'opacity-55' : ''
+                    }`}
                   >
-                    <Checkbox
-                      checked={task.status === 'DONE'}
-                      onCheckedChange={(checked, event) => handleToggleComplete(task, event as any)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="mt-1"
-                    />
+                    {/* Checkbox */}
+                    <div className="pt-0.5 flex-shrink-0">
+                      <Checkbox
+                        checked={task.status === 'DONE'}
+                        onCheckedChange={(_, event) => handleToggleComplete(task, event as any)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-3.5 w-3.5"
+                      />
+                    </div>
 
+                    {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <h4
-                          className={`font-medium ${
-                            task.status === 'DONE' ? 'line-through text-muted-foreground' : ''
+                      <div className="flex items-center gap-2 justify-between">
+                        <span
+                          className={`text-sm leading-snug ${
+                            task.status === 'DONE'
+                              ? 'line-through text-muted-foreground'
+                              : 'text-foreground font-medium'
                           }`}
                         >
                           {task.title}
-                        </h4>
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full border ${getPriorityColor(
-                            task.priority
-                          )}`}
-                        >
-                          {task.priority}
+                        </span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border leading-none flex-shrink-0 ${getPriorityColor(task.priority)}`}>
+                          {task.priority.charAt(0) + task.priority.slice(1).toLowerCase()}
                         </span>
                       </div>
 
                       {task.description && (
-                        <p
-                          className={`text-sm mt-1 ${
-                            task.status === 'DONE'
-                              ? 'line-through text-muted-foreground'
-                              : 'text-muted-foreground'
-                          }`}
-                        >
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
                           {task.description}
                         </p>
                       )}
 
-                      {task.due_date && (
-                        <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span>{formatDueDate(task.due_date)}</span>
-                        </div>
-                      )}
-
-                      {task.completed_at && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Completed: {format(parseISO(task.completed_at), 'MMM dd, yyyy hh:mm a')}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
+                        {task.due_date && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-2.5 w-2.5" />
+                            {formatDueDate(task.due_date)}
+                          </span>
+                        )}
+                        {task.completed_at && (
+                          <span className="text-green-600/70">
+                            Done {format(parseISO(task.completed_at), 'MMM d')}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -304,6 +316,7 @@ export const LeadTasks: React.FC<LeadTasksProps> = ({ leadId }) => {
         onSuccess={handleDrawerSuccess}
         onDelete={handleDrawerDelete}
         onModeChange={setDrawerMode}
+        defaultAssignedTo={drawerMode === 'create' ? (leadAssignedTo ?? null) : null}
       />
     </div>
   );

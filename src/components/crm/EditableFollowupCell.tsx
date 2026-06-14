@@ -1,5 +1,5 @@
 // src/components/crm/EditableFollowupCell.tsx
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -46,6 +46,10 @@ export const EditableFollowupCell: React.FC<EditableFollowupCellProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Optimistic local display value — updates immediately on save
+  const [localDateValue, setLocalDateValue] = useState<string | null>(dateValue);
+
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     dateValue ? parseISO(dateValue) : undefined
   );
@@ -58,31 +62,43 @@ export const EditableFollowupCell: React.FC<EditableFollowupCellProps> = ({
     return `${hours}:${minutes}`;
   });
 
+  // Sync from prop when not saving
+  useEffect(() => {
+    if (!isSaving) {
+      setLocalDateValue(dateValue);
+      setSelectedDate(dateValue ? parseISO(dateValue) : undefined);
+      setSelectedTime(() => {
+        if (!dateValue) return '';
+        const date = parseISO(dateValue);
+        if (!isValid(date)) return '';
+        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      });
+    }
+  }, [dateValue]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleDateSelect = useCallback((date: Date | undefined) => {
     setSelectedDate(date);
-    // If date is selected and no time is set, default to 10:00 AM
-    if (date && !selectedTime) {
-      setSelectedTime('10:00');
-    }
+    if (date && !selectedTime) setSelectedTime('10:00');
   }, [selectedTime]);
 
   const handleTimeSelect = useCallback((time: string) => {
     setSelectedTime(time);
-    // If time is selected and no date is set, default to today
-    if (time && !selectedDate) {
-      setSelectedDate(new Date());
-    }
+    if (time && !selectedDate) setSelectedDate(new Date());
   }, [selectedDate]);
 
   const handleSave = useCallback(async () => {
+    const previousDateValue = localDateValue;
+
     if (!selectedDate) {
-      // Clear the follow-up
+      // Optimistic clear
+      setLocalDateValue(null);
+      setIsOpen(false);
+      setIsSaving(true);
       try {
-        setIsSaving(true);
         await onSave(null);
         toast.success(`Follow-up cleared for ${leadName}`);
-        setIsOpen(false);
       } catch (error) {
+        setLocalDateValue(previousDateValue);
         toast.error('Failed to clear follow-up');
       } finally {
         setIsSaving(false);
@@ -90,45 +106,45 @@ export const EditableFollowupCell: React.FC<EditableFollowupCellProps> = ({
       return;
     }
 
-    // Combine date and time
     const [hours, minutes] = selectedTime.split(':').map(Number);
     const dateWithTime = setHours(setMinutes(selectedDate, minutes || 0), hours || 10);
+    const isoString = dateWithTime.toISOString();
 
+    // Optimistic: update display immediately
+    setLocalDateValue(isoString);
+    setIsOpen(false);
+    setIsSaving(true);
     try {
-      setIsSaving(true);
-      await onSave(dateWithTime.toISOString());
+      await onSave(isoString);
       toast.success(`Follow-up updated for ${leadName}`);
-      setIsOpen(false);
     } catch (error) {
+      setLocalDateValue(previousDateValue);
       toast.error('Failed to update follow-up');
     } finally {
       setIsSaving(false);
     }
-  }, [selectedDate, selectedTime, onSave, leadName]);
+  }, [selectedDate, selectedTime, onSave, leadName, localDateValue]);
 
   const handleClear = useCallback(() => {
     setSelectedDate(undefined);
     setSelectedTime('');
   }, []);
 
-  const isSameDay = (date1: Date, date2: Date) => {
-    return (
-      date1.getDate() === date2.getDate() &&
-      date1.getMonth() === date2.getMonth() &&
-      date1.getFullYear() === date2.getFullYear()
-    );
-  };
+  const isSameDay = (date1: Date, date2: Date) =>
+    date1.getDate() === date2.getDate() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getFullYear() === date2.getFullYear();
 
   const getDisplayText = () => {
-    if (!dateValue) return 'Set date';
-    const date = parseISO(dateValue);
+    if (!localDateValue) return 'Set date';
+    const date = parseISO(localDateValue);
     if (!isValid(date)) return 'Set date';
     return format(date, 'MMM dd, yyyy');
   };
 
   const getTextColor = () => {
-    if (!dateValue) return 'text-muted-foreground';
-    const date = parseISO(dateValue);
+    if (!localDateValue) return 'text-muted-foreground';
+    const date = parseISO(localDateValue);
     if (!isValid(date)) return 'text-muted-foreground';
     const now = new Date();
     if (date < now && !isSameDay(date, now)) return 'text-red-600';
@@ -154,10 +170,9 @@ export const EditableFollowupCell: React.FC<EditableFollowupCellProps> = ({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-4" align="start">
         <div className="space-y-4">
-          {/* Header */}
           <div className="flex items-center justify-between">
             <h4 className="font-medium text-sm">Schedule Follow-up</h4>
-            {dateValue && (
+            {localDateValue && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -170,7 +185,6 @@ export const EditableFollowupCell: React.FC<EditableFollowupCellProps> = ({
             )}
           </div>
 
-          {/* Date Picker */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground">Date</label>
             <Calendar
@@ -182,7 +196,6 @@ export const EditableFollowupCell: React.FC<EditableFollowupCellProps> = ({
             />
           </div>
 
-          {/* Time Picker */}
           {selectedDate && (
             <div className="space-y-2">
               <label className="text-xs font-medium text-muted-foreground">Time (Optional)</label>
@@ -201,22 +214,13 @@ export const EditableFollowupCell: React.FC<EditableFollowupCellProps> = ({
             </div>
           )}
 
-          {/* Actions */}
           <div className="flex items-center justify-end gap-2 pt-2 border-t">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsOpen(false)}
-            >
+            <Button variant="outline" size="sm" onClick={() => setIsOpen(false)}>
               Cancel
             </Button>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={isSaving}
-            >
+            <Button size="sm" onClick={handleSave} disabled={isSaving}>
               {isSaving ? (
-                <span className="animate-spin mr-1">⏳</span>
+                <span className="animate-pulse mr-1 text-xs">…</span>
               ) : (
                 <Check className="h-3.5 w-3.5 mr-1" />
               )}

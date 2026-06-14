@@ -35,9 +35,16 @@ export const useLeadsFilterConfig = () => {
   );
 
   const config = useMemo<CrmLeadsFilterConfig>(() => {
-    // User preferences take priority over tenant settings
     const userConfig = userData?.preferences?.crmLeadsFilterConfig;
-    if (userConfig) return userConfig;
+    // User preferences take priority only when they've placed at least one filter
+    // in 'toolbar' or 'tabs' — a drawer-only config means "not yet customised"
+    // and should fall through to the tenant setting.
+    if (userConfig) {
+      const hasMeaningfulLayout = userConfig.fields.some(
+        f => f.placement === 'toolbar' || f.placement === 'tabs',
+      );
+      if (hasMeaningfulLayout) return userConfig;
+    }
 
     const tenantConfig = tenantData?.settings?.crmLeadsFilterConfig;
     if (tenantConfig) return tenantConfig;

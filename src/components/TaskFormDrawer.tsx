@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
+import { useUsers } from '@/hooks/useUsers';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -26,6 +27,7 @@ interface TaskFormDrawerProps {
   onSuccess?: () => void;
   onDelete?: (id: number) => void;
   onModeChange?: (mode: 'view' | 'edit' | 'create') => void;
+  defaultAssignedTo?: string | null;
 }
 
 export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
@@ -37,9 +39,18 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
   onSuccess,
   onDelete,
   onModeChange,
+  defaultAssignedTo,
 }) => {
   const { user } = useAuth();
   const { useTask, createTask, updateTask, deleteTask } = useCRM();
+  const { useUsersList } = useUsers();
+
+  // Fetch users for the assigned-to dropdown (from admin.celiyo)
+  const { data: usersData, isLoading: usersLoading } = useUsersList({
+    page: 1,
+    page_size: 1000,
+    is_active: true,
+  });
 
   // Form state
   const [title, setTitle] = useState('');
@@ -47,6 +58,7 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
   const [priority, setPriority] = useState<PriorityEnum>('MEDIUM');
   const [status, setStatus] = useState<TaskStatusEnum>('TODO');
   const [dueDate, setDueDate] = useState('');
+  const [assigneeUserId, setAssigneeUserId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch task data if editing/viewing
@@ -62,14 +74,16 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
       setPriority(task.priority || 'MEDIUM');
       setStatus(task.status || 'TODO');
       setDueDate(task.due_date ? task.due_date.split('T')[0] : '');
+      setAssigneeUserId(task.assignee_user_id || '');
     } else if (mode === 'create') {
       setTitle('');
       setDescription('');
       setPriority('MEDIUM');
       setStatus('TODO');
       setDueDate('');
+      setAssigneeUserId(defaultAssignedTo || '');
     }
-  }, [task, mode]);
+  }, [task, mode, defaultAssignedTo]);
 
   const handleClose = useCallback(() => {
     onOpenChange(false);
@@ -88,6 +102,7 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
       setPriority(task.priority || 'MEDIUM');
       setStatus(task.status || 'TODO');
       setDueDate(task.due_date ? task.due_date.split('T')[0] : '');
+      setAssigneeUserId(task.assignee_user_id || '');
     }
   }, [onModeChange, task]);
 
@@ -112,6 +127,7 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
         priority,
         status,
         owner_user_id: user?.id,
+        assignee_user_id: assigneeUserId || undefined,
       };
 
       if (mode === 'create') {
@@ -311,6 +327,43 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
                 <span className="text-sm font-medium">{dueDate || 'Not set'}</span>
               ) : (
                 <Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={isSubmitting} className="h-9" />
+              )}
+            </div>
+
+            {/* Assigned To row */}
+            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
+              <Label htmlFor="assigneeUserId" className="text-[13px] text-muted-foreground font-normal">Assigned To</Label>
+              {isViewMode ? (
+                <span className="text-sm font-medium">
+                  {assigneeUserId
+                    ? usersData?.results?.find((u) => u.id === assigneeUserId)
+                        ? `${usersData.results.find((u) => u.id === assigneeUserId)!.first_name} ${usersData.results.find((u) => u.id === assigneeUserId)!.last_name}`.trim()
+                        : assigneeUserId
+                    : 'Unassigned'}
+                </span>
+              ) : (
+                <Select
+                  value={assigneeUserId || 'unassigned'}
+                  onValueChange={(value) => setAssigneeUserId(value === 'unassigned' ? '' : value)}
+                  disabled={isSubmitting || usersLoading}
+                >
+                  <SelectTrigger id="assigneeUserId" className="h-9">
+                    <SelectValue placeholder={usersLoading ? 'Loading users...' : 'Assign to...'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {usersData?.results?.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{u.first_name} {u.last_name}</span>
+                          {u.email && (
+                            <span className="text-xs text-muted-foreground">({u.email})</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             </div>
           </div>
