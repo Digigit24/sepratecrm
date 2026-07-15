@@ -14,7 +14,39 @@ import {
   VendorChannelBroadcastEvent,
 } from '@/services/pusherService';
 import { chatKeys } from '@/hooks/whatsapp/useChat';
+import { chatService } from '@/services/whatsapp/chatService';
 import type { ChatContact, ChatMessage, ChatMessagesResponse, ChatContactsResponse } from '@/services/whatsapp/chatService';
+import type { QueryClient } from '@tanstack/react-query';
+
+// ─── Single-flight refresh of the open conversation ─────────────────────────
+// The VendorChannelBroadcast payload carries no message body, so the open
+// conversation must be fetched once per event. This module-level guard makes
+// that fetch single-flight per contact: even if multiple components mount
+// useRealtimeChat simultaneously, one incoming message triggers exactly ONE
+// messages GET. The result is written into the shared React Query cache under
+// chatKeys.messages(contactUid, {}) — the key useMessages() (ChatWindow)
+// subscribes to — so every consumer syncs from the same fetch.
+const inFlightMessageRefresh = new Map<string, Promise<void>>();
+
+function refreshOpenConversation(queryClient: QueryClient, contactUid: string): Promise<void> {
+  const existing = inFlightMessageRefresh.get(contactUid);
+  if (existing) return existing;
+
+  const p = chatService
+    .getContactMessages(contactUid, { page: 1, limit: 50 })
+    .then((result) => {
+      queryClient.setQueryData(chatKeys.messages(contactUid, {}), result);
+    })
+    .catch((err) => {
+      console.error('useRealtimeChat: failed to refresh open conversation', err);
+    })
+    .finally(() => {
+      inFlightMessageRefresh.delete(contactUid);
+    });
+
+  inFlightMessageRefresh.set(contactUid, p);
+  return p;
+}
 
 export interface RealtimeMessage {
   _uid: string;
@@ -353,13 +385,12 @@ const handleContactUpdated = useCallback((data: ContactUpdatedEvent) => {
         playSound();
       }
 
-      // For the currently open contact only: fetch latest messages so new ones appear
+      // For the currently open contact only: fetch latest messages so new ones
+      // appear. Single-flight + direct cache write: exactly one GET per event
+      // regardless of how many components are listening, and no dependency on
+      // a mounted React Query observer (works after useChatMessages removal).
       if (isNewIncomingMessage && contactUid === selectedContactUid) {
-        console.log('🟢 Fetching new messages for open contact:', contactUid);
-        queryClient.refetchQueries({
-          queryKey: chatKeys.messages(contactUid, {}),
-          exact: false,
-        });
+        refreshOpenConversation(queryClient, contactUid);
       }
     }
 

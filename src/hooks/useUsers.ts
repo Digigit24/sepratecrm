@@ -2,6 +2,7 @@
 import { useState, useCallback } from 'react';
 import useSWR from 'swr';
 import { userService } from '@/services/userService';
+import { MASTER_DATA_DEDUPE_MS } from '@/lib/swrConfig';
 import type { User, UserListParams, PaginatedResponse } from '@/types/user.types';
 
 export const useUsers = () => {
@@ -9,16 +10,19 @@ export const useUsers = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Get users with SWR caching
-  const useUsersList = (params?: UserListParams) => {
-    const key = ['users', params];
+  // Pass { enabled: false } to skip fetching (e.g. drawer not yet opened).
+  const useUsersList = (params?: UserListParams, options?: { enabled?: boolean }) => {
+    const key = options?.enabled === false ? null : ['users', params];
 
     return useSWR<PaginatedResponse<User>>(
       key,
       () => userService.getUsers(params),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
+        // Users list is master data — collapse repeat fetches within 60s
+        dedupingInterval: MASTER_DATA_DEDUPE_MS,
         onError: (err) => {
           console.error('Failed to fetch users:', err);
           setError(err.message || 'Failed to fetch users');
@@ -36,7 +40,7 @@ export const useUsers = () => {
       () => userService.getUser(id!),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch user:', err);
@@ -55,7 +59,7 @@ export const useUsers = () => {
       () => userService.getCurrentUser(),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch current user:', err);

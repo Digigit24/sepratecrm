@@ -2,7 +2,7 @@
 // Global provider for real-time chat updates (unread counts, etc.)
 // Uses singleton Pusher subscription - safe to use alongside useRealtimeChat hook
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   subscribeToVendorChannel,
@@ -15,8 +15,18 @@ interface RealtimeChatProviderProps {
   children: React.ReactNode;
 }
 
+// Minimum gap between refetches triggered by incoming messages.
+// A burst of N incoming messages previously fired N unread GETs + N contact
+// list GETs app-wide (2×N requests); now at most one refetch pair per window
+// (leading edge immediate, burst collapses into one trailing refetch).
+// Existing conversations still update instantly — useRealtimeChat applies
+// incoming messages to the contacts cache locally without any network call.
+const REALTIME_REFETCH_THROTTLE_MS = 10_000;
+
 export function RealtimeChatProvider({ children }: RealtimeChatProviderProps) {
   const queryClient = useQueryClient();
+  const lastRefetchRef = useRef(0);
+  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const vendorUid = getCurrentVendorUid();
@@ -39,19 +49,32 @@ export function RealtimeChatProvider({ children }: RealtimeChatProviderProps) {
 
         // Only handle incoming messages for unread count updates
         if (data.isNewIncomingMessage) {
-          console.log('RealtimeChatProvider: New incoming message, invalidating unread count');
+          const invalidateNow = () => {
+            lastRefetchRef.current = Date.now();
+            // Refetch unread count (badge)
+            queryClient.invalidateQueries({
+              queryKey: chatKeys.unreadCount(),
+              exact: true,
+            });
+            // Refetch contacts list — needed so brand-new conversations
+            // appear; existing ones are already updated locally by
+            // useRealtimeChat. invalidateQueries only hits the network for
+            // ACTIVE queries (i.e. when the Chats page is mounted).
+            queryClient.invalidateQueries({
+              queryKey: chatKeys.contacts(),
+              exact: false,
+            });
+          };
 
-          // Invalidate unread count to trigger refetch
-          queryClient.invalidateQueries({
-            queryKey: chatKeys.unreadCount(),
-            exact: true,
-          });
-
-          // Also invalidate contacts list to update last_message
-          queryClient.invalidateQueries({
-            queryKey: chatKeys.contacts(),
-            exact: false,
-          });
+          const elapsed = Date.now() - lastRefetchRef.current;
+          if (elapsed >= REALTIME_REFETCH_THROTTLE_MS) {
+            invalidateNow();
+          } else if (!pendingTimerRef.current) {
+            pendingTimerRef.current = setTimeout(() => {
+              pendingTimerRef.current = null;
+              invalidateNow();
+            }, REALTIME_REFETCH_THROTTLE_MS - elapsed);
+          }
         }
       },
       onConnected: () => {
@@ -64,6 +87,10 @@ export function RealtimeChatProvider({ children }: RealtimeChatProviderProps) {
 
     return () => {
       console.log('RealtimeChatProvider: Cleaning up');
+      if (pendingTimerRef.current) {
+        clearTimeout(pendingTimerRef.current);
+        pendingTimerRef.current = null;
+      }
       unsubscribe();
     };
   }, [queryClient]);

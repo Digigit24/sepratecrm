@@ -1,5 +1,5 @@
 // src/hooks/whatsapp/useTemplates.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { templatesService } from '@/services/whatsapp/templatesService';
 import {
   Template,
@@ -87,20 +87,27 @@ export function useTemplates(options: UseTemplatesOptions = {}): UseTemplatesRet
   // Error state
   const [error, setError] = useState<string | null>(null);
 
+  // Keep the latest query in a ref so fetchTemplates has a STABLE identity.
+  // Previously fetchTemplates depended on `query`, so every query update
+  // recreated it, re-ran the auto-fetch effect, and fired a duplicate request
+  // (2 API calls per mount / per filter change).
+  const queryRef = useRef(query);
+  queryRef.current = query;
+
   // Fetch templates
   const fetchTemplates = useCallback(async (newQuery?: TemplatesListQuery) => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      const queryToUse = newQuery || query;
+
+      const queryToUse = newQuery || queryRef.current;
       const response = await templatesService.getTemplates(queryToUse);
-      
+
       setTemplates(response.items);
       setTotal(response.total);
       setPage(response.page);
       setPageSize(response.page_size);
-      
+
       if (newQuery) {
         setQueryState(newQuery);
       }
@@ -111,7 +118,7 @@ export function useTemplates(options: UseTemplatesOptions = {}): UseTemplatesRet
     } finally {
       setIsLoading(false);
     }
-  }, [query]);
+  }, []);
 
   // Create template
   const createTemplate = useCallback(async (payload: CreateTemplatePayload): Promise<Template | null> => {
@@ -329,9 +336,12 @@ export function useTemplates(options: UseTemplatesOptions = {}): UseTemplatesRet
     fetchTemplates(newQuery);
   }, [query.limit, fetchTemplates]);
 
-  // Auto-fetch on mount
+  // Auto-fetch on mount — guarded so it runs exactly once per mount even if
+  // dependencies change identity (prevents duplicate mount requests).
+  const didAutoFetchRef = useRef(false);
   useEffect(() => {
-    if (autoFetch) {
+    if (autoFetch && !didAutoFetchRef.current) {
+      didAutoFetchRef.current = true;
       fetchTemplates();
     }
   }, [autoFetch, fetchTemplates]);

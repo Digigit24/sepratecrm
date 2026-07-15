@@ -26,7 +26,7 @@ export const useRoles = () => {
       () => roleService.getRoles(params),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch roles:', err);
@@ -45,7 +45,7 @@ export const useRoles = () => {
       () => roleService.getRole(id!),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch role:', err);
@@ -133,7 +133,7 @@ export const useRoles = () => {
       () => roleService.getRoleMembers(id!),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch role members:', err);
@@ -154,7 +154,7 @@ export const useRoles = () => {
       () => roleService.getPermissionsSchema(),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch permissions schema:', err);

@@ -1,5 +1,5 @@
 // src/pages/Templates.tsx
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Filter, Plus, Search, X, RefreshCw, RefreshCcw } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-is-mobile';
 import { Button } from '@/components/ui/button';
@@ -42,10 +42,10 @@ export default function Templates() {
     syncTemplate,
   } = useTemplates({ initialQuery: filters, autoFetch: true });
 
-  // Keep hook data in sync with local filters when they change
-  useEffect(() => {
-    fetchTemplates(filters);
-  }, [filters, fetchTemplates]);
+  // NOTE: no filters→fetch sync effect here. The hook auto-fetches once on
+  // mount with initialQuery, and every filter/search handler below already
+  // calls fetchTemplates(next) explicitly. The old effect double-fired a
+  // request on mount and on each filter change.
 
   // Handlers: search
   const handleSearch = () => {

@@ -1,5 +1,5 @@
 // src/components/leads/LeadsFilterDrawer.tsx
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import useSWR from 'swr';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Separator } from '@/components/ui/separator';
 import { X, ChevronDown, Save, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { authClient } from '@/lib/client';
-import { API_CONFIG } from '@/lib/apiConfig';
+import { userService } from '@/services/userService';
+import { MASTER_DATA_DEDUPE_MS } from '@/lib/swrConfig';
 import type { LeadStatus } from '@/types/crmTypes';
 import { crmService } from '@/services/crmService';
 import type {
@@ -82,14 +82,39 @@ export const LeadsFilterDrawer: React.FC<LeadsFilterDrawerProps> = ({
   const [tab, setTab] = useState<'filters' | 'configure'>('filters');
   const [localConfig, setLocalConfig] = useState<CrmLeadsFilterConfig>(config);
 
-  // Sync localConfig when outer config changes
-  useMemo(() => setLocalConfig(config), [config]);
+  // Sync localConfig when outer config changes.
+  // (Was `useMemo(() => setLocalConfig(config), [config])` — a state update
+  // during render inside a memo initializer. useEffect is the correct place
+  // for a state sync side effect.)
+  useEffect(() => {
+    setLocalConfig(config);
+  }, [config]);
 
-  // Fetch users for owner filter
+  // Fetch users for owner filter.
+  // Uses the SAME SWR key as useUsersList({ page_size: 100 }) callers
+  // (CRMLeads, CallLogs, SMSLogs, LeadTelephonyHistory) so the request is
+  // shared with the host page instead of duplicating the exact same URL.
   const { data: usersData } = useSWR(
-    open ? 'leads-filter-users' : null,
-    () => authClient.get(`${API_CONFIG.AUTH.USERS.LIST}?page_size=100`).then(r => r.data),
-    { revalidateOnFocus: false }
+    open ? ['users', { page_size: 100 }] : null,
+    () => userService.getUsers({ page_size: 100 }),
+    { revalidateOnFocus: false, dedupingInterval: MASTER_DATA_DEDUPE_MS }
+  );
+
+  // Lead groups for the group_select filter — TOP-LEVEL hook (this useSWR
+  // previously lived inside renderFilterInput()'s `case 'group_select'`,
+  // violating the Rules of Hooks). Enabled only while the drawer is open AND
+  // a group_select filter is actually configured. Key matches useCRM's
+  // useLeadGroups key namespace (['lead-groups', params]) so it dedupes with
+  // any other caller of the same list.
+  const hasGroupFilter = useMemo(
+    () => filterDefs.some(def => def.filterType === 'group_select'),
+    [filterDefs]
+  );
+  const groupsQueryParams = { page_size: 200, ordering: 'name' } as const;
+  const { data: groupsData } = useSWR(
+    open && hasGroupFilter ? ['lead-groups', groupsQueryParams] : null,
+    () => crmService.getLeadGroups(groupsQueryParams),
+    { revalidateOnFocus: false, dedupingInterval: MASTER_DATA_DEDUPE_MS }
   );
 
   const users: Array<{ id: string; full_name?: string; email: string }> =
@@ -260,12 +285,8 @@ export const LeadsFilterDrawer: React.FC<LeadsFilterDrawerProps> = ({
       }
 
       case 'group_select': {
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const { data: groupsData } = useSWR(
-          'lead-groups-filter',
-          () => crmService.getLeadGroups({ page_size: 200, ordering: 'name' }),
-          { revalidateOnFocus: false }
-        );
+        // Data comes from the top-level useSWR above (Rules of Hooks — no
+        // hooks inside nested render functions).
         const groups = groupsData?.results || [];
         return (
           <Select

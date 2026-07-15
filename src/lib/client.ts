@@ -2,6 +2,12 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { API_CONFIG } from './apiConfig';
 
+// Dev-only logger — request/response logging is skipped entirely in production
+// builds so every API call doesn't pay console-serialization overhead.
+const IS_DEV = import.meta.env.DEV;
+const devLog = (...args: unknown[]) => { if (IS_DEV) console.log(...args); };
+const devWarn = (...args: unknown[]) => { if (IS_DEV) console.warn(...args); };
+
 // Token management for JWT tokens
 const ACCESS_TOKEN_KEY = 'celiyo_access_token';
 const REFRESH_TOKEN_KEY = 'celiyo_refresh_token';
@@ -14,7 +20,7 @@ export const tokenManager = {
   
   setAccessToken: (token: string): void => {
     localStorage.setItem(ACCESS_TOKEN_KEY, token);
-    console.log('💾 Access token saved to localStorage');
+    devLog('💾 Access token saved to localStorage');
   },
   
   getRefreshToken: (): string | null => {
@@ -23,13 +29,13 @@ export const tokenManager = {
   
   setRefreshToken: (token: string): void => {
     localStorage.setItem(REFRESH_TOKEN_KEY, token);
-    console.log('💾 Refresh token saved to localStorage');
+    devLog('💾 Refresh token saved to localStorage');
   },
   
   removeTokens: (): void => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
-    console.log('🗑️ Tokens removed from localStorage');
+    devLog('🗑️ Tokens removed from localStorage');
   },
   
   hasAccessToken: (): boolean => {
@@ -79,7 +85,7 @@ authClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = tokenManager.getAccessToken();
 
-    console.log('📤 Auth API Request:', {
+    devLog('📤 Auth API Request:', {
       url: config.url,
       method: config.method?.toUpperCase(),
       hasToken: !!token
@@ -87,9 +93,9 @@ authClient.interceptors.request.use(
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log('🔑 Added Bearer token to Auth request');
+      devLog('🔑 Added Bearer token to Auth request');
     } else {
-      console.warn('⚠️ No access token found for Auth request!');
+      devWarn('⚠️ No access token found for Auth request!');
     }
 
     // Multi-tenant header propagation (read from stored user)
@@ -108,7 +114,7 @@ authClient.interceptors.request.use(
             config.headers['x-tenant-id'] = tenantId; // Backend expects lowercase
             config.headers['tenanttoken'] = tenantId; // Your API uses 'tenanttoken' header
 
-            console.log('🏢 Added tenant headers to Auth:', {
+            devLog('🏢 Added tenant headers to Auth:', {
               'X-Tenant-Id': tenantId,
               'x-tenant-id': tenantId,
               'tenanttoken': tenantId
@@ -119,10 +125,10 @@ authClient.interceptors.request.use(
             config.headers['X-Tenant-Slug'] = tenant.slug;
           }
         } else {
-          console.warn('⚠️ No tenant found in user object for Auth');
+          devWarn('⚠️ No tenant found in user object for Auth');
         }
       } else {
-        console.warn('⚠️ No user found in localStorage for Auth');
+        devWarn('⚠️ No user found in localStorage for Auth');
       }
     } catch (error) {
       console.error('❌ Failed to parse user or attach tenant headers for Auth:', error);
@@ -140,7 +146,7 @@ crmClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = tokenManager.getAccessToken();
     
-    console.log('📤 CRM API Request:', {
+    devLog('📤 CRM API Request:', {
       url: config.url,
       method: config.method?.toUpperCase(),
       hasToken: !!token
@@ -148,9 +154,9 @@ crmClient.interceptors.request.use(
     
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log('🔑 Added Bearer token to CRM request');
+      devLog('🔑 Added Bearer token to CRM request');
     } else {
-      console.warn('⚠️ No access token found for CRM request!');
+      devWarn('⚠️ No access token found for CRM request!');
     }
 
     // Multi-tenant header propagation (read from stored user)
@@ -168,7 +174,7 @@ crmClient.interceptors.request.use(
             config.headers['X-Tenant-Id'] = tenantId;
             config.headers['tenanttoken'] = tenantId; // Your API uses 'tenanttoken' header
             
-            console.log('🏢 Added tenant headers:', {
+            devLog('🏢 Added tenant headers:', {
               'X-Tenant-Id': tenantId,
               'tenanttoken': tenantId
             });
@@ -178,10 +184,10 @@ crmClient.interceptors.request.use(
             config.headers['X-Tenant-Slug'] = tenant.slug;
           }
         } else {
-          console.warn('⚠️ No tenant found in user object');
+          devWarn('⚠️ No tenant found in user object');
         }
       } else {
-        console.warn('⚠️ No user found in localStorage');
+        devWarn('⚠️ No user found in localStorage');
       }
     } catch (error) {
       console.error('❌ Failed to parse user or attach tenant headers:', error);
@@ -199,7 +205,7 @@ crmClient.interceptors.request.use(
 // Response interceptor for auth client
 authClient.interceptors.response.use(
   (response) => {
-    console.log('✅ Auth API response:', response.status);
+    devLog('✅ Auth API response:', response.status);
     return response;
   },
   (error) => {
@@ -215,7 +221,7 @@ authClient.interceptors.response.use(
       
       // Only redirect to login if not already on login page
       if (!window.location.pathname.includes('/login')) {
-        console.log('↪️ Redirecting to login...');
+        devLog('↪️ Redirecting to login...');
         window.location.href = '/login';
       }
     }
@@ -234,10 +240,41 @@ authClient.interceptors.response.use(
   }
 );
 
+// ─── Single-flight token refresh ─────────────────────────────────────────────
+// When many requests fail with 401 at once (e.g. a dashboard burst after token
+// expiry), only ONE refresh call is made; all other 401s await the same promise.
+// Previously each 401 fired its own POST /auth/refresh, which multiplied load
+// and could race token rotation.
+let refreshPromise: Promise<string> | null = null;
+
+const refreshAccessToken = (): Promise<string> => {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const refreshToken = tokenManager.getRefreshToken();
+      if (!refreshToken) {
+        throw new Error('No refresh token available');
+      }
+      const response = await authClient.post(API_CONFIG.AUTH.REFRESH, {
+        refresh: refreshToken,
+      });
+      const { access, refresh } = response.data;
+      tokenManager.setAccessToken(access);
+      if (refresh) {
+        tokenManager.setRefreshToken(refresh);
+      }
+      return access as string;
+    })().finally(() => {
+      // Allow a future refresh once this one settles
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+};
+
 // Response interceptor for CRM client
 crmClient.interceptors.response.use(
   (response) => {
-    console.log('✅ CRM API response:', {
+    devLog('✅ CRM API response:', {
       status: response.status,
       url: response.config.url
     });
@@ -246,35 +283,31 @@ crmClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    console.error('❌ CRM API error:', {
-      status: error.response?.status,
-      url: error.config?.url,
-      data: error.response?.data
-    });
+    // 424 Failed Dependency is an EXPECTED state (e.g. TeleCMI not configured
+    // for the tenant on /telephony/webrtc-config/). It is handled by feature
+    // code as a normal "not configured" condition — don't spam the console.
+    if (error.response?.status === 424) {
+      devLog('ℹ️ CRM 424 (feature not configured):', error.config?.url);
+    } else {
+      console.error('❌ CRM API error:', {
+        status: error.response?.status,
+        url: error.config?.url,
+        data: error.response?.data
+      });
+    }
 
     // Handle 401 Unauthorized - try to refresh token
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      console.log('🔄 Attempting to refresh token...');
+      devLog('🔄 Attempting to refresh token...');
 
       try {
-        const refreshToken = tokenManager.getRefreshToken();
-        if (refreshToken) {
-          // Try to refresh the token using auth client
-          const response = await authClient.post(API_CONFIG.AUTH.REFRESH, {
-            refresh: refreshToken
-          });
+        if (tokenManager.getRefreshToken()) {
+          // Single-flight: concurrent 401s share one refresh request
+          const access = await refreshAccessToken();
 
-          const { access, refresh } = response.data;
-          tokenManager.setAccessToken(access);
-          
-          // Update refresh token if provided
-          if (refresh) {
-            tokenManager.setRefreshToken(refresh);
-          }
-
-          console.log('✅ Token refreshed, retrying original request');
+          devLog('✅ Token refreshed, retrying original request');
 
           // Retry the original request with new token
           originalRequest.headers.Authorization = `Bearer ${access}`;
@@ -288,7 +321,7 @@ crmClient.interceptors.response.use(
         localStorage.removeItem(USER_KEY);
         
         if (!window.location.pathname.includes('/login')) {
-          console.log('↪️ Redirecting to login...');
+          devLog('↪️ Redirecting to login...');
           window.location.href = '/login';
         }
         return Promise.reject(refreshError);

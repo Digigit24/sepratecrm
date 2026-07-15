@@ -24,7 +24,7 @@ export const useTenant = () => {
       () => tenantService.getTenants(params),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch tenants:', err);
@@ -43,7 +43,7 @@ export const useTenant = () => {
       () => tenantService.getTenant(id!),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch tenant:', err);
@@ -62,7 +62,7 @@ export const useTenant = () => {
       () => tenantService.getCurrentTenant(),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch current tenant:', err);
@@ -81,7 +81,7 @@ export const useTenant = () => {
       () => tenantService.getTenantImages(tenantId!),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch tenant images:', err);

@@ -54,7 +54,7 @@ export const useIntegrations = () => {
       () => integrationService.getIntegrations(params),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
       }
     );
   };
@@ -106,7 +106,7 @@ export const useIntegrations = () => {
       () => integrationService.getConnections(params),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
       }
     );
   };
@@ -211,7 +211,7 @@ export const useIntegrations = () => {
       () => integrationService.getWorkflows(params),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
       }
     );
   };

@@ -113,10 +113,18 @@ export function ContactChatDrawer({
   }, [open, defaultTab]);
 
   // ── Shared: contact data ──────────────────────────────────────────────────
+  // ALL drawer data is gated by visibility: this component stays mounted with
+  // open=false whenever a contact is selected, so ungated hooks fired 5+
+  // requests for a drawer the user never opened.
 
+  const isContactTabActive = open && activeTab === 'contact';
+  const isAddLeadTabActive = open && activeTab === 'add-lead';
+
+  // Contact context: only when the drawer is open
   const { contact, replyWindowStatus, isLoading: contactLoading, isError } =
-    useChatContext({ contactUid });
-  const { teamMembers: allTeamMembers } = useTeamMembers();
+    useChatContext({ contactUid, enabled: open });
+  // Team members: only when the drawer is open on the Contact tab
+  const { teamMembers: allTeamMembers } = useTeamMembers(isContactTabActive);
 
   // ── Contact tab: mutations ────────────────────────────────────────────────
 
@@ -127,7 +135,8 @@ export function ContactChatDrawer({
   const unblockContactMutation = useUnblockContact();
   const botSettingsMutation  = useBotSettings();
 
-  const { labels: allVendorLabels } = useLabels();
+  // Labels: only when the drawer is open on the Contact tab
+  const { labels: allVendorLabels } = useLabels({ enabled: isContactTabActive });
   const { createLabel } = useLabelMutations();
 
   // Contact tab: local UI state
@@ -223,13 +232,16 @@ export function ContactChatDrawer({
   const { useLeadStatuses, useFieldSchema } = useCRM();
   const { useUsersList } = useUsers();
 
+  // CRM metadata: only when the drawer is open on the Add-Lead tab. All three
+  // use shared SWR keys + 60s master-data dedupe, so switching to the tab
+  // loads each resource once and reopening within the window hits the cache.
   const { data: statusesData, isLoading: statusesLoading } = useLeadStatuses({
-    is_active: true, ordering: 'order_index',
-  });
+    page_size: 100, ordering: 'order_index', is_active: true,
+  }, { enabled: isAddLeadTabActive });
   const { data: usersData,   isLoading: usersLoading  } = useUsersList({
     page: 1, page_size: 1000, is_active: true,
-  });
-  const { data: fieldSchema, isLoading: schemaLoading } = useFieldSchema();
+  }, { enabled: isAddLeadTabActive });
+  const { data: fieldSchema, isLoading: schemaLoading } = useFieldSchema({ enabled: isAddLeadTabActive });
 
   const [fieldMapping, setFieldMapping] = useState<Record<string, string>>(DEFAULT_MAPPING);
   const [fieldValues,  setFieldValues]  = useState<Record<string, any>>({ priority: 'MEDIUM' });

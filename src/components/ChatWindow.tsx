@@ -595,8 +595,9 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showTemplateDropdown]);
 
-  // Fetch templates (only when needed)
+  // Fetch templates (only when needed, at most once per mount)
   const { templates, isLoading: isLoadingTemplates, fetchTemplates } = useTemplates({ autoFetch: false });
+  const templatesFetchedRef = useRef(false);
 
   // Filter templates based on search query (status is uppercase from API)
   const filteredTemplates = useMemo(() => {
@@ -645,7 +646,12 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
     if (value === '/' || value.endsWith(' /')) {
       setShowTemplateDropdown(true);
       setTemplateSearchQuery("");
-      fetchTemplates({ limit: 50 });
+      // Fetch the template list once per mount — repeated "/" keystrokes
+      // previously re-downloaded 50 templates every time.
+      if (!templatesFetchedRef.current) {
+        templatesFetchedRef.current = true;
+        fetchTemplates({ limit: 50 });
+      }
     } else if (showTemplateDropdown) {
       // If dropdown is open, update search query
       const slashIndex = value.lastIndexOf('/');

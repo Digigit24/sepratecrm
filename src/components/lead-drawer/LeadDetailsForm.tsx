@@ -120,8 +120,9 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
     const { getCurrencyCode } = useCurrency();
     const { useUsersList } = useUsers();
 
+    // Same key as Dashboard/CRMLeads/LeadDetailsPage so the request is shared
     const { data: statusesData, isLoading: statusesLoading } = useLeadStatuses({
-      is_active: true, ordering: 'order_index',
+      page_size: 100, ordering: 'order_index', is_active: true,
     });
     const { data: usersData, isLoading: usersLoading } = useUsersList({
       page: 1, page_size: 1000, is_active: true,

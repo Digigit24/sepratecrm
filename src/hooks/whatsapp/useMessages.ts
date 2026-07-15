@@ -4,8 +4,7 @@ import { messagesService } from '@/services/whatsapp/messagesService';
 import { uploadMedia } from '@/services/whatsapp';
 import type { WhatsAppMessage, Template } from '@/types/whatsappTypes';
 import { chatService } from '@/services/whatsapp/chatService';
-import { chatKeys } from '@/hooks/whatsapp/useChat';
-import { useRealtimeChat } from '@/hooks/whatsapp/useRealtimeChat';
+import { chatKeys, updateContactPreviewInCache } from '@/hooks/whatsapp/useChat';
 import { templatesService } from '@/services/whatsapp/templatesService';
 
 export interface UseMessagesReturn {
@@ -39,11 +38,13 @@ export function useMessages(conversationPhone: string | null): UseMessagesReturn
     setContactUid(null);
   }, [conversationPhone]);
 
-  // Enable real-time updates via Pusher
-  useRealtimeChat({
-    enabled: true,
-    selectedContactUid: contactUid,
-  });
+  // NOTE: no useRealtimeChat here. The Chats page owns the single Pusher
+  // handler instance (sound + contacts/messages cache updates). Mounting a
+  // second instance here made every incoming-message handler run TWICE
+  // (double cache writes, double unread increments, double refetches).
+  // This hook still receives realtime messages via the React Query cache
+  // subscription below — the page-level handler writes fresh messages into
+  // chatKeys.messages(contactUid, {}) and the subscription syncs them.
 
   const normalizePhone = (p?: string | null) => (p ? String(p).replace(/^\+/, '') : '');
   const normalizeTimestamp = (ts?: string | null) => {
@@ -341,8 +342,14 @@ export function useMessages(conversationPhone: string | null): UseMessagesReturn
           : m
       ));
 
-      // Only update contacts list for sidebar (last message preview)
-      if (contactUid) {
+      // Update the sidebar preview LOCALLY (no contacts GET per send).
+      // Fallback invalidation only when the contact isn't in the cache yet.
+      const found = updateContactPreviewInCache(
+        queryClient,
+        { contactUid, phone: conversationPhone },
+        { text: messageText }
+      );
+      if (!found) {
         queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
       }
     } catch (err: any) {
@@ -415,8 +422,15 @@ export function useMessages(conversationPhone: string | null): UseMessagesReturn
           : m
       ));
 
-      // Update contacts list for sidebar
-      queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
+      // Local sidebar preview update (no contacts GET per send)
+      const found = updateContactPreviewInCache(
+        queryClient,
+        { contactUid, phone: conversationPhone },
+        { text: caption || `[${media_type}]` }
+      );
+      if (!found) {
+        queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
+      }
     } catch (err: any) {
       console.error('❌ Failed to send media message:', err);
       setMessages(prev => prev.map(m =>
@@ -486,8 +500,13 @@ export function useMessages(conversationPhone: string | null): UseMessagesReturn
           : m
       ));
 
-      // Update contacts list for sidebar
-      if (contactUid) {
+      // Local sidebar preview update (no contacts GET per send)
+      const found = updateContactPreviewInCache(
+        queryClient,
+        { contactUid, phone: conversationPhone },
+        { text: messageText }
+      );
+      if (!found) {
         queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
       }
     } catch (err: any) {
