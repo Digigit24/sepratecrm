@@ -25,7 +25,6 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useTelephony } from '@/hooks/useTelephony';
 import { useTelephonyPhone } from '@/context/TelephonyProvider';
-import { TelephonyApiError } from '@/services/telephonyService';
 import type {
   TeleCMIAgentCreateData,
   TeleCMIAgentUpdateData,
@@ -245,10 +244,13 @@ interface WebRTCReadinessRowProps {
 }
 
 const WebRTCReadinessRow: React.FC<WebRTCReadinessRowProps> = ({ enabled }) => {
-  const { useWebRTCConfig } = useTelephony();
-  const { data, error, isLoading } = useWebRTCConfig(enabled);
+  // WebRTC config is owned by TelephonyProvider (single webrtc-config
+  // request app-wide) — read the resolved state from context instead of
+  // firing a duplicate request from this card.
+  const { isTelephonyConfigured, isTelephonyLoading, sbcHost, defaultCallerId } =
+    useTelephonyPhone();
 
-  if (isLoading) {
+  if (enabled && isTelephonyLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -257,9 +259,8 @@ const WebRTCReadinessRow: React.FC<WebRTCReadinessRowProps> = ({ enabled }) => {
     );
   }
 
-  // 424 (or any error) => not configured yet.
-  const notConfigured =
-    !data || (error instanceof TelephonyApiError ? true : !!error);
+  // Not enabled yet, or provider resolved to "not configured" (424) => setup pending.
+  const notConfigured = !enabled || !isTelephonyConfigured || !sbcHost;
 
   if (notConfigured) {
     return (
@@ -273,7 +274,7 @@ const WebRTCReadinessRow: React.FC<WebRTCReadinessRowProps> = ({ enabled }) => {
     );
   }
 
-  return <WebRTCReady sbcHost={data.sbc_host} defaultCallerId={data.default_caller_id} />;
+  return <WebRTCReady sbcHost={sbcHost} defaultCallerId={defaultCallerId} />;
 };
 
 // Rendered only when the module is enabled (parent card returns null otherwise),

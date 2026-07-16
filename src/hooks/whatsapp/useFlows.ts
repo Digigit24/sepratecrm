@@ -25,7 +25,7 @@ export const useFlows = (query?: FlowsListQuery) => {
     () => flowsService.getFlows(query),
     {
       revalidateOnFocus: false,
-      revalidateOnReconnect: true,
+      revalidateOnReconnect: false,
     }
   );
 
@@ -49,7 +49,7 @@ export const useFlow = (flow_id: string | null) => {
     () => (flow_id ? flowsService.getFlow(flow_id) : null),
     {
       revalidateOnFocus: false,
-      revalidateOnReconnect: true,
+      revalidateOnReconnect: false,
     }
   );
 
@@ -70,7 +70,7 @@ export const useFlowStats = () => {
     () => flowsService.getFlowStats(),
     {
       revalidateOnFocus: false,
-      revalidateOnReconnect: true,
+      revalidateOnReconnect: false,
     }
   );
 

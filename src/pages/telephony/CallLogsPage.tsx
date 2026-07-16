@@ -53,6 +53,7 @@ import { toast } from 'sonner';
 import { tokenManager } from '@/lib/client';
 import { useTelephony } from '@/hooks/useTelephony';
 import { useUsers } from '@/hooks/useUsers';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Pager } from '@/components/telephony/Pager';
 import { formatDuration, safeRelative, safeExact, msToExact } from '@/lib/telephonyFormat';
 import {
@@ -85,8 +86,12 @@ export const CallLogsPage: React.FC = () => {
   const [ordering, setOrdering] = useState<CallLogsQueryParams['ordering']>('-call_time');
   const [page, setPage] = useState(1);
 
+  // Debounced: previously each keystroke in the Lead ID box fired a
+  // call-logs API request; now one request fires 400ms after typing stops.
+  const debouncedLeadIdInput = useDebouncedValue(leadIdInput, 400);
+
   const params: CallLogsQueryParams = useMemo(() => {
-    const leadId = leadIdInput.trim() ? parseInt(leadIdInput.trim(), 10) : undefined;
+    const leadId = debouncedLeadIdInput.trim() ? parseInt(debouncedLeadIdInput.trim(), 10) : undefined;
     return {
       direction: direction === 'all' ? undefined : direction,
       call_type: callType === 'all' ? undefined : callType,
@@ -96,7 +101,7 @@ export const CallLogsPage: React.FC = () => {
       page,
       page_size: PAGE_SIZE,
     };
-  }, [direction, callType, leadIdInput, agentUserId, ordering, page]);
+  }, [direction, callType, debouncedLeadIdInput, agentUserId, ordering, page]);
 
   const { data, error, isLoading, isValidating, mutate } = useCalls(params);
   const { data: usersData } = useUsersList({ page_size: 100 });

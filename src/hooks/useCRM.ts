@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
 import { crmService } from '@/services/crmService';
+import { MASTER_DATA_DEDUPE_MS } from '@/lib/swrConfig';
 import {
   Lead,
   LeadStatus,
@@ -63,6 +64,12 @@ export const useCRM = () => {
       () => crmService.getLeads(params),
       {
         revalidateOnFocus: false,
+        // SELECTIVE reconnect refetch: the leads list is the one CRM resource
+        // where working from a stale view after an offline gap is costly, so
+        // it alone revalidates on reconnect. All other SWR hooks (master
+        // data, telephony, roles, integrations, WhatsApp lists) have
+        // reconnect refetch disabled to avoid a burst of simultaneous GETs
+        // when the network returns.
         revalidateOnReconnect: true,
         shouldRetryOnError: false,
         keepPreviousData: true,
@@ -103,7 +110,7 @@ export const useCRM = () => {
       () => crmService.getLead(id!),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch lead:', err);
@@ -304,16 +311,19 @@ export const useCRM = () => {
   // ==================== LEAD STATUSES HOOKS ====================
   
   // Get lead statuses with SWR caching
-  const useLeadStatuses = (params?: LeadStatusesQueryParams) => {
-    const key = ['lead-statuses', params];
+  // Pass { enabled: false } to skip fetching (e.g. drawer/tab not visible).
+  const useLeadStatuses = (params?: LeadStatusesQueryParams, options?: { enabled?: boolean }) => {
+    const key = options?.enabled === false ? null : ['lead-statuses', params];
     
     return useSWR<LeadStatusesResponse>(
       key,
       () => crmService.getLeadStatuses(params),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
+        // Statuses are master data — collapse repeat fetches within 60s
+        dedupingInterval: MASTER_DATA_DEDUPE_MS,
         onError: (err) => {
           console.error('Failed to fetch lead statuses:', err);
           setError(err.message || 'Failed to fetch lead statuses');
@@ -331,7 +341,7 @@ export const useCRM = () => {
       () => crmService.getLeadStatus(id!),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch lead status:', err);
@@ -414,7 +424,7 @@ export const useCRM = () => {
       () => crmService.getLeadActivities(params),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch lead activities:', err);
@@ -497,7 +507,7 @@ export const useCRM = () => {
       () => crmService.getLeadOrders(params),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch lead orders:', err);
@@ -580,7 +590,7 @@ export const useCRM = () => {
       () => crmService.getTasks(params),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch tasks:', err);
@@ -599,7 +609,7 @@ export const useCRM = () => {
       () => crmService.getTask(id!),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch task:', err);
@@ -703,8 +713,10 @@ export const useCRM = () => {
       () => crmService.getFieldConfigurations(params),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
+        // Field configurations are master data — collapse repeat fetches within 60s
+        dedupingInterval: MASTER_DATA_DEDUPE_MS,
         onError: (err) => {
           console.error('Failed to fetch field configurations:', err);
           setError(err.message || 'Failed to fetch field configurations');
@@ -722,7 +734,7 @@ export const useCRM = () => {
       () => crmService.getFieldConfiguration(id!),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch field configuration:', err);
@@ -733,16 +745,19 @@ export const useCRM = () => {
   };
 
   // Get field schema with SWR caching
-  const useFieldSchema = () => {
-    const key = ['field-schema'];
+  // Pass { enabled: false } to skip fetching (e.g. drawer/tab not visible).
+  const useFieldSchema = (options?: { enabled?: boolean }) => {
+    const key = options?.enabled === false ? null : ['field-schema'];
 
     return useSWR<FieldSchemaResponse>(
       key,
       () => crmService.getFieldSchema(),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
+        // Field schema is master data — collapse repeat fetches within 60s
+        dedupingInterval: MASTER_DATA_DEDUPE_MS,
         onError: (err) => {
           console.error('Failed to fetch field schema:', err);
           setError(err.message || 'Failed to fetch field schema');

@@ -1,19 +1,16 @@
-import { useEffect, useState, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, useCallback } from 'react';
 import { ConversationList } from '@/components/ConversationList';
 import { ChatWindow } from '@/components/ChatWindow';
 import { ContactChatDrawer } from '@/components/ContactChatDrawer';
 import type { ContactChatDrawerTab } from '@/components/ContactChatDrawer';
 import { useIsMobile } from '@/hooks/use-is-mobile';
-import { useWebSocket } from '@/context/WebSocketProvider';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useAuth } from '@/hooks/useAuth';
 import { MessageCircle } from 'lucide-react';
 import {
   useContactsWithInfiniteScroll,
   useUnreadCount,
-  useChatMessages,
   useMarkAsRead,
-  chatKeys,
 } from '@/hooks/whatsapp/useChat';
 import { useRealtimeChat } from '@/hooks/whatsapp/useRealtimeChat';
 import type { ChatContact } from '@/services/whatsapp/chatService';
@@ -27,20 +24,26 @@ export default function Chats() {
   const [showContactDrawer, setShowContactDrawer] = useState(false);
   const [contactDrawerTab, setContactDrawerTab] = useState<ContactChatDrawerTab>('contact');
   const isMobile = useIsMobile();
-  const { payloads } = useWebSocket();
-  const queryClient = useQueryClient();
   const { user } = useAuth();
 
   // Get current user UID for filtering "Mine" conversations
   const currentUserUid = user?._uid || user?.id || '';
 
-  // React Query hooks
-  // Real-time updates via Pusher/Laravel Echo (must be before polling hooks)
+  // SINGLE realtime path: this is the only useRealtimeChat instance for the
+  // Chats page (ChatWindow/useMessages no longer mounts its own). It handles
+  // notification sound, contacts-cache updates, and the single-flight refresh
+  // of the open conversation. The legacy WebSocketProvider path was removed
+  // from this page entirely (it is disabled via ENABLE_LEGACY_WEBSOCKET and
+  // its invalidation effect duplicated the Pusher path if ever re-enabled).
   useRealtimeChat({
     enabled: true,
     selectedContactUid: selectedContactUid || null,
     playNotificationSound: true,
   });
+
+  // Debounced: previously every keystroke in the search box fired a
+  // contacts API request; now one request fires 300ms after typing stops.
+  const debouncedSearch = useDebouncedValue(searchQuery, 300);
 
   const {
     contacts,
@@ -51,27 +54,19 @@ export default function Chats() {
     isLoadingMore: isLoadingMoreContacts,
     loadMore: loadMoreContacts,
   } = useContactsWithInfiniteScroll({
-    search: searchQuery || undefined,
+    search: debouncedSearch || undefined,
   });
 
   // Unread count - polling controlled by ENABLE_POLLING flag in useChat.ts
   const { total: unreadTotal, contacts: unreadByContact } = useUnreadCount();
 
-  // Messages for selected contact - no polling when real-time connected
-  const {
-    messages,
-    contact: currentContact,
-    isLoading: messagesLoading,
-    refetch: refetchMessages,
-  } = useChatMessages({
-    contactUid: selectedContactUid || null,
-    enabled: !!selectedContactUid,
-  });
+  // NOTE: messages are fetched ONLY by ChatWindow via useMessages(). The
+  // useChatMessages() call that used to live here issued a second,
+  // independent GET (limit=100) for the same conversation on every select.
 
-  // Mark as read mutation
+  // Mark as read mutation — the single, explicit mark-as-read trigger
+  // (fires once when the user selects a conversation; see useChat.ts)
   const markAsReadMutation = useMarkAsRead();
-
-  const normalize = (p?: string) => (p ? String(p).replace(/^\+/, '') : '');
 
   const formatLastTimestamp = (ts?: string | null) => {
     if (!ts) return '';
@@ -133,49 +128,11 @@ export default function Chats() {
     setShowContactDrawer(prev => !prev);
   }, []);
 
-  // Live updates via persistent WhatsApp WebSocket
-  useEffect(() => {
-    if (payloads.length > 0) {
-      const latestPayload = payloads[payloads.length - 1];
-      const { phone, name, contact, message } = latestPayload;
-
-      console.log('Processing WebSocket payload:', {
-        phone,
-        name,
-        is_new: contact?.is_new,
-        message_text: message?.text,
-      });
-
-      // Invalidate queries to refetch data
-      queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
-      queryClient.invalidateQueries({ queryKey: chatKeys.unreadCount() });
-
-      // If the message is for the currently selected contact, refetch messages
-      const phoneKey = normalize(phone);
-      const wsContactUid = contact?._uid || contact?.uid;
-      const selectedKey = normalize(selectedContactUid);
-
-      // Find the selected contact to get its phone number for comparison
-      const selectedContact = contacts.find(
-        (c: ChatContact) => (c._uid || c.phone_number) === selectedContactUid
-      );
-      const selectedPhone = normalize(selectedContact?.phone_number);
-
-      // Check if this message is for the selected contact
-      const isMatchingContact =
-        (phoneKey && selectedPhone && phoneKey === selectedPhone) ||
-        (phoneKey && selectedKey && phoneKey === selectedKey) ||
-        (wsContactUid && wsContactUid === selectedContactUid);
-
-      if (isMatchingContact) {
-        console.log('WebSocket message for selected contact - refreshing messages');
-        queryClient.invalidateQueries({
-          queryKey: chatKeys.messages(selectedContactUid, {}),
-          exact: false,
-        });
-      }
-    }
-  }, [payloads, selectedContactUid, contacts, queryClient]);
+  // Legacy WebSocket payload effect removed: it was a second invalidation
+  // path for contacts/unread/messages that duplicated the Pusher realtime
+  // path. The legacy socket is disabled (ENABLE_LEGACY_WEBSOCKET=false in
+  // WebSocketProvider); if it is ever re-enabled it must NOT be reconnected
+  // here while useRealtimeChat is active.
 
   if (isLoading) {
     return (

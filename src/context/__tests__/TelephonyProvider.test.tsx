@@ -34,7 +34,13 @@ vi.mock('piopiyjs', () => {
 vi.mock('@/hooks/useTelephony', () => {
   const config = { telecmi_user_id: '103_111', sbc_host: 'sbcind.telecmi.com', default_caller_id: null };
   return {
-    useTelephony: () => ({ useWebRTCConfig: () => ({ data: config, error: undefined }) }),
+    useTelephony: () => ({
+      useWebRTCConfig: () => ({ data: config, error: undefined, isLoading: false }),
+    }),
+    // Session "not configured" flag helpers used by the provider
+    isTelephonyMarkedNotConfigured: () => false,
+    markTelephonyNotConfigured: vi.fn(),
+    clearTelephonyNotConfigured: vi.fn(),
   };
 });
 

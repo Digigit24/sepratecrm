@@ -20,6 +20,19 @@ export const leadStatusCache = {
 
       const parsed: CachedLeadStatuses = JSON.parse(cached);
 
+      // Shape validation — legacy builds stored a bare array (or other
+      // shapes). Anything that isn't { data: [], timestamp: number } is
+      // discarded so callers can never receive a non-array.
+      if (
+        !parsed ||
+        typeof parsed !== 'object' ||
+        !Array.isArray(parsed.data) ||
+        typeof parsed.timestamp !== 'number'
+      ) {
+        this.clear();
+        return null;
+      }
+
       // Check if cache is expired
       const now = Date.now();
       if (now - parsed.timestamp > CACHE_DURATION) {

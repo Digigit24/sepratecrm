@@ -66,10 +66,9 @@ const LeadBasicInfo = forwardRef<LeadFormHandle, LeadBasicInfoProps>(
     const { useUsersList } = useUsers();
     const { getCurrencyCode } = useCurrency();
 
-    // Fetch lead statuses
+    // Fetch lead statuses — same key as Dashboard/CRMLeads so the request is shared
     const { data: statusesData, isLoading: statusesLoading } = useLeadStatuses({
-      is_active: true,
-      ordering: 'order_index',
+      page_size: 100, ordering: 'order_index', is_active: true,
     });
 
     // Fetch users for assigned_to dropdown

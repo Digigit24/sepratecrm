@@ -23,7 +23,7 @@ export const useGroups = (query?: GroupsListQuery) => {
     () => groupsService.getGroups(query),
     {
       revalidateOnFocus: false,
-      revalidateOnReconnect: true,
+      revalidateOnReconnect: false,
     }
   );
 
@@ -45,7 +45,7 @@ export const useGroup = (group_id: string | null) => {
     () => (group_id ? groupsService.getGroup(group_id) : null),
     {
       revalidateOnFocus: false,
-      revalidateOnReconnect: true,
+      revalidateOnReconnect: false,
     }
   );
 

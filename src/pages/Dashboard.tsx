@@ -71,19 +71,18 @@ const FullDashboard = () => {
   const { useUpcomingMeetings } = useMeeting();
 
   // --- Data hooks ---
-  const { data: leadsData, isLoading: leadsLoading } = useLeads({ page: 1, page_size: 1 });
   const { data: statusesData } = useLeadStatuses({ page_size: 100, ordering: 'order_index', is_active: true });
 
-  // Recent leads (latest 5)
-  const { data: recentLeadsData } = useLeads({ page: 1, page_size: 5, ordering: '-created_at' });
+  // Recent leads (latest 5) — also supplies the total lead count via
+  // response.count, so no separate page_size=1 count request is needed.
+  const { data: recentLeadsData, isLoading: leadsLoading } = useLeads({ page: 1, page_size: 5, ordering: '-created_at' });
 
   // Leads by priority
   const { data: highPriorityData } = useLeads({ page: 1, page_size: 1, priority: 'HIGH' });
   const { data: medPriorityData } = useLeads({ page: 1, page_size: 1, priority: 'MEDIUM' });
   const { data: lowPriorityData } = useLeads({ page: 1, page_size: 1, priority: 'LOW' });
 
-  // Tasks
-  const { data: allTasksData } = useTasks({ page: 1, page_size: 5, ordering: 'due_date' });
+  // Tasks — counts only (page_size=1, uses response.count)
   const { data: openTasksData } = useTasks({ page: 1, page_size: 1, status: 'TODO' });
   const { data: inProgressTasksData } = useTasks({ page: 1, page_size: 1, status: 'IN_PROGRESS' });
 
@@ -102,13 +101,18 @@ const FullDashboard = () => {
     next_follow_up_at__lte: calendarMonthEnd,
     next_follow_up_at__isnull: false,
   });
-  const { data: calendarTasksData } = useTasks({ page: 1, page_size: 100 });
+  // Ordered by due_date so the same response also powers the
+  // "Upcoming Tasks" widget (first 5) — one request instead of two.
+  const { data: calendarTasksData } = useTasks({ page: 1, page_size: 100, ordering: 'due_date' });
 
   // --- Computed values ---
-  const totalLeads = leadsData?.count || 0;
+  const totalLeads = recentLeadsData?.count || 0;
   const statuses = statusesData?.results || [];
   const recentLeads = recentLeadsData?.results || [];
-  const tasks = allTasksData?.results || [];
+  const tasks = useMemo(
+    () => (calendarTasksData?.results || []).slice(0, 5),
+    [calendarTasksData]
+  );
   const activities = activitiesData?.results || [];
   const upcomingMeetings = upcomingMeetingsData?.results || [];
 

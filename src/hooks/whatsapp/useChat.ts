@@ -1,5 +1,6 @@
 // src/hooks/whatsapp/useChat.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import { useCallback, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
@@ -39,6 +40,52 @@ export const chatKeys = {
   message: (messageUid: string) => [...chatKeys.all, 'message', messageUid] as const,
   chatContext: (contactUid: string) => [...chatKeys.all, 'context', contactUid] as const,
 };
+
+// ==================== LOCAL CACHE HELPERS ====================
+
+/**
+ * Update a contact's last-message preview (and move it to the top) directly
+ * in every cached contacts list — the local alternative to invalidating
+ * chatKeys.contacts() after sending a message (which refetched the whole
+ * contacts list on every send).
+ *
+ * Returns true when the contact was found in at least one cached list;
+ * callers may fall back to invalidation when it returns false (e.g. a brand
+ * new conversation not present in the cache yet).
+ */
+export function updateContactPreviewInCache(
+  queryClient: QueryClient,
+  match: { contactUid?: string | null; phone?: string | null },
+  preview: { text?: string; timestamp?: string }
+): boolean {
+  const normalize = (p?: string | null) => (p ? String(p).replace(/^\+/, '') : '');
+  const phoneKey = normalize(match.phone);
+  let found = false;
+
+  queryClient.setQueriesData<ChatContactsResponse>(
+    { queryKey: chatKeys.contacts() },
+    (old) => {
+      if (!old?.contacts?.length) return old;
+      const idx = old.contacts.findIndex(
+        (c: ChatContact) =>
+          (!!match.contactUid && c._uid === match.contactUid) ||
+          (!!phoneKey && normalize(c.phone_number) === phoneKey)
+      );
+      if (idx === -1) return old;
+      found = true;
+
+      const updated: ChatContact = {
+        ...old.contacts[idx],
+        last_message: preview.text ?? old.contacts[idx].last_message,
+        last_message_at: preview.timestamp ?? new Date().toISOString(),
+      };
+      const others = old.contacts.filter((_: ChatContact, i: number) => i !== idx);
+      return { ...old, contacts: [updated, ...others] };
+    }
+  );
+
+  return found;
+}
 
 // ==================== CHAT CONTACTS HOOK ====================
 
@@ -207,24 +254,15 @@ export interface UseChatMessagesOptions {
 
 export function useChatMessages(options: UseChatMessagesOptions) {
   const { contactUid, page = 1, limit = 100, enabled = true } = options;
-  const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: chatKeys.messages(contactUid || '', { page, limit }),
+    // PURE query — no mutation side effects. Mark-as-read happens in exactly
+    // one place: the conversation-selection handler (useMarkAsRead). Message
+    // refetches, pagination, and realtime updates never POST mark-as-read.
     queryFn: async () => {
       if (!contactUid) throw new Error('Contact UID required');
-      const result = await chatService.getContactMessages(contactUid, { page, limit });
-
-      // Mark as read when messages are fetched
-      try {
-        await chatService.markAsRead(contactUid);
-        // Invalidate unread count
-        queryClient.invalidateQueries({ queryKey: chatKeys.unreadCount() });
-      } catch (e) {
-        // Silent fail for mark as read
-      }
-
-      return result;
+      return chatService.getContactMessages(contactUid, { page, limit });
     },
     enabled: enabled && !!contactUid,
     staleTime: 10000, // 10 seconds
@@ -252,13 +290,24 @@ export function useSendMessage() {
       return chatService.sendMessage(contactUid, text);
     },
     onSuccess: (_, variables) => {
-      // Invalidate messages for this contact
+      // Update the contact's sidebar preview locally — no contacts GET.
+      // Fall back to invalidation only when the contact isn't cached yet.
+      const found = updateContactPreviewInCache(
+        queryClient,
+        { contactUid: variables.contactUid },
+        { text: variables.text }
+      );
+      if (!found) {
+        queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
+      }
+      // Fallback messages refetch: the send response doesn't reliably contain
+      // the created message object, so consumers of useChatMessages need one
+      // refetch to display it. (The live ChatWindow path in useMessages is
+      // fully optimistic and does not use this mutation.)
       queryClient.invalidateQueries({
         queryKey: chatKeys.messages(variables.contactUid, {}),
         exact: false,
       });
-      // Invalidate contacts list to update last message
-      queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
     },
     onError: (error: any) => {
       toast.error(error?.message || 'Failed to send message');
@@ -288,11 +337,20 @@ export function useSendMediaMessage() {
       return chatService.sendMediaMessage(contactUid, mediaType, mediaUrl, caption, fileName);
     },
     onSuccess: (_, variables) => {
+      // Local sidebar update; invalidate only if the contact isn't cached
+      const found = updateContactPreviewInCache(
+        queryClient,
+        { contactUid: variables.contactUid },
+        { text: variables.caption || `[${variables.mediaType}]` }
+      );
+      if (!found) {
+        queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
+      }
+      // Fallback refetch — send response lacks the created message object
       queryClient.invalidateQueries({
         queryKey: chatKeys.messages(variables.contactUid, {}),
         exact: false,
       });
-      queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
     },
     onError: (error: any) => {
       toast.error(error?.message || 'Failed to send media');
@@ -320,11 +378,20 @@ export function useSendTemplateMessage() {
       return chatService.sendTemplateMessage(contactUid, templateName, templateLanguage, components);
     },
     onSuccess: (_, variables) => {
+      // Local sidebar update; invalidate only if the contact isn't cached
+      const found = updateContactPreviewInCache(
+        queryClient,
+        { contactUid: variables.contactUid },
+        { text: `[Template: ${variables.templateName}]` }
+      );
+      if (!found) {
+        queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
+      }
+      // Fallback refetch — send response lacks the created message object
       queryClient.invalidateQueries({
         queryKey: chatKeys.messages(variables.contactUid, {}),
         exact: false,
       });
-      queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
       toast.success('Template message sent');
     },
     onError: (error: any) => {
@@ -340,7 +407,45 @@ export function useMarkAsRead() {
 
   return useMutation({
     mutationFn: (contactUid: string) => chatService.markAsRead(contactUid),
-    onSuccess: () => {
+    // Optimistic cache updates instead of refetching: marking one contact as
+    // read used to trigger a full contacts GET + unread GET. The server-side
+    // effect is known exactly (that contact's unread → 0), so we write it
+    // into the cache directly and only resync from the server on failure.
+    onMutate: (contactUid: string) => {
+      let clearedCount = 0;
+
+      // Zero the contact's unread badge in every cached contacts list
+      queryClient.setQueriesData<ChatContactsResponse>(
+        { queryKey: chatKeys.contacts() },
+        (old) => {
+          if (!old?.contacts?.length) return old;
+          let touched = false;
+          const contacts = old.contacts.map((c: ChatContact) => {
+            if (c._uid === contactUid && (c.unread_count || 0) > 0) {
+              touched = true;
+              clearedCount = Math.max(clearedCount, c.unread_count || 0);
+              return { ...c, unread_count: 0 };
+            }
+            return c;
+          });
+          return touched ? { ...old, contacts } : old;
+        }
+      );
+
+      // Subtract this contact from the cached unread totals
+      queryClient.setQueryData<UnreadCount>(chatKeys.unreadCount(), (old) => {
+        if (!old) return old;
+        const perContact = { ...(old.contacts || {}) };
+        const contactUnread = perContact[contactUid] ?? clearedCount;
+        delete perContact[contactUid];
+        return {
+          total: Math.max(0, (old.total || 0) - (contactUnread || 0)),
+          contacts: perContact,
+        };
+      });
+    },
+    onError: () => {
+      // Server rejected the mark-as-read — resync the real numbers
       queryClient.invalidateQueries({ queryKey: chatKeys.unreadCount() });
       queryClient.invalidateQueries({ queryKey: chatKeys.contacts() });
     },

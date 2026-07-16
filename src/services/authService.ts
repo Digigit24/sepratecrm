@@ -1,6 +1,7 @@
 // src/services/authService.ts
 import { authClient, tokenManager } from '@/lib/client';
 import { API_CONFIG } from '@/lib/apiConfig';
+import { sanitizeThemeValue } from '@/lib/storageGuard';
 import { 
   LoginPayload, 
   LoginResponse, 
@@ -165,16 +166,22 @@ class AuthService {
     }
   }
 
-  // Apply theme preference to document
-  private applyThemePreference(theme: 'light' | 'dark'): void {
+  // Apply theme preference to document.
+  // Accepts unknown because persisted preferences may hold legacy formats
+  // ({mode:'dark'}, '"dark"', 'DARK', …). The value is sanitized first, so
+  // only the literal token 'dark' can ever reach classList.add/remove —
+  // invalid values are ignored and the light default stays in effect.
+  private applyThemePreference(theme: unknown): void {
     try {
+      const safeTheme = sanitizeThemeValue(theme);
+      if (safeTheme === null) return; // unrecognizable → ignore, no crash
+
       const root = document.documentElement;
-      if (theme === 'dark') {
+      if (safeTheme === 'dark') {
         root.classList.add('dark');
       } else {
         root.classList.remove('dark');
       }
-      console.log('✅ Theme applied:', theme);
     } catch (error) {
       console.error('❌ Failed to apply theme:', error);
     }
@@ -221,9 +228,21 @@ class AuthService {
     const user = this.getUser();
     if (user) {
       user.preferences = { ...user.preferences, ...preferences };
+
+      // Never PERSIST an invalid theme value — normalize it (or drop it) so
+      // storage always holds 'light' | 'dark' and future boots stay safe.
+      if (user.preferences && (user.preferences as any).theme !== undefined) {
+        const safeTheme = sanitizeThemeValue((user.preferences as any).theme);
+        if (safeTheme === null) {
+          delete (user.preferences as any).theme;
+        } else {
+          (user.preferences as any).theme = safeTheme;
+        }
+      }
+
       this.setUser(user);
 
-      // Apply theme if it changed
+      // Apply theme if it changed (applyThemePreference sanitizes again)
       if (preferences.theme) {
         this.applyThemePreference(preferences.theme);
       }
@@ -339,14 +358,23 @@ class AuthService {
 
   // User methods
   getUser(): User | null {
-    const userJson = localStorage.getItem(USER_KEY);
-    if (!userJson) return null;
-    
     try {
-      const user = JSON.parse(userJson);
+      const userJson = localStorage.getItem(USER_KEY);
+      if (!userJson) return null;
+
+      const parsed = JSON.parse(userJson);
+      // Reject JSON-valid junk (number, string, boolean, array) written by
+      // old builds — callers everywhere assume a plain object.
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        localStorage.removeItem(USER_KEY);
+        return null;
+      }
+      const user = parsed as User;
+
+      // Enrich from the decoded access token when the stored user is missing
+      // permission/role/module data, so RBAC gating survives a page reload.
       const access = tokenManager.getAccessToken();
       const decoded: any = access ? parseJwt(access) : null;
-
       if (decoded) {
         user.permissions = user.permissions || decoded.permissions || {};
         user.is_super_admin = Boolean(user.is_super_admin ?? decoded.is_super_admin);

@@ -2,6 +2,7 @@
 import { useState, useCallback } from 'react';
 import useSWR from 'swr';
 import { userService } from '@/services/userService';
+import { MASTER_DATA_DEDUPE_MS } from '@/lib/swrConfig';
 import {
   User,
   UserListParams,
@@ -19,6 +20,8 @@ export const useUser = () => {
   // ==================== USERS HOOKS ====================
 
   // Get users with SWR caching
+  // NOTE: shares the same ['users', params] SWR key namespace as
+  // useUsers().useUsersList so identical params dedupe across both hooks.
   const useUsers = (params?: UserListParams) => {
     const key = ['users', params];
 
@@ -27,8 +30,10 @@ export const useUser = () => {
       () => userService.getUsers(params),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
+        // Users list is master data — collapse repeat fetches within 60s
+        dedupingInterval: MASTER_DATA_DEDUPE_MS,
         onError: (err) => {
           console.error('Failed to fetch users:', err);
           setError(err.message || 'Failed to fetch users');
@@ -46,7 +51,7 @@ export const useUser = () => {
       () => userService.getUser(id!),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch user:', err);
@@ -170,7 +175,7 @@ export const useUser = () => {
       () => userService.getCurrentUser(),
       {
         revalidateOnFocus: false,
-        revalidateOnReconnect: true,
+        revalidateOnReconnect: false,
         shouldRetryOnError: false,
         onError: (err) => {
           console.error('Failed to fetch current user:', err);

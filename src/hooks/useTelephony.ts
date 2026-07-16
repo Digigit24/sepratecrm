@@ -1,5 +1,5 @@
 // src/hooks/useTelephony.ts
-import useSWR from 'swr';
+import useSWR, { mutate as swrMutate } from 'swr';
 import { toast } from 'sonner';
 import { telephonyService, TelephonyApiError } from '@/services/telephonyService';
 import type {
@@ -81,10 +81,50 @@ export const toastTelephonyError = (error: unknown, fallback = 'Something went w
 // not a transient failure.
 const READ_OPTIONS = {
   revalidateOnFocus: false,
-  revalidateOnReconnect: true,
+  revalidateOnReconnect: false,
   shouldRetryOnError: (err: unknown) =>
     !(err instanceof TelephonyApiError && err.isNotConfigured),
 } as const;
+
+// ==================== "NOT CONFIGURED" SESSION FLAG ====================
+// A 424 from /telephony/webrtc-config/ means TeleCMI isn't configured for the
+// tenant — a stable state, not an error. We remember it for the session (with
+// a TTL) so navigations/remounts don't re-fire a request that is known to 424.
+// The flag is cleared whenever telephony configuration changes (credential or
+// agent create/update, token refresh) so the next mount re-checks.
+const NOT_CONFIGURED_FLAG_KEY = 'celiyo_telephony_not_configured_at';
+const NOT_CONFIGURED_TTL_MS = 10 * 60 * 1000; // re-check at most every 10 min
+
+export const isTelephonyMarkedNotConfigured = (): boolean => {
+  try {
+    const raw = sessionStorage.getItem(NOT_CONFIGURED_FLAG_KEY);
+    if (!raw) return false;
+    const ts = Number(raw);
+    if (!Number.isFinite(ts) || Date.now() - ts > NOT_CONFIGURED_TTL_MS) {
+      sessionStorage.removeItem(NOT_CONFIGURED_FLAG_KEY);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const markTelephonyNotConfigured = (): void => {
+  try {
+    sessionStorage.setItem(NOT_CONFIGURED_FLAG_KEY, String(Date.now()));
+  } catch {
+    /* private mode — ignore */
+  }
+};
+
+export const clearTelephonyNotConfigured = (): void => {
+  try {
+    sessionStorage.removeItem(NOT_CONFIGURED_FLAG_KEY);
+  } catch {
+    /* ignore */
+  }
+};
 
 // ==================== HOOK ====================
 
@@ -103,6 +143,8 @@ export const useTelephony = () => {
   ): Promise<TeleCMICredential> => {
     try {
       const result = await telephonyService.createCredential(data);
+      clearTelephonyNotConfigured(); // config changed — allow webrtc-config re-check
+      void swrMutate(WEBRTC_CONFIG_KEY); // revalidate provider's config (no-op if unbound)
       toast.success('TeleCMI account connected');
       return result;
     } catch (e) {
@@ -117,6 +159,8 @@ export const useTelephony = () => {
   ): Promise<TeleCMICredential> => {
     try {
       const result = await telephonyService.updateCredential(id, data);
+      clearTelephonyNotConfigured(); // config changed — allow webrtc-config re-check
+      void swrMutate(WEBRTC_CONFIG_KEY); // revalidate provider's config (no-op if unbound)
       toast.success('Telephony credentials updated');
       return result;
     } catch (e) {
@@ -165,6 +209,8 @@ export const useTelephony = () => {
   const createAgent = async (data: TeleCMIAgentCreateData): Promise<TeleCMIAgent> => {
     try {
       const result = await telephonyService.createAgent(data);
+      clearTelephonyNotConfigured(); // config changed — allow webrtc-config re-check
+      void swrMutate(WEBRTC_CONFIG_KEY); // revalidate provider's config (no-op if unbound)
       toast.success('Telephony agent registered');
       return result;
     } catch (e) {
@@ -179,6 +225,8 @@ export const useTelephony = () => {
   ): Promise<TeleCMIAgent> => {
     try {
       const result = await telephonyService.updateAgent(id, data);
+      clearTelephonyNotConfigured(); // config changed — allow webrtc-config re-check
+      void swrMutate(WEBRTC_CONFIG_KEY); // revalidate provider's config (no-op if unbound)
       toast.success('Agent updated');
       return result;
     } catch (e) {
@@ -200,6 +248,8 @@ export const useTelephony = () => {
   const refreshToken = async (): Promise<void> => {
     try {
       const res = await telephonyService.refreshToken();
+      clearTelephonyNotConfigured(); // config changed — allow webrtc-config re-check
+      void swrMutate(WEBRTC_CONFIG_KEY); // revalidate provider's config (no-op if unbound)
       toast.success(res.detail || 'Token refreshed successfully.');
     } catch (e) {
       toastTelephonyError(e, 'Failed to refresh token');

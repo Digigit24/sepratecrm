@@ -8,12 +8,15 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Loader2, PhoneOutgoing, Check, AlertTriangle } from 'lucide-react';
 import { useTelephony } from '@/hooks/useTelephony';
+import { useTelephonyPhone } from '@/context/TelephonyProvider';
 import { TelephonyApiError } from '@/services/telephonyService';
 
 export const CallerIDsPage: React.FC = () => {
-  const { useCallerIds, useWebRTCConfig, setCallerId } = useTelephony();
+  const { useCallerIds, setCallerId } = useTelephony();
   const { data, error, isLoading, isValidating, mutate } = useCallerIds();
-  const { data: webrtc } = useWebRTCConfig();
+  // WebRTC config is owned by TelephonyProvider — read it from context
+  // instead of issuing a second webrtc-config request from this page.
+  const { defaultCallerId } = useTelephonyPhone();
 
   const [customId, setCustomId] = useState('');
   const [settingId, setSettingId] = useState<string | null>(null);
@@ -60,7 +63,7 @@ export const CallerIDsPage: React.FC = () => {
               <CardTitle className="text-sm">Set active caller ID</CardTitle>
               <CardDescription>
                 Current default:{' '}
-                <span className="font-mono">{webrtc?.default_caller_id || '—'}</span>
+                <span className="font-mono">{defaultCallerId || '—'}</span>
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -98,7 +101,7 @@ export const CallerIDsPage: React.FC = () => {
               ) : (
                 <div className="divide-y">
                   {callerIds.map((c) => {
-                    const isActive = webrtc?.default_caller_id === c.callerid;
+                    const isActive = defaultCallerId === c.callerid;
                     return (
                       <div key={c.callerid} className="flex items-center justify-between py-2.5">
                         <div>

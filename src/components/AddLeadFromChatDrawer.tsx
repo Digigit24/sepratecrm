@@ -110,20 +110,25 @@ export function AddLeadFromChatDrawer({
   const { useLeadStatuses, useFieldSchema } = useCRM();
   const { useUsersList } = useUsers();
 
-  // Contact data
-  const { contact, isLoading: contactLoading } = useChatContext({ contactUid });
+  // ALL queries gated on `open`: this drawer previously fetched contact,
+  // statuses, users, and field schema even while closed. A closed drawer now
+  // generates zero requests; shared SWR keys + 60s master-data dedupe mean
+  // reopening within cache freshness does not refetch.
 
-  // CRM metadata
+  // Contact data — only when the drawer is open
+  const { contact, isLoading: contactLoading } = useChatContext({ contactUid, enabled: open });
+
+  // CRM metadata — only when the drawer is open
+  // Same key as Dashboard/CRMLeads/LeadDetailsPage so the request is shared
   const { data: statusesData, isLoading: statusesLoading } = useLeadStatuses({
-    is_active: true,
-    ordering: 'order_index',
-  });
+    page_size: 100, ordering: 'order_index', is_active: true,
+  }, { enabled: open });
   const { data: usersData, isLoading: usersLoading } = useUsersList({
     page: 1,
     page_size: 1000,
     is_active: true,
-  });
-  const { data: fieldSchema, isLoading: schemaLoading } = useFieldSchema();
+  }, { enabled: open });
+  const { data: fieldSchema, isLoading: schemaLoading } = useFieldSchema({ enabled: open });
 
   // ── State ──────────────────────────────────────────────────────────────────
 

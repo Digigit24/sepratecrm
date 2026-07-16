@@ -18,7 +18,12 @@ import React, {
 } from 'react';
 import { toast } from 'sonner';
 import PIOPIY, { type PiopiyEventPayload } from 'piopiyjs';
-import { useTelephony } from '@/hooks/useTelephony';
+import {
+  useTelephony,
+  isTelephonyMarkedNotConfigured,
+  markTelephonyNotConfigured,
+  clearTelephonyNotConfigured,
+} from '@/hooks/useTelephony';
 import { useTelephonyLiveEvents, type TelephonyLiveEvent } from '@/hooks/useTelephonyLiveEvents';
 import { TelephonyApiError } from '@/services/telephonyService';
 import { setTelephonyDispatcher } from '@/lib/telephonyController';
@@ -44,6 +49,17 @@ export interface CallMeta {
 
 export interface TelephonyPhoneContextValue {
   status: PhoneStatus;
+  /** TeleCMI is configured for this tenant (webrtc-config resolved). */
+  isTelephonyConfigured: boolean;
+  /** webrtc-config request still in flight (initial resolution). */
+  isTelephonyLoading: boolean;
+  /**
+   * Human-readable configuration error, or null.
+   * For the expected 424 "not configured" state this is a friendly message,
+   * not an error dump — UI should render it as a neutral state, e.g. disabled
+   * calling controls with "Telephony not configured".
+   */
+  telephonyConfigurationError: string | null;
   telecmiUserId: string | null;
   sbcHost: string | null;
   defaultCallerId: string | null;
@@ -91,7 +107,17 @@ const readCmiuid = (p: PiopiyEventPayload): string | undefined => {
 
 export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { useWebRTCConfig } = useTelephony();
-  const { data: config, error: configError } = useWebRTCConfig();
+
+  // SINGLE OWNER of webrtc-config loading. This provider is only mounted when
+  // the telephony module is enabled (TelephonyShell in App.tsx), and it skips
+  // the request entirely when a recent 424 already told us TeleCMI is not
+  // configured for the tenant (session flag, 10-min TTL). Result: dashboard
+  // load fires AT MOST one webrtc-config request — zero when the
+  // not-configured state is already known. Child components must read config
+  // state from this context, never call useWebRTCConfig() during app flow.
+  const [skipConfigFetch] = useState<boolean>(() => isTelephonyMarkedNotConfigured());
+  const { data: config, error: configError, isLoading: configIsLoading } =
+    useWebRTCConfig(!skipConfigFetch);
 
   const piopiyRef = useRef<PIOPIY | null>(null);
   const [status, setStatus] = useState<PhoneStatus>('loading');
@@ -126,13 +152,24 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   // ── resolve config -> initial status ──
   useEffect(() => {
+    if (skipConfigFetch) {
+      // Known not-configured from a recent 424 — zero requests this mount.
+      setStatus('not-configured');
+      return;
+    }
     if (config) {
+      // Config resolved — TeleCMI IS configured; clear any stale flag.
+      clearTelephonyNotConfigured();
       // Only downgrade to needs-password if we aren't already logged in / on a call.
       setStatus((s) => (s === 'loading' || s === 'not-configured' ? 'needs-password' : s));
     } else if (configError instanceof TelephonyApiError && configError.isNotConfigured) {
+      // Expected 424: handled silently (no toast, no retry — see READ_OPTIONS
+      // and the 424-aware axios logging in lib/client.ts). Remember it so
+      // remounts/navigation don't re-request for the rest of the session.
+      markTelephonyNotConfigured();
       setStatus('not-configured');
     }
-  }, [config, configError]);
+  }, [skipConfigFetch, config, configError]);
 
   // ── create the PIOPIY instance + bind events once config is available ──
   useEffect(() => {
@@ -305,8 +342,22 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
     return () => setTelephonyDispatcher(null);
   }, [dial]);
 
+  // ── derived configuration state (exposed for widgets/pages) ──
+  const isTelephonyConfigured = !!config;
+  const isTelephonyLoading = !skipConfigFetch && configIsLoading;
+  const telephonyConfigurationError = skipConfigFetch
+    ? 'Telephony not configured'
+    : configError instanceof TelephonyApiError && configError.isNotConfigured
+      ? 'Telephony not configured'
+      : configError instanceof Error
+        ? configError.message
+        : null;
+
   const value: TelephonyPhoneContextValue = {
     status,
+    isTelephonyConfigured,
+    isTelephonyLoading,
+    telephonyConfigurationError,
     telecmiUserId: config?.telecmi_user_id ?? null,
     sbcHost: config?.sbc_host ?? null,
     defaultCallerId: config?.default_caller_id ?? null,

@@ -32,7 +32,7 @@ export const useContacts = (query?: ContactsListQuery) => {
   const { data, error, isLoading, mutate: revalidate } = useSWR(
     getContactsKey(query),
     () => contactsService.getContacts(query),
-    { revalidateOnFocus: false, revalidateOnReconnect: true }
+    { revalidateOnFocus: false, revalidateOnReconnect: false }
   );
 
   return {
@@ -51,7 +51,7 @@ export const useContact = (phone: string | null) => {
   const { data, error, isLoading, mutate: revalidate } = useSWR(
     phone ? getContactKey(phone) : null,
     () => (phone ? contactsService.getContact(phone) : null),
-    { revalidateOnFocus: false, revalidateOnReconnect: true }
+    { revalidateOnFocus: false, revalidateOnReconnect: false }
   );
 
   return {
@@ -139,10 +139,11 @@ export const useContactSearch = (searchQuery: string, limit: number = 20) => {
 
 /**
  * Hook to fetch labels
+ * Pass { enabled: false } to skip fetching (e.g. drawer/tab not visible).
  */
-export const useLabels = () => {
+export const useLabels = (options?: { enabled?: boolean }) => {
   const { data, error, isLoading, mutate: revalidate } = useSWR(
-    getLabelsKey(),
+    options?.enabled === false ? null : getLabelsKey(),
     () => contactsService.getLabels(),
     { revalidateOnFocus: false }
   );

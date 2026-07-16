@@ -1,5 +1,5 @@
 // src/App.tsx - CRM + WhatsApp Application
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { SWRConfig } from "swr";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -13,53 +13,64 @@ import { ModuleProtectedRoute } from "@/components/ModuleProtectedRoute";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { swrConfig } from "@/lib/swrConfig";
 import { authService } from "@/services/authService";
+
+// Eagerly loaded: entry pages every session needs immediately
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
-import { CRMLeads } from "./pages/CRMLeads";
-import { CRMLeadGroups } from "./pages/CRMLeadGroups";
-import { CRMActivities } from "./pages/CRMActivities";
-import { CRMLeadStatuses } from "./pages/CRMLeadStatuses";
-import { CRMFieldConfigurations } from "./pages/CRMFieldConfigurations";
-import { CRMTasks } from "./pages/CRMTasks";
-import { Meetings } from "./pages/Meetings";
-import { LeadDetailsPage } from "./pages/LeadDetailsPage";
-import Contacts from "./pages/Contacts";
-import Chats from "./pages/Chats";
-import Groups from "./pages/Groups";
-import Templates from "./pages/Templates";
-import Campaigns from "./pages/Campaigns";
-import Flows from "./pages/Flows";
-import FlowEditor from "./pages/FlowEditor";
-import BotFlows from "./pages/BotFlows";
-import BotFlowBuilder from "./pages/BotFlowBuilder";
-import QRCodes from "./pages/QRCodes";
-import WhatsAppOnboarding from "./pages/WhatsAppOnboarding";
-import Scheduling from "./pages/Scheduling";
+
+// Route-level code splitting: every other page loads on demand, so the
+// initial bundle no longer ships the flow editors, campaign builders, etc.
+const CRMLeads = lazy(() => import("./pages/CRMLeads").then(m => ({ default: m.CRMLeads })));
+const CRMLeadGroups = lazy(() => import("./pages/CRMLeadGroups").then(m => ({ default: m.CRMLeadGroups })));
+const CRMActivities = lazy(() => import("./pages/CRMActivities").then(m => ({ default: m.CRMActivities })));
+const CRMLeadStatuses = lazy(() => import("./pages/CRMLeadStatuses").then(m => ({ default: m.CRMLeadStatuses })));
+const CRMFieldConfigurations = lazy(() => import("./pages/CRMFieldConfigurations").then(m => ({ default: m.CRMFieldConfigurations })));
+const CRMTasks = lazy(() => import("./pages/CRMTasks").then(m => ({ default: m.CRMTasks })));
+const Meetings = lazy(() => import("./pages/Meetings").then(m => ({ default: m.Meetings })));
+const LeadDetailsPage = lazy(() => import("./pages/LeadDetailsPage").then(m => ({ default: m.LeadDetailsPage })));
+const Contacts = lazy(() => import("./pages/Contacts"));
+const Chats = lazy(() => import("./pages/Chats"));
+const Groups = lazy(() => import("./pages/Groups"));
+const Templates = lazy(() => import("./pages/Templates"));
+const Campaigns = lazy(() => import("./pages/Campaigns"));
+const Flows = lazy(() => import("./pages/Flows"));
+const FlowEditor = lazy(() => import("./pages/FlowEditor"));
+const BotFlows = lazy(() => import("./pages/BotFlows"));
+const BotFlowBuilder = lazy(() => import("./pages/BotFlowBuilder"));
+const QRCodes = lazy(() => import("./pages/QRCodes"));
+const WhatsAppOnboarding = lazy(() => import("./pages/WhatsAppOnboarding"));
+const Scheduling = lazy(() => import("./pages/Scheduling"));
+const Users = lazy(() => import("./pages/Users").then(m => ({ default: m.Users })));
+const Roles = lazy(() => import("./pages/Roles").then(m => ({ default: m.Roles })));
+const Debug = lazy(() => import("./pages/Debug").then(m => ({ default: m.Debug })));
+const AdminSettings = lazy(() => import("./pages/AdminSettings").then(m => ({ default: m.AdminSettings })));
+const Integrations = lazy(() => import("./pages/Integrations"));
+const WorkflowEditor = lazy(() => import("./pages/WorkflowEditor"));
+const WorkflowLogs = lazy(() => import("./pages/WorkflowLogs").then(m => ({ default: m.WorkflowLogs })));
+const CRMCampaigns = lazy(() => import("./pages/CRMCampaigns").then(m => ({ default: m.CRMCampaigns })));
+const CRMCampaignDetail = lazy(() => import("./pages/CRMCampaignDetail").then(m => ({ default: m.CRMCampaignDetail })));
+const CRMSequences = lazy(() => import("./pages/CRMSequences").then(m => ({ default: m.CRMSequences })));
+const CallLogsPage = lazy(() => import("./pages/telephony/CallLogsPage").then(m => ({ default: m.CallLogsPage })));
+const SMSLogsPage = lazy(() => import("./pages/telephony/SMSLogsPage").then(m => ({ default: m.SMSLogsPage })));
+const CallerIDsPage = lazy(() => import("./pages/telephony/CallerIDsPage").then(m => ({ default: m.CallerIDsPage })));
+const BreaksPage = lazy(() => import("./pages/telephony/BreaksPage").then(m => ({ default: m.BreaksPage })));
+const CallbacksPage = lazy(() => import("./pages/telephony/CallbacksPage").then(m => ({ default: m.CallbacksPage })));
+const OAuthCallback = lazy(() => import("./pages/OAuthCallback").then(m => ({ default: m.OAuthCallback })));
 
 import { ThemeSync } from "@/components/ThemeSync";
-import { Users } from "./pages/Users";
-import { Roles } from "./pages/Roles";
-import { Debug } from "./pages/Debug";
-import { AdminSettings } from "./pages/AdminSettings";
-import Integrations from "./pages/Integrations";
-import WorkflowEditor from "./pages/WorkflowEditor";
-import { WorkflowLogs } from "./pages/WorkflowLogs";
-import { CRMCampaigns } from "./pages/CRMCampaigns";
-import { CRMCampaignDetail } from "./pages/CRMCampaignDetail";
-import { CRMSequences } from "./pages/CRMSequences";
-import { CallLogsPage } from "./pages/telephony/CallLogsPage";
-import { SMSLogsPage } from "./pages/telephony/SMSLogsPage";
-import { CallerIDsPage } from "./pages/telephony/CallerIDsPage";
-import { BreaksPage } from "./pages/telephony/BreaksPage";
-import { CallbacksPage } from "./pages/telephony/CallbacksPage";
-
 import { WebSocketProvider } from "./context/WebSocketProvider";
 import { RealtimeChatProvider } from "./context/RealtimeChatProvider";
-import { OAuthCallback } from "./pages/OAuthCallback";
 import { TelephonyProvider } from "./context/TelephonyProvider";
 import { Softphone } from "./components/telephony/Softphone";
 import { useAuth } from "@/hooks/useAuth";
+
+// Lightweight fallback shown while a lazy route chunk downloads
+const RouteFallback = () => (
+  <div className="flex items-center justify-center h-full w-full py-24">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+  </div>
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -103,6 +114,7 @@ const AppLayout = () => {
         <div className="flex flex-col flex-1 overflow-hidden">
           <UniversalHeader onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
           <main className="flex-1 overflow-auto">
+            <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
 
@@ -157,6 +169,7 @@ const AppLayout = () => {
               {/* 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </main>
         </div>
       </div>
