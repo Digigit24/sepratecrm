@@ -12,6 +12,8 @@ import {
   LogoutResponse,
   User 
 } from '@/types/authTypes';
+import { hasUserPermission, isAdminUser } from '@/lib/permissions';
+import type { PermissionKeyInput } from '@/types/permissions';
 
 const USER_KEY = 'celiyo_user';
 
@@ -57,6 +59,11 @@ class AuthService {
 
       // Decode JWT to get tenant info and modules
       const decoded = parseJwt(access);
+      const roles = Array.isArray(userData.roles) && userData.roles.length > 0
+        ? userData.roles
+        : (Array.isArray(decoded?.roles)
+          ? decoded.roles.map((role: string, index: number) => ({ id: role || String(index), name: role }))
+          : []);
       console.log('🔍 Decoded JWT:', decoded);
 
       // Build proper user object with tenant structure
@@ -69,8 +76,11 @@ class AuthService {
           slug: decoded?.tenant_slug || '',
           enabled_modules: decoded?.enabled_modules || []
         },
-        roles: userData.roles || [],
-        preferences: userData.preferences || {}
+        roles,
+        preferences: userData.preferences || {},
+        permissions: userData.permissions || decoded?.permissions || {},
+        is_super_admin: Boolean(userData.is_super_admin ?? decoded?.is_super_admin),
+        isSuperAdmin: Boolean(userData.isSuperAdmin ?? userData.is_super_admin ?? decoded?.is_super_admin),
       };
 
       console.log('👤 Constructed user object:', user);
@@ -333,7 +343,23 @@ class AuthService {
     if (!userJson) return null;
     
     try {
-      return JSON.parse(userJson);
+      const user = JSON.parse(userJson);
+      const access = tokenManager.getAccessToken();
+      const decoded: any = access ? parseJwt(access) : null;
+
+      if (decoded) {
+        user.permissions = user.permissions || decoded.permissions || {};
+        user.is_super_admin = Boolean(user.is_super_admin ?? decoded.is_super_admin);
+        user.isSuperAdmin = Boolean(user.isSuperAdmin ?? user.is_super_admin ?? decoded.is_super_admin);
+        if ((!Array.isArray(user.roles) || user.roles.length === 0) && Array.isArray(decoded.roles)) {
+          user.roles = decoded.roles.map((role: string, index: number) => ({ id: role || String(index), name: role }));
+        }
+        if (user.tenant && Array.isArray(decoded.enabled_modules)) {
+          user.tenant.enabled_modules = user.tenant.enabled_modules || decoded.enabled_modules;
+        }
+      }
+
+      return user;
     } catch {
       return null;
     }
@@ -363,6 +389,11 @@ class AuthService {
   hasModuleAccess(module: string): boolean {
     const user = this.getUser();
 
+    if (isAdminUser(user)) {
+      console.log(`ðŸ”‘ Module access for "${module}": Granted (Admin) âœ“`);
+      return true;
+    }
+
     // If user object already has structured tenant with enabled_modules, use it
     const tenant: any = (user as any)?.tenant;
     if (tenant && typeof tenant === 'object' && Array.isArray(tenant.enabled_modules)) {
@@ -386,6 +417,14 @@ class AuthService {
     console.log(`🔑 Module access check for "${module}":`, hasAccess ? 'Granted ✓' : 'Denied ✗');
     
     return hasAccess;
+  }
+
+  isAdminLike(): boolean {
+    return isAdminUser(this.getUser());
+  }
+
+  hasPermission(permissionKey: PermissionKeyInput): boolean {
+    return hasUserPermission(this.getUser(), permissionKey);
   }
 
   // Get user's tenant information

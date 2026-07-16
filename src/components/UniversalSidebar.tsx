@@ -56,6 +56,7 @@ interface MenuItem {
   badge?: number;
   children?: MenuItem[];
   module?: string;
+  permission?: string;
 }
 
 interface MenuSection {
@@ -83,15 +84,15 @@ const menuSections: MenuSection[] = [
         icon: MessageCircle,
         module: "whatsapp",
         children: [
-          { id: "whatsapp-onboarding", label: "Onboarding", icon: UserPlus, path: "/whatsapp/onboarding" },
-          { id: "whatsapp-contacts", label: "Contacts", icon: Users, path: "/whatsapp/contacts" },
-          { id: "whatsapp-chats", label: "Chats", icon: MessageCircle, path: "/whatsapp/chats" },
-          { id: "whatsapp-groups", label: "Groups", icon: Users, path: "/whatsapp/groups" },
-          { id: "whatsapp-templates", label: "Templates", icon: FileText, path: "/whatsapp/templates" },
-          { id: "whatsapp-campaigns", label: "Campaigns", icon: Send, path: "/whatsapp/campaigns" },
-          { id: "whatsapp-flows", label: "Flows", icon: Workflow, path: "/whatsapp/flows" },
-          { id: "whatsapp-bot-flows", label: "Bot Flows", icon: Bot, path: "/whatsapp/bot-flows" },
-          { id: "whatsapp-qrcode", label: "QR Codes", icon: QrCode, path: "/whatsapp/qrcode" },
+          { id: "whatsapp-onboarding", label: "Onboarding", icon: UserPlus, path: "/whatsapp/onboarding", permission: "whatsapp.settings.view" },
+          { id: "whatsapp-contacts", label: "Contacts", icon: Users, path: "/whatsapp/contacts", permission: "whatsapp.messages.view" },
+          { id: "whatsapp-chats", label: "Chats", icon: MessageCircle, path: "/whatsapp/chats", permission: "whatsapp.messages.view" },
+          { id: "whatsapp-groups", label: "Groups", icon: Users, path: "/whatsapp/groups", permission: "whatsapp.messages.view" },
+          { id: "whatsapp-templates", label: "Templates", icon: FileText, path: "/whatsapp/templates", permission: "whatsapp.templates.view" },
+          { id: "whatsapp-campaigns", label: "Campaigns", icon: Send, path: "/whatsapp/campaigns", permission: "whatsapp.campaigns.view" },
+          { id: "whatsapp-flows", label: "Flows", icon: Workflow, path: "/whatsapp/flows", permission: "whatsapp.settings.view" },
+          { id: "whatsapp-bot-flows", label: "Bot Flows", icon: Bot, path: "/whatsapp/bot-flows", permission: "whatsapp.settings.view" },
+          { id: "whatsapp-qrcode", label: "QR Codes", icon: QrCode, path: "/whatsapp/qrcode", permission: "whatsapp.settings.view" },
         ],
       },
     ],
@@ -105,15 +106,15 @@ const menuSections: MenuSection[] = [
         icon: Building2,
         module: "crm",
         children: [
-          { id: "crm-leads", label: "Leads", icon: Users, path: "/crm/leads" },
-          { id: "crm-groups", label: "Lead Groups", icon: Layers, path: "/crm/groups" },
-          { id: "crm-activities", label: "Activities", icon: Activity, path: "/crm/activities" },
-          { id: "crm-statuses", label: "Lead Statuses", icon: ClipboardList, path: "/crm/statuses" },
-          { id: "crm-tasks", label: "Tasks", icon: CheckSquare, path: "/crm/tasks" },
-          { id: "crm-meetings", label: "Meetings", icon: Calendar, path: "/crm/meetings" },
-          { id: "crm-settings", label: "Settings", icon: Settings2, path: "/crm/settings" },
-          { id: "crm-campaigns", label: "WA Campaigns", icon: Megaphone, path: "/crm/campaigns" },
-          { id: "crm-sequences", label: "WA Sequences", icon: Zap, path: "/crm/sequences" },
+          { id: "crm-leads", label: "Leads", icon: Users, path: "/crm/leads", permission: "crm.leads.view" },
+          { id: "crm-groups", label: "Lead Groups", icon: Layers, path: "/crm/groups", permission: "crm.settings.view" },
+          { id: "crm-activities", label: "Activities", icon: Activity, path: "/crm/activities", permission: "crm.activities.view" },
+          { id: "crm-statuses", label: "Lead Statuses", icon: ClipboardList, path: "/crm/statuses", permission: "crm.settings.view" },
+          { id: "crm-tasks", label: "Tasks", icon: CheckSquare, path: "/crm/tasks", permission: "crm.tasks.view" },
+          { id: "crm-meetings", label: "Meetings", icon: Calendar, path: "/crm/meetings", permission: "crm.meetings.view" },
+          { id: "crm-settings", label: "Settings", icon: Settings2, path: "/crm/settings", permission: "crm.settings.view" },
+          { id: "crm-campaigns", label: "WA Campaigns", icon: Megaphone, path: "/crm/campaigns", permission: "whatsapp.campaigns.view" },
+          { id: "crm-sequences", label: "WA Sequences", icon: Zap, path: "/crm/sequences", permission: "whatsapp.settings.view" },
         ],
       },
     ],
@@ -127,11 +128,11 @@ const menuSections: MenuSection[] = [
         icon: PhoneCall,
         module: "telephony",
         children: [
-          { id: "telephony-calls", label: "Call Logs", icon: PhoneCall, path: "/telephony/calls" },
-          { id: "telephony-sms", label: "SMS Logs", icon: MessageSquare, path: "/telephony/sms" },
-          { id: "telephony-caller-ids", label: "Caller IDs", icon: PhoneOutgoing, path: "/telephony/caller-ids" },
-          { id: "telephony-breaks", label: "Breaks", icon: Coffee, path: "/telephony/breaks" },
-          { id: "telephony-callbacks", label: "Callbacks", icon: PhoneForwarded, path: "/telephony/callbacks" },
+          { id: "telephony-calls", label: "Call Logs", icon: PhoneCall, path: "/telephony/calls", permission: "telephony.calls.view" },
+          { id: "telephony-sms", label: "SMS Logs", icon: MessageSquare, path: "/telephony/sms", permission: "telephony.sms.view" },
+          { id: "telephony-caller-ids", label: "Caller IDs", icon: PhoneOutgoing, path: "/telephony/caller-ids", permission: "telephony.settings.view" },
+          { id: "telephony-breaks", label: "Breaks", icon: Coffee, path: "/telephony/breaks", permission: "telephony.agents.view" },
+          { id: "telephony-callbacks", label: "Callbacks", icon: PhoneForwarded, path: "/telephony/callbacks", permission: "telephony.callbacks.view" },
         ],
       },
     ],
@@ -145,8 +146,8 @@ const menuSections: MenuSection[] = [
         icon: Plug,
         module: "integrations",
         children: [
-          { id: "integrations-overview", label: "Overview", icon: LayoutDashboard, path: "/integrations" },
-          { id: "integrations-workflows", label: "Workflows", icon: Zap, path: "/integrations" },
+          { id: "integrations-overview", label: "Overview", icon: LayoutDashboard, path: "/integrations", permission: "integrations.connections.view" },
+          { id: "integrations-workflows", label: "Workflows", icon: Zap, path: "/integrations", permission: "integrations.workflows.view" },
         ],
       },
       {
@@ -155,10 +156,10 @@ const menuSections: MenuSection[] = [
         icon: Shield,
         module: "admin",
         children: [
-          { id: "admin-users", label: "Users", icon: UserCog, path: "/admin/users" },
-          { id: "admin-roles", label: "Roles", icon: ShieldCheck, path: "/admin/roles" },
-          { id: "admin-settings", label: "Settings", icon: Settings2, path: "/admin/settings" },
-          { id: "admin-debug", label: "Debug", icon: Bug, path: "/admin/debug" },
+          { id: "admin-users", label: "Users", icon: UserCog, path: "/admin/users", permission: "admin.users.view" },
+          { id: "admin-roles", label: "Roles", icon: ShieldCheck, path: "/admin/roles", permission: "admin.roles.view" },
+          { id: "admin-settings", label: "Settings", icon: Settings2, path: "/admin/settings", permission: "admin.settings.view" },
+          { id: "admin-debug", label: "Debug", icon: Bug, path: "/admin/debug", permission: "admin.settings.view" },
         ],
       },
     ],
@@ -179,7 +180,7 @@ export function UniversalSidebar({
   setMobileOpen,
 }: UniversalSidebarProps) {
   const location = useLocation();
-  const { user, hasModuleAccess } = useAuth();
+  const { user, hasModuleAccess, hasPermission, isAdminLike } = useAuth();
   const { useCurrentTenant } = useTenant();
   const { data: currentTenant, isLoading: isTenantLoading } = useCurrentTenant();
   const [openSections, setOpenSections] = useState<string[]>(["masters"]);
@@ -192,8 +193,15 @@ export function UniversalSidebar({
   const tenantName = tenantData?.name || 'HMS';
 
   const filterMenuItem = (item: MenuItem): boolean => {
-    if (!item.module) return true;
-    return hasModuleAccess(item.module);
+    if (isAdminLike()) return true;
+
+    if (item.module && !hasModuleAccess(item.module)) return false;
+    if (item.permission && !hasPermission(item.permission)) return false;
+    if (item.children) {
+      return item.children.some((child) => filterMenuItem({ ...child, module: child.module || item.module }));
+    }
+
+    return true;
   };
 
   useEffect(() => {
@@ -229,8 +237,13 @@ export function UniversalSidebar({
 
   const renderMenuItem = (item: MenuItem) => {
     if (item.children) {
+      const visibleChildren = item.children.filter((child) =>
+        filterMenuItem({ ...child, module: child.module || item.module })
+      );
+      if (visibleChildren.length === 0) return null;
+
       const isOpen = openSections.includes(item.id);
-      const hasActiveChild = isParentActive(item.children);
+      const hasActiveChild = isParentActive(visibleChildren);
 
       if (collapsed) {
         return (
@@ -255,7 +268,7 @@ export function UniversalSidebar({
                 <div className="px-3 pb-2 text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
                   {item.label}
                 </div>
-                {item.children.map((child) => (
+                {visibleChildren.map((child) => (
                   <Link key={child.id} to={child.path || "#"} onClick={closeMobileSidebar}>
                     <div
                       className={cn(
@@ -309,7 +322,7 @@ export function UniversalSidebar({
           {!collapsed && (
             <CollapsibleContent className="mt-0.5">
               <div className="ml-3 pl-3 border-l border-border/60 space-y-0.5">
-                {item.children.map((child) => (
+                {visibleChildren.map((child) => (
                   <Link
                     key={child.id}
                     to={child.path || "#"}

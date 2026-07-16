@@ -13,6 +13,7 @@ import LeadActivities from './lead-drawer/LeadActivities';
 import { LeadTasks } from './lead-drawer/LeadTasks';
 import { LeadMeetings } from './lead-drawer/LeadMeetings';
 import { SideDrawer, type DrawerActionButton, type DrawerHeaderAction } from '@/components/SideDrawer';
+import { LeadDetailsPage } from '@/pages/LeadDetailsPage';
 
 // Form handle interface for collecting form values
 export interface LeadFormHandle {
@@ -79,6 +80,10 @@ export function LeadsFormDrawer({
     setActiveTab('details');
     onOpenChange(false);
   }, [onOpenChange]);
+
+  const handleOpenFullPage = useCallback((id: number) => {
+    window.open(`/crm/leads/${id}`, '_blank', 'noopener,noreferrer');
+  }, []);
 
   const handleSwitchToEdit = useCallback(() => {
     setCurrentMode('edit');
@@ -317,6 +322,39 @@ export function LeadsFormDrawer({
       </Tabs>
     </div>
   );
+
+  if (currentMode !== 'create' && leadId) {
+    return (
+      <SideDrawer
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) handleClose();
+          else onOpenChange(true);
+        }}
+        title="Lead Details"
+        size="2xl"
+        rawContent
+        hideHeader
+        contentClassName="overflow-auto"
+        resizable={true}
+        minWidth={560}
+        maxWidth={1280}
+        storageKey="lead-detail-drawer-width"
+      >
+        <LeadDetailsPage
+          leadIdOverride={leadId}
+          embedded
+          onBack={handleClose}
+          onOpenFullPage={handleOpenFullPage}
+          onSaved={handleSuccess}
+          onDeleted={(id) => {
+            onDelete?.(id);
+            handleSuccess();
+          }}
+        />
+      </SideDrawer>
+    );
+  }
 
   return (
     <SideDrawer

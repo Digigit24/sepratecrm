@@ -11,7 +11,7 @@ import {
   ArrowLeft, Phone, Mail, Loader2, Calendar, Clock,
   MapPin, Plus, Check, Trash2, MessageSquare,
   MoreHorizontal, ChevronRight, Building2, User2, Star,
-  Activity, Paperclip, PhoneCall, Zap,
+  Activity, Paperclip, PhoneCall, Zap, ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, isPast, isFuture, isToday } from 'date-fns';
@@ -128,7 +128,23 @@ function QuickAction({
 }
 
 // ── Main component ───────────────────────────────────────────────────
-export const LeadDetailsPage = () => {
+interface LeadDetailsPageProps {
+  leadIdOverride?: number | null;
+  embedded?: boolean;
+  onBack?: () => void;
+  onOpenFullPage?: (leadId: number) => void;
+  onSaved?: () => void;
+  onDeleted?: (leadId: number) => void;
+}
+
+export const LeadDetailsPage = ({
+  leadIdOverride,
+  embedded = false,
+  onBack,
+  onOpenFullPage,
+  onSaved,
+  onDeleted,
+}: LeadDetailsPageProps = {}) => {
   const { leadId } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
@@ -152,7 +168,7 @@ export const LeadDetailsPage = () => {
   const [whatsappDrawerOpen, setWhatsappDrawerOpen] = useState(false);
 
   const { useLead, useLeadStatuses, updateLead, deleteLead, patchLead } = useCRM();
-  const leadIdNum = leadId ? parseInt(leadId, 10) : null;
+  const leadIdNum = leadIdOverride ?? (leadId ? parseInt(leadId, 10) : null);
   const { useMeetingsByLead } = useMeeting();
 
   const { data: lead, error: leadError, isLoading: leadLoading, mutate: mutateLead } = useLead(leadIdNum);
@@ -169,7 +185,22 @@ export const LeadDetailsPage = () => {
     if (lead?.notes !== undefined) setNotes(lead.notes || '');
   }, [lead?.id]);
 
-  const handleBack = useCallback(() => navigate('/crm/leads'), [navigate]);
+  const handleBack = useCallback(() => {
+    if (embedded) {
+      onBack?.();
+      return;
+    }
+    navigate('/crm/leads');
+  }, [embedded, navigate, onBack]);
+
+  const handleOpenFullPage = useCallback(() => {
+    if (!lead) return;
+    if (onOpenFullPage) {
+      onOpenFullPage(lead.id);
+      return;
+    }
+    window.open(`/crm/leads/${lead.id}`, '_blank', 'noopener,noreferrer');
+  }, [lead, onOpenFullPage]);
 
   const handleSave = useCallback(async () => {
     if (!lead || !formRef.current) return;
@@ -179,13 +210,14 @@ export const LeadDetailsPage = () => {
       if (!formValues) { toast.error('Please fill in all required fields'); return; }
       await updateLead(lead.id, { ...formValues, notes });
       await mutateLead();
+      onSaved?.();
       toast.success('Lead saved');
     } catch (error: any) {
       toast.error(error.message || 'Failed to save lead');
     } finally {
       setIsSaving(false);
     }
-  }, [lead, updateLead, mutateLead, notes]);
+  }, [lead, updateLead, mutateLead, notes, onSaved]);
 
   const handleNotesChange = useCallback((value: string) => {
     setNotes(value);
@@ -208,13 +240,18 @@ export const LeadDetailsPage = () => {
       setIsDeleting(true);
       await deleteLead(lead.id);
       toast.success('Lead deleted');
+      onDeleted?.(lead.id);
+      if (embedded) {
+        onBack?.();
+        return;
+      }
       navigate('/crm/leads');
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete lead');
     } finally {
       setIsDeleting(false);
     }
-  }, [lead, deleteLead, navigate]);
+  }, [lead, deleteLead, navigate, embedded, onBack, onDeleted]);
 
   const handleCall = useCallback(() => {
     if (!lead?.phone) return;
@@ -317,7 +354,11 @@ export const LeadDetailsPage = () => {
   const initials = getInitials(lead.name);
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col min-h-full bg-background">
+    <Tabs
+      value={activeTab}
+      onValueChange={setActiveTab}
+      className={cn('flex flex-col bg-background', embedded ? 'h-full min-h-0' : 'min-h-full')}
+    >
 
       {/* ══════════════════════════════════════════════════════════════
           STICKY HEADER
@@ -382,6 +423,10 @@ export const LeadDetailsPage = () => {
             <div className="w-px h-4 bg-border/60 mx-1" />
 
             <QuickAction icon={Trash2} label="Delete lead" onClick={handleDelete} color="red" disabled={isDeleting} />
+
+            {embedded && (
+              <QuickAction icon={ExternalLink} label="Open page" onClick={handleOpenFullPage} color="default" />
+            )}
 
             <Button
               onClick={handleSave}
@@ -666,6 +711,7 @@ export const LeadDetailsPage = () => {
       <LeadWhatsAppDrawer
         open={whatsappDrawerOpen}
         onOpenChange={setWhatsappDrawerOpen}
+        onBack={() => setWhatsappDrawerOpen(false)}
         leadId={lead.id}
         leadName={lead.name}
         leadPhone={lead.phone}

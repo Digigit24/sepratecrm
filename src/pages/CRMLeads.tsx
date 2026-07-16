@@ -44,16 +44,23 @@ import type { RowActions } from '@/components/DataTable';
 import { leadStatusCache } from '@/lib/leadStatusCache';
 import { STANDARD_FILTER_DEFS } from '@/types/filterTypes';
 import type { ActiveFilters, FilterFieldDef, FilterFieldType } from '@/types/filterTypes';
+import { PERMISSIONS } from '@/constants/permissions';
 
 type DrawerMode = 'view' | 'edit' | 'create';
 type ViewMode = 'list' | 'kanban' | 'followups';
 
 export const CRMLeads: React.FC = () => {
   const navigate = useNavigate();
-  const { user, hasModuleAccess } = useAuth();
+  const { user, hasModuleAccess, hasPermission } = useAuth();
   const { hasCRMAccess, useLeads, useLeadsInfinite, useLeadStatuses, useFieldConfigurations, deleteLead, patchLead, updateLeadStatus, deleteLeadStatus, bulkCreateLeads, bulkDeleteLeads, bulkUpdateLeadStatus, exportLeads, importLeads, useLeadGroups, addLeadsToGroup } = useCRM();
   const { formatCurrency: formatCurrencyDynamic, getCurrencyCode, getCurrencySymbol } = useCurrency();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canCreateLead = hasPermission(PERMISSIONS['crm.leads.create']);
+  const canEditLead = hasPermission(PERMISSIONS['crm.leads.edit']);
+  const canDeleteLead = hasPermission(PERMISSIONS['crm.leads.delete']);
+  const canExportLeads = hasPermission(PERMISSIONS['crm.leads.export']);
+  const canManageSettings = hasPermission(PERMISSIONS['crm.settings.view']);
+  const canUseWhatsApp = hasModuleAccess('whatsapp') && hasPermission(PERMISSIONS['whatsapp.messages.view']);
 
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [queryParams, setQueryParams] = useState<LeadsQueryParams>({
@@ -212,27 +219,41 @@ export const CRMLeads: React.FC = () => {
   }
 
   const handleCreateLead = useCallback((statusId?: number) => {
+    if (!canCreateLead) {
+      toast.error('Permission not granted for this module');
+      return;
+    }
     setSelectedLeadId(null);
     setDrawerMode('create');
     setDrawerOpen(true);
-  }, []);
+  }, [canCreateLead]);
 
   const handleCreateLeadClick = useCallback(() => {
     handleCreateLead();
   }, [handleCreateLead]);
 
   const handleViewLead = useCallback((lead: Lead) => {
-    navigate(`/crm/leads/${lead.id}`);
-  }, [navigate]);
-
-  const handleEditLead = useCallback((lead: Lead) => {
     setSelectedLeadId(lead.id);
-    setDrawerMode('edit');
+    setDrawerMode('view');
     setDrawerOpen(true);
   }, []);
 
+  const handleEditLead = useCallback((lead: Lead) => {
+    if (!canEditLead) {
+      toast.error('Permission not granted for this module');
+      return;
+    }
+    setSelectedLeadId(lead.id);
+    setDrawerMode('edit');
+    setDrawerOpen(true);
+  }, [canEditLead]);
+
   const handleDeleteLead = useCallback(
     async (lead: Lead) => {
+      if (!canDeleteLead) {
+        toast.error('Permission not granted for this module');
+        return;
+      }
       try {
         await deleteLead(lead.id);
         toast.success(`Lead "${lead.name}" deleted successfully`);
@@ -242,18 +263,26 @@ export const CRMLeads: React.FC = () => {
         throw error;
       }
     },
-    [deleteLead, mutate]
+    [canDeleteLead, deleteLead, mutate]
   );
 
   const handleBulkDelete = useCallback(() => {
+    if (!canDeleteLead) {
+      toast.error('Permission not granted for this module');
+      return;
+    }
     if (selectedLeadIds.size === 0) {
       toast.error('No leads selected');
       return;
     }
     setBulkDeleteConfirmOpen(true);
-  }, [selectedLeadIds]);
+  }, [canDeleteLead, selectedLeadIds]);
 
   const handleBulkDeleteConfirmed = useCallback(async () => {
+    if (!canDeleteLead) {
+      toast.error('Permission not granted for this module');
+      return;
+    }
     const leadIdsArray = Array.from(selectedLeadIds);
     const deletedSet = new Set(leadIdsArray);
 
@@ -284,9 +313,13 @@ export const CRMLeads: React.FC = () => {
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedLeadIds, bulkDeleteLeads, mutate, mutateInfinite]);
+  }, [canDeleteLead, selectedLeadIds, bulkDeleteLeads, mutate, mutateInfinite]);
 
   const handleBulkStatusChange = useCallback(async (newStatusId: number) => {
+    if (!canEditLead) {
+      toast.error('Permission not granted for this module');
+      return;
+    }
     if (selectedLeadIds.size === 0) {
       toast.error('No leads selected');
       return;
@@ -306,9 +339,13 @@ export const CRMLeads: React.FC = () => {
     } finally {
       setIsBulkUpdatingStatus(false);
     }
-  }, [selectedLeadIds, bulkUpdateLeadStatus, mutate]);
+  }, [canEditLead, selectedLeadIds, bulkUpdateLeadStatus, mutate]);
 
   const handleBulkAddToGroup = useCallback(async (groupId: number, groupName: string) => {
+    if (!canManageSettings) {
+      toast.error('Permission not granted for this module');
+      return;
+    }
     if (selectedLeadIds.size === 0) {
       toast.error('No leads selected');
       return;
@@ -325,7 +362,7 @@ export const CRMLeads: React.FC = () => {
     } finally {
       setIsBulkAddingToGroup(false);
     }
-  }, [selectedLeadIds, addLeadsToGroup, mutate]);
+  }, [canManageSettings, selectedLeadIds, addLeadsToGroup, mutate]);
 
   const toggleLeadSelection = useCallback((leadId: number) => {
     setSelectedLeadIds((prev) => {
@@ -352,8 +389,9 @@ export const CRMLeads: React.FC = () => {
 
   const handleDrawerSuccess = useCallback(() => {
     mutate();
+    mutateInfinite();
     mutateStatuses();
-  }, [mutate, mutateStatuses]);
+  }, [mutate, mutateInfinite, mutateStatuses]);
 
   const handleModeChange = useCallback((mode: DrawerMode) => {
     setDrawerMode(mode);
@@ -575,6 +613,10 @@ export const CRMLeads: React.FC = () => {
   }, []);
 
   const handleExportLeads = useCallback(async () => {
+    if (!canExportLeads) {
+      toast.error('Permission not granted for this module');
+      return;
+    }
     try {
       if (!leadsData || leadsData.count === 0) {
         toast.error('No leads to export');
@@ -623,14 +665,23 @@ export const CRMLeads: React.FC = () => {
     } catch (error: any) {
       toast.error(error.message || 'Failed to export leads');
     }
-  }, [leadsData, queryParams, activeFilters, configurationsData]);
+  }, [canExportLeads, leadsData, queryParams, activeFilters, configurationsData]);
 
   const handleImportClick = useCallback(() => {
+    if (!canCreateLead) {
+      toast.error('Permission not granted for this module');
+      return;
+    }
     fileInputRef.current?.click();
-  }, []);
+  }, [canCreateLead]);
 
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (!canCreateLead) {
+        toast.error('Permission not granted for this module');
+        event.target.value = '';
+        return;
+      }
       const file = event.target.files?.[0];
       if (!file) return;
 
@@ -651,7 +702,7 @@ export const CRMLeads: React.FC = () => {
 
       event.target.value = '';
     },
-    []
+    [canCreateLead]
   );
 
   const handleImportConfirm = useCallback(
@@ -1329,12 +1380,13 @@ export const CRMLeads: React.FC = () => {
         </div>
         <div className="flex items-center gap-1.5">
           {/* Bulk Actions - shown when leads are selected */}
-          {selectedLeadIds.size > 0 && (
+          {selectedLeadIds.size > 0 && (canEditLead || canManageSettings || canDeleteLead) && (
             <div className="flex items-center gap-1.5 px-2 py-1 bg-muted rounded-md">
               <span className="text-xs font-medium">
                 {selectedLeadIds.size} selected
               </span>
               <div className="w-px h-3 bg-border" />
+              {canEditLead && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1372,7 +1424,9 @@ export const CRMLeads: React.FC = () => {
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+              )}
               {/* Bulk Add to Group */}
+              {canManageSettings && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1413,21 +1467,24 @@ export const CRMLeads: React.FC = () => {
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+              )}
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleBulkDelete}
-                disabled={isDeleting}
-                className="h-6 text-xs px-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
-                {isDeleting ? (
-                  <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                ) : (
-                  <Trash2 className="h-3 w-3 mr-1" />
-                )}
-                Delete
-              </Button>
+              {canDeleteLead && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                  className="h-6 text-xs px-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  {isDeleting ? (
+                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3 w-3 mr-1" />
+                  )}
+                  Delete
+                </Button>
+              )}
             </div>
           )}
 
@@ -1462,25 +1519,31 @@ export const CRMLeads: React.FC = () => {
                   </>
                 )}
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleImportClick}>
-                <Upload className="h-4 w-4 mr-2" />
-                Import Leads
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => handleExportLeads()}
-                disabled={!leadsData || leadsData.count === 0}
-              >
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Export as Excel
-              </DropdownMenuItem>
+              {(canCreateLead || canExportLeads) && <DropdownMenuSeparator />}
+              {canCreateLead && (
+                <DropdownMenuItem onClick={handleImportClick}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import Leads
+                </DropdownMenuItem>
+              )}
+              {canExportLeads && (
+                <DropdownMenuItem
+                  onClick={() => handleExportLeads()}
+                  disabled={!leadsData || leadsData.count === 0}
+                >
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Export as Excel
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button onClick={handleCreateLeadClick} size="sm" className="h-7 text-xs">
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            New Lead
-          </Button>
+          {canCreateLead && (
+            <Button onClick={handleCreateLeadClick} size="sm" className="h-7 text-xs">
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              New Lead
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1861,8 +1924,8 @@ export const CRMLeads: React.FC = () => {
             }}
             onToggleSelectAll={toggleAllLeads}
             onView={handleViewLead}
-            onEdit={handleEditLead}
-            onDelete={handleDeleteLead}
+            onEdit={canEditLead ? handleEditLead : undefined}
+            onDelete={canDeleteLead ? handleDeleteLead : undefined}
             rowClassName={(lead) =>
               lead.lead_score && lead.lead_score > 0
                 ? 'bg-green-50 dark:bg-green-950/30'
@@ -1870,36 +1933,40 @@ export const CRMLeads: React.FC = () => {
             }
             renderInlineActions={(lead) => (
               <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50"
-                      onClick={() => handleWhatsAppLead(lead)}
-                    >
-                      <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <p className="text-xs">Send WhatsApp Message</p>
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                      onClick={() => handleWhatsAppTemplateLead(lead)}
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <p className="text-xs">Send Template Message</p>
-                  </TooltipContent>
-                </Tooltip>
+                {canUseWhatsApp && (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50"
+                          onClick={() => handleWhatsAppLead(lead)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-xs">Send WhatsApp Message</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          onClick={() => handleWhatsAppTemplateLead(lead)}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-xs">Send Template Message</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </>
+                )}
               </>
             )}
           />
@@ -1910,13 +1977,13 @@ export const CRMLeads: React.FC = () => {
           filterParams={kanbanFilterParams}
           onViewLead={handleViewLead}
           onCallLead={handleCallLead}
-          onWhatsAppLead={handleWhatsAppLead}
-          onCreateLead={handleCreateLead}
-          onEditStatus={handleEditStatus}
-          onDeleteStatus={handleDeleteStatus}
-          onCreateStatus={handleCreateStatus}
-          onMoveStatus={handleMoveStatus}
-          onUpdateLeadStatus={handleUpdateLeadStatus}
+          onWhatsAppLead={canUseWhatsApp ? handleWhatsAppLead : undefined}
+          onCreateLead={canCreateLead ? handleCreateLead : undefined}
+          onEditStatus={canManageSettings ? handleEditStatus : undefined}
+          onDeleteStatus={canManageSettings ? handleDeleteStatus : undefined}
+          onCreateStatus={canManageSettings ? handleCreateStatus : undefined}
+          onMoveStatus={canManageSettings ? handleMoveStatus : undefined}
+          onUpdateLeadStatus={canEditLead ? handleUpdateLeadStatus : undefined}
         />
       )}
 

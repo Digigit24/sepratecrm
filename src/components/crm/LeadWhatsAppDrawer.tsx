@@ -1136,9 +1136,10 @@ interface LeadWhatsAppDrawerProps {
   leadId: number;
   leadName?: string;
   leadPhone?: string;
+  onBack?: () => void;
 }
 
-export function LeadWhatsAppDrawer({ open, onOpenChange, leadId, leadName, leadPhone }: LeadWhatsAppDrawerProps) {
+export function LeadWhatsAppDrawer({ open, onOpenChange, leadId, leadName, leadPhone, onBack }: LeadWhatsAppDrawerProps) {
   const [activeTab, setActiveTab]               = useState('chat');
   const [showContactPanel, setShowContactPanel] = useState(false);
   const initials = (leadName ?? '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -1151,6 +1152,8 @@ export function LeadWhatsAppDrawer({ open, onOpenChange, leadId, leadName, leadP
       description={leadPhone}
       size="lg"
       rawContent
+      onBack={onBack}
+      backLabel="Back to lead"
       headerActions={[{
         icon: showContactPanel ? PanelRightClose : PanelRightOpen,
         onClick: () => setShowContactPanel(v => !v),

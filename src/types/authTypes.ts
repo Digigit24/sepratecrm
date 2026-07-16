@@ -58,6 +58,9 @@ export interface User {
   tenant: Tenant;
   roles: Role[];
   preferences?: UserPreferences;
+  permissions?: Record<string, unknown>;
+  is_super_admin?: boolean;
+  isSuperAdmin?: boolean;
 }
 
 export interface LoginResponse {

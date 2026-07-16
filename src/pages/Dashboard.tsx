@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
+import useSWR from 'swr';
 import {
   Users,
   Loader2,
@@ -22,6 +23,8 @@ import {
 } from 'lucide-react';
 import { useCRM } from '@/hooks/useCRM';
 import { useMeeting } from '@/hooks/useMeeting';
+import { useAuth } from '@/hooks/useAuth';
+import { crmClient } from '@/lib/client';
 import {
   AreaChart,
   Area,
@@ -47,6 +50,7 @@ import {
   formatDistanceToNow,
 } from 'date-fns';
 import type { LeadStatus } from '@/types/crmTypes';
+import { PERMISSIONS } from '@/constants/permissions';
 
 // Generate chart data from a sinusoidal pattern
 const generateChartData = () => {
@@ -57,7 +61,7 @@ const generateChartData = () => {
   }));
 };
 
-const Dashboard = () => {
+const FullDashboard = () => {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const navigate = useNavigate();
@@ -583,6 +587,154 @@ const Dashboard = () => {
       </div>
     </div>
   );
+};
+
+const salesDashboardFetcher = async (url: string) => {
+  const response = await crmClient.get(url);
+  return response.data;
+};
+
+const SalesExecutiveDashboard = () => {
+  const navigate = useNavigate();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const { data, isLoading } = useSWR('/crm/leads/sales-dashboard/', salesDashboardFetcher);
+
+  const totals = data?.totals || {};
+  const recentLeads = data?.recent_leads || [];
+  const openTasks = data?.open_tasks || [];
+  const upcomingMeetings = data?.upcoming_meetings || [];
+  const statusBreakdown = data?.status_breakdown || [];
+  const cardClass = `rounded-lg border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`;
+  const mutedText = isDark ? 'text-gray-400' : 'text-gray-500';
+  const bodyText = isDark ? 'text-gray-200' : 'text-gray-800';
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const stats = [
+    { label: 'My Leads', value: totals.leads || 0, icon: Users },
+    { label: 'High Priority', value: totals.high_priority || 0, icon: AlertTriangle },
+    { label: 'Followups Due', value: totals.followups_due || 0, icon: CalendarClock },
+    { label: 'Open Tasks', value: openTasks.length || 0, icon: CheckCircle2 },
+  ];
+
+  return (
+    <div className={`min-h-screen p-4 md:p-6 ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
+      <div className="mx-auto max-w-7xl space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className={`text-2xl font-semibold ${bodyText}`}>My Sales Dashboard</h1>
+            <p className={`text-sm ${mutedText}`}>Your assigned leads, followups, meetings, and tasks.</p>
+          </div>
+          <button
+            onClick={() => navigate('/crm/leads')}
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+          >
+            <ArrowRight className="h-4 w-4" />
+            Open Leads
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {stats.map((stat) => (
+            <div key={stat.label} className={`${cardClass} p-4`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-xs font-medium ${mutedText}`}>{stat.label}</span>
+                <stat.icon className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className={`mt-3 text-2xl font-semibold ${bodyText}`}>{stat.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className={`${cardClass} p-4 lg:col-span-2`}>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className={`text-sm font-semibold ${bodyText}`}>Recent Leads</h2>
+              <button onClick={() => navigate('/crm/leads')} className="text-xs font-medium text-primary">View all</button>
+            </div>
+            <div className="space-y-2">
+              {recentLeads.length === 0 ? (
+                <p className={`text-sm ${mutedText}`}>No assigned leads yet.</p>
+              ) : recentLeads.map((lead: any) => (
+                <button
+                  key={lead.id}
+                  onClick={() => navigate(`/crm/leads/${lead.id}`)}
+                  className="flex w-full items-center justify-between rounded-md border border-border/60 px-3 py-2 text-left transition-colors hover:bg-muted/60"
+                >
+                  <div className="min-w-0">
+                    <div className={`truncate text-sm font-medium ${bodyText}`}>{lead.name}</div>
+                    <div className={`truncate text-xs ${mutedText}`}>{lead.email || lead.phone || 'No contact saved'}</div>
+                  </div>
+                  <span className={`ml-3 shrink-0 text-xs ${mutedText}`}>{lead.status_name || lead.status || 'New'}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className={`${cardClass} p-4`}>
+            <h2 className={`mb-3 text-sm font-semibold ${bodyText}`}>Pipeline</h2>
+            <div className="space-y-2">
+              {statusBreakdown.length === 0 ? (
+                <p className={`text-sm ${mutedText}`}>No pipeline data.</p>
+              ) : statusBreakdown.map((item: any) => (
+                <div key={item.status || item.status__name || 'unassigned'} className="flex items-center justify-between text-sm">
+                  <span className={mutedText}>{item.status || item.status__name || 'Unassigned'}</span>
+                  <span className={`font-semibold ${bodyText}`}>{item.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className={`${cardClass} p-4`}>
+            <h2 className={`mb-3 text-sm font-semibold ${bodyText}`}>Open Tasks</h2>
+            <div className="space-y-2">
+              {openTasks.length === 0 ? (
+                <p className={`text-sm ${mutedText}`}>No open tasks.</p>
+              ) : openTasks.map((task: any) => (
+                <div key={task.id} className="rounded-md border border-border/60 px-3 py-2">
+                  <div className={`text-sm font-medium ${bodyText}`}>{task.title}</div>
+                  <div className={`text-xs ${mutedText}`}>{task.due_date || 'No due date'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className={`${cardClass} p-4`}>
+            <h2 className={`mb-3 text-sm font-semibold ${bodyText}`}>Upcoming Meetings</h2>
+            <div className="space-y-2">
+              {upcomingMeetings.length === 0 ? (
+                <p className={`text-sm ${mutedText}`}>No upcoming meetings.</p>
+              ) : upcomingMeetings.map((meeting: any) => (
+                <div key={meeting.id} className="rounded-md border border-border/60 px-3 py-2">
+                  <div className={`text-sm font-medium ${bodyText}`}>{meeting.title}</div>
+                  <div className={`text-xs ${mutedText}`}>{meeting.start_time || meeting.starts_at || 'Time not set'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Dashboard = () => {
+  const { hasPermission, isAdminLike } = useAuth();
+  const showSalesDashboard =
+    !isAdminLike() &&
+    hasPermission(PERMISSIONS['crm.leads.view']) &&
+    !hasPermission(PERMISSIONS['crm.settings.view']);
+
+  return showSalesDashboard ? <SalesExecutiveDashboard /> : <FullDashboard />;
 };
 
 export default Dashboard;

@@ -107,52 +107,52 @@ const AppLayout = () => {
               <Route path="/" element={<Dashboard />} />
 
               {/* CRM Routes */}
-              <Route path="/crm/leads" element={<ModuleProtectedRoute requiredModule="crm"><CRMLeads /></ModuleProtectedRoute>} />
-              <Route path="/crm/leads/:leadId" element={<ModuleProtectedRoute requiredModule="crm"><LeadDetailsPage /></ModuleProtectedRoute>} />
-              <Route path="/crm/groups" element={<ModuleProtectedRoute requiredModule="crm"><CRMLeadGroups /></ModuleProtectedRoute>} />
-              <Route path="/crm/activities" element={<ModuleProtectedRoute requiredModule="crm"><CRMActivities /></ModuleProtectedRoute>} />
-              <Route path="/crm/statuses" element={<ModuleProtectedRoute requiredModule="crm"><CRMLeadStatuses /></ModuleProtectedRoute>} />
-              <Route path="/crm/settings" element={<ModuleProtectedRoute requiredModule="crm"><CRMFieldConfigurations /></ModuleProtectedRoute>} />
-              <Route path="/crm/tasks" element={<ModuleProtectedRoute requiredModule="crm"><CRMTasks /></ModuleProtectedRoute>} />
-              <Route path="/crm/meetings" element={<ModuleProtectedRoute requiredModule="crm"><Meetings /></ModuleProtectedRoute>} />
-              <Route path="/crm/pipeline" element={<ModuleProtectedRoute requiredModule="crm"><Navigate to="/crm/leads" replace /></ModuleProtectedRoute>} />
-              <Route path="/crm/campaigns" element={<ModuleProtectedRoute requiredModule="crm"><CRMCampaigns /></ModuleProtectedRoute>} />
-              <Route path="/crm/campaigns/:campaignId" element={<ModuleProtectedRoute requiredModule="crm"><CRMCampaignDetail /></ModuleProtectedRoute>} />
-              <Route path="/crm/sequences" element={<ModuleProtectedRoute requiredModule="crm"><CRMSequences /></ModuleProtectedRoute>} />
+              <Route path="/crm/leads" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.leads.view"><CRMLeads /></ModuleProtectedRoute>} />
+              <Route path="/crm/leads/:leadId" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.leads.view"><LeadDetailsPage /></ModuleProtectedRoute>} />
+              <Route path="/crm/groups" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.settings.view"><CRMLeadGroups /></ModuleProtectedRoute>} />
+              <Route path="/crm/activities" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.activities.view"><CRMActivities /></ModuleProtectedRoute>} />
+              <Route path="/crm/statuses" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.settings.view"><CRMLeadStatuses /></ModuleProtectedRoute>} />
+              <Route path="/crm/settings" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.settings.view"><CRMFieldConfigurations /></ModuleProtectedRoute>} />
+              <Route path="/crm/tasks" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.tasks.view"><CRMTasks /></ModuleProtectedRoute>} />
+              <Route path="/crm/meetings" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.meetings.view"><Meetings /></ModuleProtectedRoute>} />
+              <Route path="/crm/pipeline" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.leads.view"><Navigate to="/crm/leads" replace /></ModuleProtectedRoute>} />
+              <Route path="/crm/campaigns" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.campaigns.view"><CRMCampaigns /></ModuleProtectedRoute>} />
+              <Route path="/crm/campaigns/:campaignId" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.campaigns.view"><CRMCampaignDetail /></ModuleProtectedRoute>} />
+              <Route path="/crm/sequences" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><CRMSequences /></ModuleProtectedRoute>} />
 
               {/* WhatsApp Routes */}
-              <Route path="/whatsapp/onboarding" element={<ModuleProtectedRoute requiredModule="whatsapp"><WhatsAppOnboarding /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/contacts" element={<ModuleProtectedRoute requiredModule="whatsapp"><Contacts /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/chats" element={<ModuleProtectedRoute requiredModule="whatsapp"><Chats /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/groups" element={<ModuleProtectedRoute requiredModule="whatsapp"><Groups /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/templates" element={<ModuleProtectedRoute requiredModule="whatsapp"><Templates /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/campaigns" element={<ModuleProtectedRoute requiredModule="whatsapp"><Campaigns /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/flows" element={<ModuleProtectedRoute requiredModule="whatsapp"><Flows /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/flows/:flow_id" element={<ModuleProtectedRoute requiredModule="whatsapp"><FlowEditor /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/bot-flows" element={<ModuleProtectedRoute requiredModule="whatsapp"><BotFlows /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/bot-flows/:flowId" element={<ModuleProtectedRoute requiredModule="whatsapp"><BotFlowBuilder /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/qrcode" element={<ModuleProtectedRoute requiredModule="whatsapp"><QRCodes /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/scheduling" element={<ModuleProtectedRoute requiredModule="whatsapp"><Scheduling /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/onboarding" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><WhatsAppOnboarding /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/contacts" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.messages.view"><Contacts /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/chats" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.messages.view"><Chats /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/groups" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.messages.view"><Groups /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/templates" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.templates.view"><Templates /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/campaigns" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.campaigns.view"><Campaigns /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/flows" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><Flows /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/flows/:flow_id" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><FlowEditor /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/bot-flows" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><BotFlows /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/bot-flows/:flowId" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><BotFlowBuilder /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/qrcode" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><QRCodes /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/scheduling" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><Scheduling /></ModuleProtectedRoute>} />
 
               {/* Admin Routes */}
-              <Route path="/admin/users" element={<ModuleProtectedRoute requiredModule="admin"><Users /></ModuleProtectedRoute>} />
-              <Route path="/admin/roles" element={<ModuleProtectedRoute requiredModule="admin"><Roles /></ModuleProtectedRoute>} />
-              <Route path="/admin/settings" element={<ModuleProtectedRoute requiredModule="admin"><AdminSettings /></ModuleProtectedRoute>} />
-              <Route path="/admin/debug" element={<ModuleProtectedRoute requiredModule="admin"><Debug /></ModuleProtectedRoute>} />
+              <Route path="/admin/users" element={<ModuleProtectedRoute requiredModule="admin" requiredPermission="admin.users.view"><Users /></ModuleProtectedRoute>} />
+              <Route path="/admin/roles" element={<ModuleProtectedRoute requiredModule="admin" requiredPermission="admin.roles.view"><Roles /></ModuleProtectedRoute>} />
+              <Route path="/admin/settings" element={<ModuleProtectedRoute requiredModule="admin" requiredPermission="admin.settings.view"><AdminSettings /></ModuleProtectedRoute>} />
+              <Route path="/admin/debug" element={<ModuleProtectedRoute requiredModule="admin" requiredPermission="admin.settings.view"><Debug /></ModuleProtectedRoute>} />
 
               {/* Integration Routes */}
-              <Route path="/integrations" element={<ModuleProtectedRoute requiredModule="integrations"><Integrations /></ModuleProtectedRoute>} />
-              <Route path="/integrations/workflows/new" element={<ModuleProtectedRoute requiredModule="integrations"><WorkflowEditor /></ModuleProtectedRoute>} />
-              <Route path="/integrations/workflows/:workflowId" element={<ModuleProtectedRoute requiredModule="integrations"><WorkflowEditor /></ModuleProtectedRoute>} />
-              <Route path="/integrations/workflows/:workflowId/logs" element={<ModuleProtectedRoute requiredModule="integrations"><WorkflowLogs /></ModuleProtectedRoute>} />
-              <Route path="/integrations/oauth/callback" element={<ModuleProtectedRoute requiredModule="integrations"><OAuthCallback /></ModuleProtectedRoute>} />
+              <Route path="/integrations" element={<ModuleProtectedRoute requiredModule="integrations" requiredPermission="integrations.connections.view"><Integrations /></ModuleProtectedRoute>} />
+              <Route path="/integrations/workflows/new" element={<ModuleProtectedRoute requiredModule="integrations" requiredPermission="integrations.workflows.create"><WorkflowEditor /></ModuleProtectedRoute>} />
+              <Route path="/integrations/workflows/:workflowId" element={<ModuleProtectedRoute requiredModule="integrations" requiredPermission="integrations.workflows.edit"><WorkflowEditor /></ModuleProtectedRoute>} />
+              <Route path="/integrations/workflows/:workflowId/logs" element={<ModuleProtectedRoute requiredModule="integrations" requiredPermission="integrations.workflows.view"><WorkflowLogs /></ModuleProtectedRoute>} />
+              <Route path="/integrations/oauth/callback" element={<ModuleProtectedRoute requiredModule="integrations" requiredPermission="integrations.connections.view"><OAuthCallback /></ModuleProtectedRoute>} />
 
               {/* Telephony Routes */}
-              <Route path="/telephony/calls" element={<ModuleProtectedRoute requiredModule="telephony"><CallLogsPage /></ModuleProtectedRoute>} />
-              <Route path="/telephony/sms" element={<ModuleProtectedRoute requiredModule="telephony"><SMSLogsPage /></ModuleProtectedRoute>} />
-              <Route path="/telephony/caller-ids" element={<ModuleProtectedRoute requiredModule="telephony"><CallerIDsPage /></ModuleProtectedRoute>} />
-              <Route path="/telephony/breaks" element={<ModuleProtectedRoute requiredModule="telephony"><BreaksPage /></ModuleProtectedRoute>} />
-              <Route path="/telephony/callbacks" element={<ModuleProtectedRoute requiredModule="telephony"><CallbacksPage /></ModuleProtectedRoute>} />
+              <Route path="/telephony/calls" element={<ModuleProtectedRoute requiredModule="telephony" requiredPermission="telephony.calls.view"><CallLogsPage /></ModuleProtectedRoute>} />
+              <Route path="/telephony/sms" element={<ModuleProtectedRoute requiredModule="telephony" requiredPermission="telephony.sms.view"><SMSLogsPage /></ModuleProtectedRoute>} />
+              <Route path="/telephony/caller-ids" element={<ModuleProtectedRoute requiredModule="telephony" requiredPermission="telephony.settings.view"><CallerIDsPage /></ModuleProtectedRoute>} />
+              <Route path="/telephony/breaks" element={<ModuleProtectedRoute requiredModule="telephony" requiredPermission="telephony.agents.view"><BreaksPage /></ModuleProtectedRoute>} />
+              <Route path="/telephony/callbacks" element={<ModuleProtectedRoute requiredModule="telephony" requiredPermission="telephony.callbacks.view"><CallbacksPage /></ModuleProtectedRoute>} />
 
               {/* 404 */}
               <Route path="*" element={<NotFound />} />

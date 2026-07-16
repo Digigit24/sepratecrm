@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import useSWR, { mutate } from 'swr';
 import { authService } from '@/services/authService';
 import { LoginPayload, User } from '@/types/authTypes';
+import { hasUserPermission, isAdminUser } from '@/lib/permissions';
+import type { PermissionKeyInput } from '@/types/permissions';
 
 export const useAuth = () => {
   const navigate = useNavigate();
@@ -93,11 +95,20 @@ export const useAuth = () => {
   // Check if user has access to a specific module
   // Reads from React user state so sidebar re-renders immediately when modules change
   const hasModuleAccess = useCallback((module: string) => {
+    if (isAdminUser(user)) return true;
     if (user?.tenant && Array.isArray(user.tenant.enabled_modules)) {
       return user.tenant.enabled_modules.includes(module);
     }
     // Fallback: read from localStorage/JWT (covers super-admin and edge cases)
     return authService.hasModuleAccess(module);
+  }, [user]);
+
+  const hasPermission = useCallback((permissionKey: PermissionKeyInput) => {
+    return hasUserPermission(user, permissionKey);
+  }, [user]);
+
+  const isAdminLike = useCallback(() => {
+    return isAdminUser(user);
   }, [user]);
 
   // Get tenant information
@@ -136,6 +147,8 @@ export const useAuth = () => {
     logout,
     refreshUser,
     hasModuleAccess,
+    hasPermission,
+    isAdminLike,
     getTenant,
     getUserRoles,
     verifyToken,

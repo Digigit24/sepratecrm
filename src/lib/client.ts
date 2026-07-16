@@ -1,11 +1,16 @@
 // src/lib/client.ts
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { API_CONFIG } from './apiConfig';
+import { toast } from 'sonner';
 
 // Token management for JWT tokens
 const ACCESS_TOKEN_KEY = 'celiyo_access_token';
 const REFRESH_TOKEN_KEY = 'celiyo_refresh_token';
 const USER_KEY = 'celiyo_user';
+
+const showPermissionDeniedToast = () => {
+  toast.error('Permission not granted for this module');
+};
 
 export const tokenManager = {
   getAccessToken: (): string | null => {
@@ -223,6 +228,7 @@ authClient.interceptors.response.use(
     // Handle 403 Forbidden
     if (error.response?.status === 403) {
       console.error('🚫 Access forbidden:', error.response.data);
+      showPermissionDeniedToast();
     }
     
     // Handle network errors
@@ -298,6 +304,7 @@ crmClient.interceptors.response.use(
     // Handle 403 Forbidden - CRM module not enabled
     if (error.response?.status === 403) {
       console.error('🚫 CRM access forbidden:', error.response.data);
+      showPermissionDeniedToast();
     }
     
     // Handle network errors

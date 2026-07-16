@@ -74,6 +74,9 @@ export interface SideDrawerProps {
    * like chat windows that manage their own scrolling.
    */
   rawContent?: boolean;
+  hideHeader?: boolean;
+  onBack?: () => void;
+  backLabel?: string;
 
   // Callbacks
   onClose?: () => void;
@@ -114,6 +117,9 @@ export function SideDrawer({
   maxWidth = 1200,
   storageKey,
   rawContent = false,
+  hideHeader = false,
+  onBack,
+  backLabel = 'Back',
   onClose,
   className,
   contentClassName,
@@ -273,6 +279,7 @@ export function SideDrawer({
         )}
 
         {/* ===== HEADER ===== */}
+        {!hideHeader && (
         <div
           className={cn(
             'flex-shrink-0 border-b border-border/60',
@@ -283,7 +290,17 @@ export function SideDrawer({
             {/* Left Side: Title + Mode Badge */}
             <div className="flex items-center gap-3 flex-1 min-w-0">
               {/* Back Button (Mobile only) */}
-              {!preventClose && isMobile && showBackButton && (
+              {onBack ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onBack}
+                  className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-foreground -ml-1"
+                  aria-label={backLabel}
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+              ) : !preventClose && isMobile && showBackButton && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -358,6 +375,7 @@ export function SideDrawer({
             </div>
           </div>
         </div>
+        )}
 
         {/* ===== CONTENT ===== */}
         <div className={cn('flex-1 min-h-0 relative', rawContent && 'flex flex-col overflow-hidden', contentClassName)}>
