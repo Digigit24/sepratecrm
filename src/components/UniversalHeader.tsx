@@ -1,5 +1,6 @@
 import { Settings, User, LogOut, ChevronDown, Sun, Moon, Bell, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HeaderCopilotButton } from "@/components/copilot/HeaderCopilotButton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -185,6 +186,9 @@ export const UniversalHeader = ({ onMenuClick }: UniversalHeaderProps) => {
              'Offline'}
           </span>
         </div>
+
+        {/* AI Copilot toggle */}
+        <HeaderCopilotButton />
 
         {/* Notifications */}
         <button

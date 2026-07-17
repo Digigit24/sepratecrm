@@ -37,7 +37,7 @@ export const API_CONFIG = {
       }
     } catch (error) {
       console.error('Failed to get vendor UID:', error);
-    }
+    } 
     return null;
   },
 

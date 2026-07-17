@@ -1,6 +1,7 @@
 // src/components/lead-drawer/LeadDetailsForm.tsx
 import { forwardRef, useImperativeHandle, useEffect, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
+import { useContainerWidth } from './useContainerWidth';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
@@ -115,6 +116,8 @@ function SectionDivider({ label }: { label: string }) {
 
 const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
   ({ lead, mode, showNotes = true, showScore = true }, ref) => {
+    // Container-width driven 2-column layout (drawer is resizable).
+    const { ref: containerRef, width: containerWidth } = useContainerWidth<HTMLDivElement>();
     const { user } = useAuth();
     const { useLeadStatuses, useFieldConfigurations } = useCRM();
     const { getCurrencyCode } = useCurrency();
@@ -590,22 +593,41 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
       custom: 'Custom Fields',
     };
 
-    const rendered: React.ReactNode[] = [];
-    let lastSection = '';
+    // Group entries by section (order preserved) so each property section can
+    // flow across a responsive 2-column grid while dividers + notes stay full width.
+    const groups: { section: string; entries: typeof sortedEntries }[] = [];
     sortedEntries.forEach(entry => {
       const sec = entry.section || '';
-      if (sec && sec !== 'notes' && sec !== lastSection) {
-        if (lastSection) {
-          rendered.push(<div key={`div-${sec}`} className="pt-1"><SectionDivider label={SECTION_LABELS[sec] || sec} /></div>);
-        }
-        lastSection = sec;
-      }
-      rendered.push(<div key={entry.key}>{entry.render()}</div>);
+      const last = groups[groups.length - 1];
+      if (last && last.section === sec) last.entries.push(entry);
+      else groups.push({ section: sec, entries: [entry] });
     });
 
+    // Two columns when the drawer is wide enough; one column when narrow.
+    // Container-width driven (drawer is resizable) — see useContainerWidth.
+    const isWide = containerWidth >= 620;
+
     return (
-      <div className="space-y-0.5">
-        {rendered}
+      <div ref={containerRef} className="space-y-1.5">
+        {groups.map((group, gi) => {
+          // Notes section (and any full-width group) is never split into columns.
+          if (group.section === 'notes') {
+            return <div key={`g-${gi}`} className="space-y-0.5">{group.entries.map(e => <div key={e.key}>{e.render()}</div>)}</div>;
+          }
+          return (
+            <div key={`g-${gi}`} className="space-y-0.5">
+              {gi > 0 && group.section && (
+                <div className="pt-1"><SectionDivider label={SECTION_LABELS[group.section] || group.section} /></div>
+              )}
+              <div
+                data-wide={isWide ? 'true' : 'false'}
+                className="grid grid-cols-1 data-[wide=true]:grid-cols-2 gap-x-8 gap-y-0.5"
+              >
+                {group.entries.map(e => <div key={e.key}>{e.render()}</div>)}
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }

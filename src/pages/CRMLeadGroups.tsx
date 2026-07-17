@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
 import { DataTable, type DataTableColumn } from '@/components/DataTable';
+import { CreateWithAIButton } from '@/components/copilot/CreateWithAIButton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,7 @@ import { Plus, RefreshCw, Users, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import type { LeadGroup, CreateLeadGroupPayload, UpdateLeadGroupPayload, LeadGroupsQueryParams } from '@/types/crmTypes';
+import { useCrmDataChanged } from '@/lib/crmEvents';
 
 const COLOR_PRESETS = [
   '#6366F1', '#8B5CF6', '#EC4899', '#EF4444',
@@ -52,6 +54,10 @@ export const CRMLeadGroups: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   const { data, error, isLoading, mutate } = useLeadGroups(queryParams);
+
+  useCrmDataChanged((e) => {
+    if (e.resource === 'groups') mutate();
+  });
 
   if (!hasCRMAccess) {
     return (
@@ -183,6 +189,12 @@ export const CRMLeadGroups: React.FC = () => {
             <RefreshCw className={`w-4 h-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+          <CreateWithAIButton
+            tool="crm.group.create"
+            context={{ source: 'lead-groups-page', totalGroups: totalCount }}
+            label="Create with AI"
+            size="sm"
+          />
           <Button size="sm" onClick={openCreate}>
             <Plus className="w-4 h-4 mr-1" />
             New Group

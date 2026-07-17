@@ -45,6 +45,8 @@ import { leadStatusCache } from '@/lib/leadStatusCache';
 import { STANDARD_FILTER_DEFS } from '@/types/filterTypes';
 import type { ActiveFilters, FilterFieldDef, FilterFieldType } from '@/types/filterTypes';
 import { PERMISSIONS } from '@/constants/permissions';
+import { CreateWithAIButton } from '@/components/copilot/CreateWithAIButton';
+import { useCrmDataChanged } from '@/lib/crmEvents';
 
 type DrawerMode = 'view' | 'edit' | 'create';
 type ViewMode = 'list' | 'kanban' | 'followups';
@@ -392,6 +394,23 @@ export const CRMLeads: React.FC = () => {
     mutateInfinite();
     mutateStatuses();
   }, [mutate, mutateInfinite, mutateStatuses]);
+
+  // Refresh button: force a REAL refetch of the CURRENTLY-VISIBLE view. The list
+  // renders `infiniteLeads` (useLeadsInfinite), so we must revalidate that key
+  // (all loaded pages incl. page 1) — not just the count hook.
+  const handleRefresh = useCallback(() => {
+    mutate();          // count / leadsData
+    mutateInfinite();  // the visible infinite list (all loaded pages)
+  }, [mutate, mutateInfinite]);
+
+  // Live-refresh when the AI copilot (or any producer) mutates lead data — one
+  // SWR revalidation, no polling. Reusable for future write tools via crmEvents.
+  useCrmDataChanged((e) => {
+    if (e.resource !== 'leads') return;
+    mutate();
+    mutateInfinite();
+    if (e.tool === 'update_lead_status') mutateStatuses(); // status counts may shift
+  });
 
   const handleModeChange = useCallback((mode: DrawerMode) => {
     setDrawerMode(mode);
@@ -1491,7 +1510,7 @@ export const CRMLeads: React.FC = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => mutate()}
+            onClick={handleRefresh}
             disabled={isLoading}
             className="h-7 w-7"
             title="Refresh"
@@ -1539,10 +1558,19 @@ export const CRMLeads: React.FC = () => {
           </DropdownMenu>
 
           {canCreateLead && (
-            <Button onClick={handleCreateLeadClick} size="sm" className="h-7 text-xs">
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              New Lead
-            </Button>
+            <>
+              <CreateWithAIButton
+                tool="crm.lead.create"
+                context={{ source: 'leads-page', totalLeads: leadsData?.count }}
+                label="Create with AI"
+                size="sm"
+                className="h-7 text-xs"
+              />
+              <Button onClick={handleCreateLeadClick} size="sm" className="h-7 text-xs">
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                New Lead
+              </Button>
+            </>
           )}
         </div>
       </div>

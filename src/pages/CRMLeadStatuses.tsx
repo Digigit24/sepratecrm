@@ -4,6 +4,7 @@ import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
 import { DataTable, type DataTableColumn } from '@/components/DataTable';
 import { LeadStatusFormDrawer } from '@/components/LeadStatusFormDrawer';
+import { CreateWithAIButton } from '@/components/copilot/CreateWithAIButton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +14,7 @@ import { formatDistanceToNow } from 'date-fns';
 import type { LeadStatus, LeadStatusesQueryParams } from '@/types/crmTypes';
 import type { RowActions } from '@/components/DataTable';
 import { leadStatusCache } from '@/lib/leadStatusCache';
+import { useCrmDataChanged } from '@/lib/crmEvents';
 
 type DrawerMode = 'view' | 'edit' | 'create';
 
@@ -38,6 +40,10 @@ export const CRMLeadStatuses: React.FC = () => {
 
   // Fetch lead statuses
   const { data: statusesData, error, isLoading, mutate } = useLeadStatuses(queryParams);
+
+  useCrmDataChanged((e) => {
+    if (e.resource === 'statuses') mutate();
+  });
 
   // Cache lead statuses when fetched
   useEffect(() => {
@@ -427,6 +433,17 @@ export const CRMLeadStatuses: React.FC = () => {
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
+          <CreateWithAIButton
+            tool="crm.status.create"
+            context={{
+              source: 'lead-statuses-page',
+              totalStatuses: statusesData?.count,
+              nextOrderIndex: (statusesData?.count || 0) + 1,
+            }}
+            label="Create with AI"
+            size="sm"
+            className="h-7 text-xs"
+          />
           <Button onClick={handleCreateStatus} size="sm" className="h-7 text-xs">
             <Plus className="h-3.5 w-3.5 mr-1" />
             New Status

@@ -97,6 +97,14 @@ export const useCRM = () => {
         shouldRetryOnError: false,
         revalidateFirstPage: false,
         persistSize: false,
+        // Always refetch page 1 when the leads list (re)mounts. Without this,
+        // every other revalidation trigger is disabled, so if the first page
+        // ever lands in an empty/stale cache slot (e.g. an aborted request from
+        // a StrictMode double-mount, or a request made while pointed at the
+        // wrong backend), the "All"/unfiltered list stays stuck on "No leads
+        // found" even though the API returns rows — status-filtered keys are
+        // fresh and unaffected. Deduping still collapses genuine burst dupes.
+        revalidateOnMount: true,
       }
     );
   };

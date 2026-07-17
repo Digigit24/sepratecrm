@@ -253,7 +253,7 @@ authClient.interceptors.response.use(
 // and could race token rotation.
 let refreshPromise: Promise<string> | null = null;
 
-const refreshAccessToken = (): Promise<string> => {
+export const refreshAccessToken = (): Promise<string> => {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       const refreshToken = tokenManager.getRefreshToken();

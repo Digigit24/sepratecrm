@@ -97,12 +97,16 @@ const getStatusIcon = (status?: string) => {
 };
 
 const getDateLabel = (date: Date): string => {
+  // Guard invalid/missing timestamps — date-fns format() throws RangeError on
+  // an Invalid Date, which previously crashed the whole chat tab.
+  if (!date || Number.isNaN(date.getTime())) return '';
   if (isToday(date))     return 'Today';
   if (isYesterday(date)) return 'Yesterday';
   return format(date, 'MMM d, yyyy');
 };
 
 const formatMsgTime = (date: Date) => {
+  if (!date || Number.isNaN(date.getTime())) return '';
   const h = date.getHours(), m = date.getMinutes().toString().padStart(2, '0');
   const ampm = h >= 12 ? 'pm' : 'am';
   return `${h % 12 || 12}:${m} ${ampm}`;
@@ -730,20 +734,25 @@ function ChatTab({ leadId, leadName, leadPhone }: ChatTabProps) {
           </div>
         ) : (
           <>
-            {grouped.map(({ showSeparator, msg }, i) => (
-              <React.Fragment key={msg.id ?? i}>
-                {showSeparator && (
-                  <div className="flex items-center gap-3 my-3">
-                    <div className="flex-1 h-px bg-gray-300/50" />
-                    <span className="text-[11px] text-gray-500 font-medium px-2.5 py-1 bg-white/70 rounded-full shadow-sm">
-                      {getDateLabel(new Date(msg.timestamp))}
-                    </span>
-                    <div className="flex-1 h-px bg-gray-300/50" />
-                  </div>
-                )}
-                <MsgBubble msg={msg} />
-              </React.Fragment>
-            ))}
+            {grouped.map(({ showSeparator, msg }, i) => {
+              // A message with a bad/missing timestamp yields an empty label —
+              // skip its separator rather than crash or show an empty pill.
+              const dateLabel = showSeparator ? getDateLabel(new Date(msg.timestamp)) : '';
+              return (
+                <React.Fragment key={msg.id ?? i}>
+                  {showSeparator && dateLabel && (
+                    <div className="flex items-center gap-3 my-3">
+                      <div className="flex-1 h-px bg-gray-300/50" />
+                      <span className="text-[11px] text-gray-500 font-medium px-2.5 py-1 bg-white/70 rounded-full shadow-sm">
+                        {dateLabel}
+                      </span>
+                      <div className="flex-1 h-px bg-gray-300/50" />
+                    </div>
+                  )}
+                  <MsgBubble msg={msg} />
+                </React.Fragment>
+              );
+            })}
             <div ref={messagesEndRef} />
           </>
         )}

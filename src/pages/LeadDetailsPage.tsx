@@ -25,6 +25,8 @@ import { useMeeting } from '@/hooks/useMeeting';
 import LeadDetailsForm from '@/components/lead-drawer/LeadDetailsForm';
 import LeadActivities from '@/components/lead-drawer/LeadActivities';
 import LeadTasks from '@/components/lead-drawer/LeadTasks';
+import LeadNotesSurface from '@/components/lead-drawer/LeadNotesSurface';
+import LeadTasksBlock from '@/components/lead-drawer/LeadTasksBlock';
 import MeetingsFormDrawer from '@/components/MeetingsFormDrawer';
 import { LeadScoreSlider } from '@/components/crm/LeadScoreSlider';
 import { LeadAttachments } from '@/components/crm/LeadAttachments';
@@ -34,6 +36,7 @@ import type { Meeting } from '@/types/meeting.types';
 import { LeadFormHandle } from '@/components/LeadsFormDrawer';
 import { LeadWhatsAppDrawer, WhatsAppIcon, useLeadWhatsAppWindow } from '@/components/crm/LeadWhatsAppDrawer';
 import { cn } from '@/lib/utils';
+import { useCrmDataChanged } from '@/lib/crmEvents';
 
 // ── Shared micro-components ─────────────────────────────────────────
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -183,7 +186,12 @@ export const LeadDetailsPage = ({
 
   useEffect(() => {
     if (lead?.notes !== undefined) setNotes(lead.notes || '');
-  }, [lead?.id]);
+  }, [lead?.id, lead?.notes]);
+
+  useCrmDataChanged((e) => {
+    if (e.resource !== 'leads') return;
+    mutateLead();
+  });
 
   const handleBack = useCallback(() => {
     if (embedded) {
@@ -566,10 +574,11 @@ export const LeadDetailsPage = ({
 
       {/* ── Shared tab padding ─── all tabs use the same shell ── */}
 
-      {/* Overview */}
+      {/* Overview — Notion-style surface: properties + notes + inline activity + tasks.
+          `@container`-style responsive 2-col properties handled inside LeadDetailsForm. */}
       <TabsContent value="overview" className="mt-0 flex-1 focus-visible:outline-none">
-        <div className="px-5 py-4 max-w-2xl">
-          {/* Properties — Notion-style rows */}
+        <div className="px-5 py-4 max-w-3xl space-y-4">
+          {/* Properties — Notion-style rows (responsive 2-col when wide) */}
           <LeadDetailsForm
             lead={lead}
             mode="edit"
@@ -583,22 +592,18 @@ export const LeadDetailsPage = ({
             }}
           />
 
-          {/* Notes */}
-          <div className="pt-4 mt-2 border-t border-border/30">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">Notes</span>
-              {notesSaving
-                ? <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"><Loader2 className="h-2.5 w-2.5 animate-spin" />Saving…</span>
-                : notes ? <span className="text-[10px] text-muted-foreground/40">Auto-saved</span> : null
-              }
-            </div>
-            <Textarea
-              value={notes}
-              onChange={e => handleNotesChange(e.target.value)}
-              placeholder="Write notes here…"
-              className="w-full resize-none text-sm min-h-[120px] rounded-lg border-border/30 focus-visible:ring-1 focus-visible:ring-primary/20 placeholder:text-muted-foreground/30 bg-transparent hover:bg-muted/20 transition-colors"
+          {/* Notion notes body + inline activity feed */}
+          <div className="pt-3 border-t border-border/30">
+            <LeadNotesSurface
+              leadId={lead.id}
+              notes={notes}
+              onNotesChange={handleNotesChange}
+              saving={notesSaving}
             />
           </div>
+
+          {/* Collapsible tasks block (hidden when empty) */}
+          <LeadTasksBlock leadId={lead.id} leadAssignedTo={lead.assigned_to} />
         </div>
       </TabsContent>
 

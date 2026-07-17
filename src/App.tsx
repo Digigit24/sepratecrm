@@ -62,6 +62,8 @@ import { ThemeSync } from "@/components/ThemeSync";
 import { WebSocketProvider } from "./context/WebSocketProvider";
 import { RealtimeChatProvider } from "./context/RealtimeChatProvider";
 import { TelephonyProvider } from "./context/TelephonyProvider";
+import { ChatProvider } from "./context/ChatProvider";
+import { CopilotPanel } from "@/components/copilot/CopilotPanel";
 import { Softphone } from "./components/telephony/Softphone";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -103,6 +105,7 @@ const AppLayout = () => {
 
   return (
     <TelephonyShell>
+      <ChatProvider>
       <ThemeSync />
       <div className="flex h-screen overflow-hidden bg-background">
         <UniversalSidebar
@@ -172,7 +175,10 @@ const AppLayout = () => {
             </Suspense>
           </main>
         </div>
+        {/* AI copilot right slide-out panel (toggled from the header bot button) */}
+        <CopilotPanel />
       </div>
+      </ChatProvider>
     </TelephonyShell>
   );
 };
