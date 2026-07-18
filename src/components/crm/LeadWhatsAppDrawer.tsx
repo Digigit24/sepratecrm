@@ -3,9 +3,22 @@
 // Data: adapter APIs via whatsAppCrmService (NOT the direct whatsappapi.celiyo.com hooks)
 // UI:   mirrors the WhatsApp module's ChatWindow style
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import useSWR from 'swr';
+import useSWR, { mutate as swrMutate } from 'swr';
 import { toast } from 'sonner';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
+import {
+  isTemplateMessage,
+  getTemplateName,
+  renderTemplateBody,
+  getTemplateHeaderText,
+  getTemplateHeaderMedia,
+  getTemplateFooter,
+  getTemplateButtons,
+  type TemplateSource,
+} from '@/lib/whatsapp/renderTemplate';
+import { getWindowState } from '@/lib/whatsapp/getWindowState';
+import { resolveLeadVariables } from '@/lib/whatsapp/templateVariables';
+import { useCRM } from '@/hooks/useCRM';
 
 import {
   Loader2, Zap, Plus, X, CheckCircle2, Clock, PauseCircle,
@@ -61,25 +74,19 @@ export function WhatsAppIcon({ className }: { className?: string }) {
 
 // ─── 24h window hook (uses adapter chat API) ─────────────────────────────────
 
+/** SWR key for the 24h-window fetch — exported so send handlers can revalidate it. */
+export const leadWindowKey = (leadId: number | null) =>
+  leadId ? `/whatsapp/leads/${leadId}/chat/window` : null;
+
 export function useLeadWhatsAppWindow(leadId: number | null, enabled = true) {
   const { data, isLoading } = useSWR(
-    enabled && leadId ? `/whatsapp/leads/${leadId}/chat/window` : null,
+    enabled && leadId ? leadWindowKey(leadId) : null,
     () => whatsAppCrmService.getLeadChat(leadId!, 1),
     { revalidateOnFocus: false, dedupingInterval: 60_000 }
   );
 
-  const messages = data?.messages ?? [];
-  const lastInbound = [...messages]
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .find(m => m.direction === 'inbound');
-
-  const windowOpen = lastInbound
-    ? new Date(lastInbound.timestamp).getTime() > Date.now() - 24 * 3600 * 1000
-    : false;
-
-  const expiresAt = lastInbound && windowOpen
-    ? new Date(new Date(lastInbound.timestamp).getTime() + 24 * 3600 * 1000)
-    : null;
+  // Prefer backend-authoritative window fields; fall back to last-inbound heuristic.
+  const { windowOpen, expiresAt } = getWindowState(data as any);
 
   return { windowOpen, expiresAt, isLoading: isLoading && !data };
 }
@@ -121,6 +128,9 @@ function parseMessage(msg: ChatMessage): {
   mediaType: string | null;
   mediaUrl: string | null;
   caption: string | null;
+  headerText: string | null;
+  footer: string | null;
+  buttons: Array<{ type: string; text: string }> | null;
 } {
   // The adapter stores `message` as a JSON string: {"type":"text","text":"..."} or {"type":"template",...}
   let parsed: any = null;
@@ -132,43 +142,48 @@ function parseMessage(msg: ChatMessage): {
 
   const meta = msg.meta ?? {};
 
-  // Template message
-  const isTemplate = parsed?.type === 'template'
-    || !!meta.template_proforma
-    || !!meta.template_components;
+  // Build the SHARED renderer's source shape from this message (rich payload).
+  const src: TemplateSource = {
+    template_proforma: meta.template_proforma ?? null,
+    template_components: meta.template_components ?? null,
+    template_component_values: meta.template_component_values ?? (msg as any).template_component_values ?? null,
+    metadata: { ...meta, template_name: meta.template_proforma?.name || meta.template_name || parsed?.template },
+    text: parsed?.text ?? null,
+  };
 
-  const templateName = meta.template_proforma?.name
-    || parsed?.template
-    || null;
+  const isTemplate = parsed?.type === 'template' || isTemplateMessage(src);
 
-  const templateBodyText = (() => {
-    const comps = meta.template_proforma?.components || meta.template_components || [];
-    const body = comps.find((c: any) => c.type === 'BODY' || c.type === 'body');
-    return body?.text || null;
-  })();
+  if (isTemplate) {
+    const headerMedia = getTemplateHeaderMedia(src);
+    return {
+      text: renderTemplateBody(src),                    // {{n}} substituted from resolved params
+      isTemplate: true,
+      templateName: getTemplateName(src),
+      mediaType: headerMedia?.type ?? null,             // HEADER image/video/document
+      mediaUrl: headerMedia?.url ?? null,
+      caption: null,
+      headerText: getTemplateHeaderText(src),
+      footer: getTemplateFooter(src),
+      buttons: getTemplateButtons(src),
+    };
+  }
 
-  // Media (stored in meta or parsed JSON)
-  const mediaType = parsed?.media_type || parsed?.type === 'image' || parsed?.type === 'video'
-    || parsed?.type === 'audio' || parsed?.type === 'document'
-    ? (parsed?.type !== 'text' && parsed?.type !== 'template' ? parsed?.type : null)
-    : null;
-
-  const mediaUrl = parsed?.url || parsed?.media_url || null;
+  // Non-template media (stored in meta or parsed JSON)
+  const mediaType = parsed?.media_type || (['image', 'video', 'audio', 'document'].includes(parsed?.type) ? parsed?.type : null);
+  const mediaUrl = parsed?.url || parsed?.media_url || (msg.media_values?.url ?? msg.media_values?.link) || null;
   const caption = parsed?.caption || null;
 
-  // Plain text
-  const text = isTemplate
-    ? (templateBodyText || `[Template: ${templateName || 'unknown'}]`)
-    : parsed?.text || (typeof msg.message === 'string' && !msg.message.startsWith('{') ? msg.message : null);
+  const text = parsed?.text
+    || (typeof msg.message === 'string' && !msg.message.startsWith('{') ? msg.message : null);
 
-  return { text, isTemplate, templateName, mediaType, mediaUrl, caption };
+  return { text, isTemplate: false, templateName: null, mediaType, mediaUrl, caption, headerText: null, footer: null, buttons: null };
 }
 
 // ─── Single message bubble ────────────────────────────────────────────────────
 
 function MsgBubble({ msg }: { msg: ChatMessage }) {
   const isOut = msg.direction === 'outbound';
-  const { text, isTemplate, templateName, mediaType, mediaUrl, caption } = parseMessage(msg);
+  const { text, isTemplate, templateName, mediaType, mediaUrl, caption, headerText, footer, buttons } = parseMessage(msg);
 
   const bubbleCls = cn(
     'relative max-w-[80%] rounded-2xl shadow-sm text-[14px]',
@@ -216,6 +231,11 @@ function MsgBubble({ msg }: { msg: ChatMessage }) {
           </div>
         )}
 
+        {/* Template header text */}
+        {isTemplate && headerText && (
+          <p className="px-3 pt-1.5 pb-0.5 text-[13px] font-semibold break-words">{headerText}</p>
+        )}
+
         {/* Text / caption */}
         {(text || caption) && (
           <p className={cn(
@@ -224,6 +244,22 @@ function MsgBubble({ msg }: { msg: ChatMessage }) {
           )}>
             {caption || text}
           </p>
+        )}
+
+        {/* Template footer */}
+        {isTemplate && footer && (
+          <p className="px-3 pb-1 text-[11px] text-gray-500 break-words">{footer}</p>
+        )}
+
+        {/* Template buttons */}
+        {isTemplate && buttons && buttons.length > 0 && (
+          <div className="border-t border-gray-200/70 mt-0.5">
+            {buttons.map((b, i) => (
+              <div key={i} className="px-3 py-1.5 text-center text-[13px] text-blue-600 border-b border-gray-100 last:border-0">
+                {b.text}
+              </div>
+            ))}
+          </div>
         )}
 
         {/* Timestamp + status */}
@@ -358,6 +394,10 @@ function ChatTab({ leadId, leadName, leadPhone }: ChatTabProps) {
   // Template slash state
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const [templateSearchQuery, setTemplateSearchQuery]   = useState('');
+  // Full lead record (for CRM-variable auto-substitution at send time).
+  const { useLead } = useCRM();
+  const { data: leadRecord } = useLead(leadId);
+
   const [selectedTemplate, setSelectedTemplate]         = useState<WhatsAppTemplate | null>(null);
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
   const [templateVariables, setTemplateVariables]       = useState<Record<string, string>>({});
@@ -442,7 +482,11 @@ function ChatTab({ leadId, leadName, leadPhone }: ChatTabProps) {
     const vars = extractVars(t);
     const init: Record<string, string> = {};
     vars.forEach(v => { init[v] = ''; });
-    setTemplateVariables(init);
+    // Auto-substitute CRM variables: prefill {{n}} from the lead's mapped fields
+    // (mapping saved when the template was created). User can still edit.
+    const lead = leadRecord ?? { name: leadName, phone: leadPhone };
+    const resolved = resolveLeadVariables(t.name, lead);
+    setTemplateVariables({ ...init, ...resolved });
     setIsTemplateDialogOpen(true);
   };
 
@@ -470,7 +514,19 @@ function ChatTab({ leadId, leadName, leadPhone }: ChatTabProps) {
         template_components: components,
       });
 
-      // Optimistic message
+      // Resolved variable values, keyed {{n}} → { text } — so the shared renderer
+      // substitutes the REAL values in the optimistic bubble (not placeholders).
+      const templateComponentValues = [
+        {
+          type: 'body',
+          parameters: Object.fromEntries(
+            Object.entries(templateVariables).map(([k, v]) => [k, { text: v }]),
+          ),
+        },
+      ];
+
+      // Optimistic message — store the RESOLVED components (with parameters),
+      // not the raw template, plus the resolved values.
       appendOptimistic({
         id: `opt-${Date.now()}`,
         phone: leadPhone || '',
@@ -478,18 +534,22 @@ function ChatTab({ leadId, leadName, leadPhone }: ChatTabProps) {
         status: 'sent',
         message: JSON.stringify({ type: 'template', template: selectedTemplate.name }),
         timestamp: new Date().toISOString(),
+        template_component_values: templateComponentValues,
         meta: {
           template_proforma: {
             name: selectedTemplate.name,
-            components: selectedTemplate.components,
+            components,                       // resolved components (with parameters)
           },
+          template_component_values: templateComponentValues,
         },
       });
 
       setIsTemplateDialogOpen(false);
       setSelectedTemplate(null);
       setTemplateVariables({});
-      setTimeout(refresh, 2000); // refresh to get server-assigned id
+      setTimeout(refresh, 2000);                    // refresh to get server-assigned id
+      swrMutate(leadWindowKey(leadId));             // revalidate the 24h window pill
+      setTimeout(() => swrMutate(leadWindowKey(leadId)), 2500);
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || 'Failed to send template');
     } finally { setIsSending(false); }
@@ -517,6 +577,7 @@ function ChatTab({ leadId, leadName, leadPhone }: ChatTabProps) {
     try {
       await whatsAppCrmService.sendLeadTextMessage(leadId, text);
       setTimeout(refresh, 2000);
+      swrMutate(leadWindowKey(leadId));            // keep the 24h window pill fresh
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || 'Failed to send message');
       // Remove optimistic on failure

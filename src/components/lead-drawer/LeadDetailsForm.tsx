@@ -1,13 +1,29 @@
 // src/components/lead-drawer/LeadDetailsForm.tsx
-import { forwardRef, useImperativeHandle, useEffect, useMemo } from 'react';
+import { forwardRef, useImperativeHandle, useEffect, useMemo, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useContainerWidth } from './useContainerWidth';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
-import { CalendarIcon, X } from 'lucide-react';
+import { CalendarIcon, X, ChevronsUpDown, Check } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  COUNTRIES,
+  DEFAULT_DIAL_CODE,
+  findCountryByDial,
+  isValidNationalNumber,
+  normalizeWhatsappPhone,
+  splitPhone,
+} from '@/lib/phone';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -41,6 +57,66 @@ interface LeadDetailsFormProps {
   showNotes?: boolean;
   /** If false, the Score field is hidden (use when score is shown in header) */
   showScore?: boolean;
+}
+
+// ── Searchable country-code picker (flag + name + dial) ──────────────────────
+function CountryCodePicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (dial: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = findCountryByDial(value) || findCountryByDial(DEFAULT_DIAL_CODE);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className={cn(
+            'flex h-9 shrink-0 items-center gap-1 rounded-md px-2 text-sm hover:bg-accent/50 disabled:opacity-60',
+            'text-foreground',
+          )}
+        >
+          <span className="text-base leading-none">{selected?.flag}</span>
+          <span className="tabular-nums">+{selected?.dial}</span>
+          {!disabled && <ChevronsUpDown className="h-3 w-3 text-muted-foreground" />}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[260px] p-0" align="start">
+        <Command
+          filter={(itemValue, search) => (itemValue.toLowerCase().includes(search.toLowerCase()) ? 1 : 0)}
+        >
+          <CommandInput placeholder="Search country or code…" className="h-9" />
+          <CommandList>
+            <CommandEmpty>No country found.</CommandEmpty>
+            <CommandGroup>
+              {COUNTRIES.map((c) => (
+                <CommandItem
+                  key={c.code}
+                  value={`${c.name} +${c.dial} ${c.code}`}
+                  onSelect={() => {
+                    onChange(c.dial);
+                    setOpen(false);
+                  }}
+                  className="gap-2"
+                >
+                  <span className="text-base leading-none">{c.flag}</span>
+                  <span className="flex-1 truncate">{c.name}</span>
+                  <span className="text-muted-foreground tabular-nums">+{c.dial}</span>
+                  {c.dial === value && <Check className="h-3.5 w-3.5" />}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 const STANDARD_FIELD_ORDER: Record<string, number> = {
@@ -163,7 +239,11 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
     const formSchema = useMemo(() => {
       const base: Record<string, z.ZodTypeAny> = {
         ...(isFieldVisible('name') && { name: z.string().min(1, 'Name is required').max(255) }),
-        ...(isFieldVisible('phone') && { phone: z.string().min(10).max(10).regex(/^\d{10}$/, 'Phone must be 10 digits') }),
+        // Phone holds the NATIONAL part; the dial code is a separate field.
+        // Length is validated per-dial-code in the superRefine below, so a
+        // stored cc-prefixed number is never rejected just for having a cc.
+        ...(isFieldVisible('phone') && { phone: z.string().min(1, 'Phone is required') }),
+        ...(isFieldVisible('phone') && { dialCode: z.string().default(DEFAULT_DIAL_CODE) }),
         ...(isFieldVisible('email') && { email: z.string().email('Invalid email').optional().or(z.literal('')) }),
         ...(isFieldVisible('company') && { company: z.string().max(255).optional() }),
         ...(isFieldVisible('title') && { title: z.string().max(255).optional() }),
@@ -201,7 +281,15 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
         }
         customSchemas[`custom_${field.field_name}`] = s;
       });
-      return z.object({ ...base, ...customSchemas });
+      return z.object({ ...base, ...customSchemas }).superRefine((data: any, ctx) => {
+        if (isFieldVisible('phone') && !isValidNationalNumber(data.phone || '', data.dialCode || DEFAULT_DIAL_CODE)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['phone'],
+            message: (data.dialCode || DEFAULT_DIAL_CODE) === '91' ? 'Phone must be 10 digits' : 'Enter a valid phone number',
+          });
+        }
+      });
     }, [customFields, standardFieldsConfig, showNotes, showScore]);
 
     type FormData = z.infer<typeof formSchema>;
@@ -212,9 +300,13 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
     });
 
     useEffect(() => {
+      // Split a stored phone into { dialCode, national } so the picker shows the
+      // country code and the input shows only the national part.
+      const { dialCode: initialDial, national: initialNational } = splitPhone(lead?.phone || '');
       const defaults: any = {
         name: lead?.name || '',
-        phone: lead?.phone || '',
+        phone: initialNational,
+        dialCode: initialDial,
         email: lead?.email || '',
         company: lead?.company || '',
         title: lead?.title || '',
@@ -254,6 +346,7 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
               const metadata: Record<string, any> = {};
               const cleanData: any = {};
               Object.entries(data).forEach(([key, value]) => {
+                if (key === 'dialCode') return; // combined into `phone` below, not stored separately
                 if (key.startsWith('custom_')) {
                   const fieldName = key.replace('custom_', '');
                   if (value !== '' && value !== null && value !== undefined) metadata[fieldName] = value;
@@ -261,6 +354,11 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
                   cleanData[key] = value || undefined;
                 }
               });
+              // Store the FULL international MSISDN (digits only, e.g. 919423217356).
+              const anyData = data as any;
+              if (anyData.phone) {
+                cleanData.phone = normalizeWhatsappPhone(anyData.phone, anyData.dialCode || DEFAULT_DIAL_CODE);
+              }
               resolve({ ...cleanData, metadata: Object.keys(metadata).length > 0 ? metadata : undefined });
             },
             () => resolve(null),
@@ -294,12 +392,21 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
 
     if (isFieldVisible('phone')) add('phone', 'contact', () => (
       <PropRow label="Phone" required error={errors.phone?.message}>
-        <Controller name="phone" control={control} render={({ field: { onChange, onBlur, value, name, ref } }) => (
-          <Input name={name} ref={ref} value={value || ''} onChange={onChange} onBlur={onBlur}
-            type="text" inputMode="numeric" placeholder="9876543210"
-            minLength={10} maxLength={10} disabled={isReadOnly}
-            className={cn(ghostInput, errors.phone && 'text-destructive')} />
-        )} />
+        <div className="flex items-center gap-1 w-full">
+          <Controller name="dialCode" control={control} render={({ field }) => (
+            <CountryCodePicker
+              value={field.value || DEFAULT_DIAL_CODE}
+              onChange={field.onChange}
+              disabled={isReadOnly}
+            />
+          )} />
+          <Controller name="phone" control={control} render={({ field: { onChange, onBlur, value, name, ref } }) => (
+            <Input name={name} ref={ref} value={value || ''}
+              onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))} onBlur={onBlur}
+              type="text" inputMode="numeric" placeholder="9876543210" maxLength={14} disabled={isReadOnly}
+              className={cn(ghostInput, 'flex-1', errors.phone && 'text-destructive')} />
+          )} />
+        </div>
       </PropRow>
     ));
 

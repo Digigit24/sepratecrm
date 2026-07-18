@@ -1,5 +1,13 @@
 import React, { useRef, useEffect, useState, useMemo } from "react";
 import {
+  getTemplateParameterValues as sharedGetTemplateParameterValues,
+  renderTemplateBody as sharedRenderTemplateBody,
+  getTemplateHeaderText as sharedGetTemplateHeaderText,
+  getTemplateFooter as sharedGetTemplateFooter,
+  getTemplateButtons as sharedGetTemplateButtons,
+  type TemplateSource,
+} from "@/lib/whatsapp/renderTemplate";
+import {
   Send,
   ArrowLeft,
   MoreVertical,
@@ -345,121 +353,43 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
     return msg.media_values && ['image', 'video', 'audio', 'document'].includes(msg.media_values.type);
   };
 
-  // Helper to extract parameter values from template_component_values array
-  const getTemplateParameterValues = (componentValues: any[]): Record<string, string> => {
-    const paramValues: Record<string, string> = {};
-    if (!Array.isArray(componentValues)) return paramValues;
+  // Build the shared renderer's source shape from a transformed message.
+  const toTemplateSource = (msg: typeof transformedMessages[0]): TemplateSource => ({
+    template_proforma: (msg as any).template_proforma ?? null,
+    template_components: (msg as any).template_components ?? null,
+    template_component_values: (msg as any).template_component_values ?? null,
+    metadata: (msg.metadata as any) ?? null,
+    text: (msg as any).text ?? null,
+  });
 
-    // Find the body component which contains the parameters
-    const bodyComponent = componentValues.find(c => c.type === 'body');
-    if (bodyComponent?.parameters) {
-      // Parameters is an object with keys like "{{1}}", "{{2}}", etc.
-      Object.entries(bodyComponent.parameters).forEach(([key, value]: [string, any]) => {
-        // Extract the number from "{{1}}" format
-        const match = key.match(/\{\{(\d+)\}\}/);
-        if (match) {
-          paramValues[match[1]] = value?.text || value || '';
-        }
-      });
-    }
-    return paramValues;
-  };
+  // ─── Template helpers now delegate to the SHARED renderer (single source of
+  //     truth, also used by LeadWhatsAppDrawer). See src/lib/whatsapp/renderTemplate.ts.
+  const getTemplateParameterValues = sharedGetTemplateParameterValues;
 
-  // Helper to render template message content
   const renderTemplateContent = (msg: typeof transformedMessages[0]) => {
-    // Build content from template_proforma and component values
-    if (msg.template_proforma) {
-      const components = msg.template_proforma.components || [];
-      const bodyComponent = components.find((c: any) => c.type === 'BODY');
-      if (bodyComponent?.text) {
-        let text = bodyComponent.text;
-        // Replace {{1}}, {{2}}, etc. with actual values from template_component_values
-        if (msg.template_component_values && Array.isArray(msg.template_component_values)) {
-          const paramValues = getTemplateParameterValues(msg.template_component_values);
-          Object.entries(paramValues).forEach(([key, value]) => {
-            text = text.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
-          });
-        }
-        return text;
-      }
+    // A real template body → shared substitution (proforma/components + values).
+    if ((msg as any).template_proforma || (msg as any).template_components) {
+      return sharedRenderTemplateBody(toTemplateSource(msg));
     }
-
-    // Fallback to template_components with variable substitution
-    if (msg.template_components) {
-      const bodyComponent = msg.template_components.find((c: any) => c.type === 'BODY');
-      if (bodyComponent?.text) {
-        let text = bodyComponent.text;
-        // Try to substitute from template_component_values
-        if (msg.template_component_values && Array.isArray(msg.template_component_values)) {
-          const paramValues = getTemplateParameterValues(msg.template_component_values);
-          Object.entries(paramValues).forEach(([key, value]) => {
-            text = text.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
-          });
-        }
-        return text;
-      }
-    }
-
-    // Interactive message
+    // Interactive/flow message body (ChatWindow-specific, kept).
     if (msg.interaction_message_data?.body?.text) {
       return msg.interaction_message_data.body.text;
     }
-
-    // If has text, use it as fallback
-    if (msg.text) return msg.text;
-
-    // Show template name if available
+    if ((msg as any).text) return (msg as any).text;
     if ((msg.metadata as any)?.template_name) {
       return `[Template: ${(msg.metadata as any).template_name}]`;
     }
-
     return '[Template Message]';
   };
 
-  // Helper to get template header text
-  const getTemplateHeader = (msg: typeof transformedMessages[0]): string | null => {
-    if (msg.template_proforma?.components) {
-      const headerComponent = msg.template_proforma.components.find((c: any) => c.type === 'HEADER' && c.format === 'TEXT');
-      if (headerComponent?.text) return headerComponent.text;
-    }
-    if (msg.template_components) {
-      const headerComponent = msg.template_components.find((c: any) => c.type === 'HEADER' && c.format === 'TEXT');
-      if (headerComponent?.text) return headerComponent.text;
-    }
-    return null;
-  };
+  const getTemplateHeader = (msg: typeof transformedMessages[0]): string | null =>
+    sharedGetTemplateHeaderText(toTemplateSource(msg));
 
-  // Helper to get template footer text
-  const getTemplateFooter = (msg: typeof transformedMessages[0]): string | null => {
-    if (msg.template_proforma?.components) {
-      const footerComponent = msg.template_proforma.components.find((c: any) => c.type === 'FOOTER');
-      if (footerComponent?.text) return footerComponent.text;
-    }
-    if (msg.template_components) {
-      const footerComponent = msg.template_components.find((c: any) => c.type === 'FOOTER');
-      if (footerComponent?.text) return footerComponent.text;
-    }
-    return null;
-  };
+  const getTemplateFooter = (msg: typeof transformedMessages[0]): string | null =>
+    sharedGetTemplateFooter(toTemplateSource(msg));
 
-  // Helper to get template buttons from either template_proforma or template_components
-  const getTemplateButtons = (msg: typeof transformedMessages[0]): Array<{ type: string; text: string }> | null => {
-    // Check template_proforma.components first
-    if (msg.template_proforma?.components) {
-      const buttonsComponent = msg.template_proforma.components.find((c: any) => c.type === 'BUTTONS');
-      if (buttonsComponent?.buttons && buttonsComponent.buttons.length > 0) {
-        return buttonsComponent.buttons;
-      }
-    }
-    // Fallback to template_components
-    if (msg.template_components) {
-      const buttonsComponent = msg.template_components.find((c: any) => c.type === 'BUTTONS');
-      if (buttonsComponent?.buttons && buttonsComponent.buttons.length > 0) {
-        return buttonsComponent.buttons;
-      }
-    }
-    return null;
-  };
+  const getTemplateButtons = (msg: typeof transformedMessages[0]): Array<{ type: string; text: string }> | null =>
+    sharedGetTemplateButtons(toTemplateSource(msg));
 
   // Log messages for debugging
   useEffect(() => {

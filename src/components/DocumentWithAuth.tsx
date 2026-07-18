@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { whatsappClient } from '@/lib/whatsappClient';
+import { fetchWhatsappMediaObjectUrl } from '@/lib/whatsapp/media';
 import { FileText } from 'lucide-react';
 
 interface DocumentWithAuthProps {
@@ -24,13 +24,7 @@ const DocumentWithAuth: React.FC<DocumentWithAuthProps> = ({ src, filename, clas
       setError(null);
 
       try {
-        const response = await whatsappClient.get(src, {
-          responseType: 'blob',
-        });
-        
-        const mimeType = response.headers['content-type'] || 'application/octet-stream';
-        const blob = new Blob([response.data], { type: mimeType });
-        const url = URL.createObjectURL(blob);
+        const { url } = await fetchWhatsappMediaObjectUrl(src);
         setDocSrc(url);
       } catch (err) {
         console.error('Failed to fetch document:', err);

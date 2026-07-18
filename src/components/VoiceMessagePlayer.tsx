@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Play, Pause, Mic } from 'lucide-react';
-import { whatsappClient } from '@/lib/whatsappClient';
+import { fetchWhatsappMediaObjectUrl } from '@/lib/whatsapp/media';
 
 interface VoiceMessagePlayerProps {
   src: string;
@@ -48,11 +48,11 @@ const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({ src, isOutgoing
       setIsLoading(true);
       setError(false);
       try {
-        const response = await whatsappClient.get(src, { responseType: 'blob' });
-        if (cancelled) return;
-        const mimeType = response.headers['content-type'] || 'audio/ogg';
-        const blob = new Blob([response.data], { type: mimeType });
-        const url = URL.createObjectURL(blob);
+        const { url } = await fetchWhatsappMediaObjectUrl(src, 'audio/ogg');
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
         objectUrlRef.current = url;
         setAudioSrc(url);
       } catch {

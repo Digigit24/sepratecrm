@@ -141,7 +141,10 @@ const AppLayout = () => {
               <Route path="/whatsapp/chats" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.messages.view"><Chats /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/groups" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.messages.view"><Groups /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/templates" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.templates.view"><Templates /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/campaigns" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.campaigns.view"><Campaigns /></ModuleProtectedRoute>} />
+              {/* DEPRECATED: legacy WhatsApp Campaigns page did a client-side per-recipient
+                  send loop (no campaign row, dropped scheduling). Superseded by the
+                  server-backed /crm/campaigns. Route kept as a redirect; page file retained. */}
+              <Route path="/whatsapp/campaigns" element={<Navigate to="/crm/campaigns" replace />} />
               <Route path="/whatsapp/flows" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><Flows /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/flows/:flow_id" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><FlowEditor /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/bot-flows" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><BotFlows /></ModuleProtectedRoute>} />

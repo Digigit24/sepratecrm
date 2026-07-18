@@ -377,6 +377,7 @@ export interface TemplatesListQuery {
   category?: TemplateCategory;
   language?: string;
   skip?: number;
+  page?: number;
   limit?: number;
 }
 

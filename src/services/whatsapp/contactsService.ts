@@ -1,6 +1,15 @@
 // src/services/whatsapp/contactsService.ts
-import {
-  externalWhatsappService,
+//
+// DATA LAYER migrated to the digicrm adapter (crmClient → /api/whatsapp/...,
+// JWT). UI/return shapes unchanged. The adapter's detail routes accept a
+// contact UID *or* phone in the path, so the old resolve-UID round-trip is gone.
+//   GET  /whatsapp/contacts/?page&limit&search&labels&groups -> {contacts,total,page,limit,total_pages}
+//   POST /whatsapp/contacts/  ·  GET|PUT|PATCH|DELETE /whatsapp/contacts/<uid|phone>/
+//   POST /whatsapp/contacts/import/  ·  GET /whatsapp/contacts/import/<id>/status/
+//   labels/  labels/<uid>/  ·  contact-groups/  contact-groups/<uid>/  contact-groups/<uid>/contacts/
+import { crmClient } from '@/lib/client';
+// Payload TYPES only (compile-time) — no runtime calls to the old client.
+import type {
   ImportContactsPayload,
   ImportContactItem,
   CreateLabelPayload,
@@ -81,55 +90,41 @@ class ContactsService {
     return phone.replace(/^\+/, '');
   }
 
-  private isUid(str: string): boolean {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-  }
-
-  // Resolve a phone number to a contact UID. UUIDs pass through unchanged.
-  private async resolveUid(phoneOrUid: string): Promise<string> {
-    const cleaned = this.normalizePhoneParam(phoneOrUid);
-    if (this.isUid(cleaned)) return cleaned;
-    const contact = await externalWhatsappService.getContactByPhone(cleaned);
-    if (contact?._uid) return contact._uid;
-    // No UID found — the API call will fail with a meaningful error
-    return cleaned;
-  }
-
   // ==================== CONTACT METHODS ====================
 
   async getContacts(query?: ContactsListQuery): Promise<ContactsListResponse> {
-    const response = await externalWhatsappService.getContacts({
-      page: query?.page,
-      limit: query?.limit,
-      search: query?.search,
-      labels: query?.labels,
-      groups: query?.groups,
+    const { data } = await crmClient.get('/whatsapp/contacts/', {
+      params: {
+        page: query?.page,
+        limit: query?.limit,
+        search: query?.search,
+        labels: query?.labels,
+        groups: query?.groups,
+      },
     });
 
     let contacts: any[] = [];
     let total = 0;
-
-    if (Array.isArray(response)) {
-      contacts = response;
-      total = response.length;
-    } else if (response && typeof response === 'object') {
-      contacts = response.data || response.contacts || [];
-      total = response.total || contacts.length;
+    if (Array.isArray(data)) {
+      contacts = data;
+      total = data.length;
+    } else if (data && typeof data === 'object') {
+      contacts = data.contacts || data.data || data.results || [];
+      total = typeof data.total === 'number' ? data.total : contacts.length;
     }
 
     const mappedContacts = contacts.map((c: any) => this.mapLaravelContact(c));
-
     return { total, contacts: mappedContacts };
   }
 
   async getContact(phoneOrUid: string): Promise<Contact> {
-    const uid = await this.resolveUid(phoneOrUid);
-    const response = await externalWhatsappService.getContact(uid);
-    return this.mapLaravelContact(response);
+    const id = this.normalizePhoneParam(phoneOrUid);
+    const { data } = await crmClient.get(`/whatsapp/contacts/${id}/`);
+    return this.mapLaravelContact(data);
   }
 
   async createContact(payload: CreateContactPayload): Promise<Contact> {
-    const laravelPayload = {
+    const body = {
       phone_number: payload.phone,
       first_name: payload.name?.split(' ')[0] || payload.first_name || '',
       last_name: payload.name?.split(' ').slice(1).join(' ') || payload.last_name || '',
@@ -139,36 +134,35 @@ class ContactsService {
       groups: payload.groups?.join(','),
       custom_fields: payload.custom_fields,
     };
-
-    const response = await externalWhatsappService.createContact(laravelPayload);
-    return this.mapLaravelContact(response);
+    const { data } = await crmClient.post('/whatsapp/contacts/', body);
+    return this.mapLaravelContact(data);
   }
 
   async updateContact(phone: string, payload: UpdateContactPayload): Promise<Contact> {
-    const cleanPhone = this.normalizePhoneParam(phone);
-    const laravelPayload: any = {};
+    const cleanPhone = this.normalizePhoneParam(phone); // adapter contract: PUT with PHONE
+    const body: any = {};
 
     if (payload.name) {
-      laravelPayload.first_name = payload.name.split(' ')[0];
-      laravelPayload.last_name = payload.name.split(' ').slice(1).join(' ');
+      body.first_name = payload.name.split(' ')[0];
+      body.last_name = payload.name.split(' ').slice(1).join(' ');
     }
-    if (payload.first_name !== undefined) laravelPayload.first_name = payload.first_name;
-    if (payload.last_name !== undefined) laravelPayload.last_name = payload.last_name;
-    if (payload.email !== undefined) laravelPayload.email = payload.email;
-    if (payload.country !== undefined) laravelPayload.country = payload.country;
-    if (payload.language_code !== undefined) laravelPayload.language_code = payload.language_code;
+    if (payload.first_name !== undefined) body.first_name = payload.first_name;
+    if (payload.last_name !== undefined) body.last_name = payload.last_name;
+    if (payload.email !== undefined) body.email = payload.email;
+    if (payload.country !== undefined) body.country = payload.country;
+    if (payload.language_code !== undefined) body.language_code = payload.language_code;
     if (payload.groups !== undefined) {
-      laravelPayload.groups = Array.isArray(payload.groups) ? payload.groups.join(',') : payload.groups;
+      body.groups = Array.isArray(payload.groups) ? payload.groups.join(',') : payload.groups;
     }
-    if (payload.custom_fields !== undefined) laravelPayload.custom_fields = payload.custom_fields;
+    if (payload.custom_fields !== undefined) body.custom_fields = payload.custom_fields;
 
-    const response = await externalWhatsappService.updateContact(cleanPhone, laravelPayload);
-    return this.mapLaravelContact(response);
+    const { data } = await crmClient.put(`/whatsapp/contacts/${cleanPhone}/`, body);
+    return this.mapLaravelContact(data);
   }
 
   async deleteContact(phone: string): Promise<DeleteContactResponse> {
-    const uid = await this.resolveUid(phone);
-    await externalWhatsappService.deleteContact(uid);
+    const id = this.normalizePhoneParam(phone);
+    await crmClient.delete(`/whatsapp/contacts/${id}/`);
     return { phone, deleted: true };
   }
 
@@ -193,18 +187,20 @@ class ContactsService {
   }
 
   async importContacts(payload: ImportContactsPayload): Promise<any> {
-    return externalWhatsappService.importContacts(payload);
+    const { data } = await crmClient.post('/whatsapp/contacts/import/', payload);
+    return data;
   }
 
   async getImportStatus(importId: string): Promise<any> {
-    return externalWhatsappService.getImportStatus(importId);
+    const { data } = await crmClient.get(`/whatsapp/contacts/import/${importId}/status/`);
+    return data;
   }
 
   // ==================== LABEL METHODS ====================
 
   async getLabels(): Promise<Label[]> {
-    const response = await externalWhatsappService.getLabels();
-    const labels = Array.isArray(response) ? response : [];
+    const { data } = await crmClient.get('/whatsapp/labels/');
+    const labels: any[] = Array.isArray(data) ? data : (data?.labels ?? data?.results ?? []);
     return labels.map((l: any) => ({
       _uid: l._uid || l.id,
       title: l.title || l.name || '',
@@ -216,7 +212,7 @@ class ContactsService {
   }
 
   async createLabel(payload: CreateLabelPayload): Promise<Label> {
-    const response = await externalWhatsappService.createLabel(payload);
+    const { data: response } = await crmClient.post('/whatsapp/labels/', payload);
     return {
       _uid: response._uid || response.id,
       title: response.title || payload.title,
@@ -228,7 +224,7 @@ class ContactsService {
   }
 
   async updateLabel(labelUid: string, payload: UpdateLabelPayload): Promise<Label> {
-    const response = await externalWhatsappService.updateLabel(labelUid, payload);
+    const { data: response } = await crmClient.put(`/whatsapp/labels/${labelUid}/`, payload);
     return {
       _uid: response._uid || labelUid,
       title: response.title || payload.title || '',
@@ -240,14 +236,14 @@ class ContactsService {
   }
 
   async deleteLabel(labelUid: string): Promise<void> {
-    await externalWhatsappService.deleteLabel(labelUid);
+    await crmClient.delete(`/whatsapp/labels/${labelUid}/`);
   }
 
   // ==================== CONTACT GROUP METHODS ====================
 
   async getContactGroups(): Promise<ContactGroup[]> {
-    const response = await externalWhatsappService.getContactGroups();
-    const groups = Array.isArray(response) ? response : [];
+    const { data } = await crmClient.get('/whatsapp/contact-groups/');
+    const groups: any[] = Array.isArray(data) ? data : (data?.groups ?? data?.results ?? []);
     return groups.map((g: any) => ({
       _uid: g._uid || g.id,
       title: g.title || g.name || '',
@@ -259,7 +255,7 @@ class ContactsService {
   }
 
   async createContactGroup(payload: CreateContactGroupPayload): Promise<ContactGroup> {
-    const response = await externalWhatsappService.createContactGroup(payload);
+    const { data: response } = await crmClient.post('/whatsapp/contact-groups/', payload);
     return {
       _uid: response._uid || response.id,
       title: response.title || payload.title,
@@ -271,7 +267,7 @@ class ContactsService {
   }
 
   async updateContactGroup(groupUid: string, payload: UpdateContactGroupPayload): Promise<ContactGroup> {
-    const response = await externalWhatsappService.updateContactGroup(groupUid, payload);
+    const { data: response } = await crmClient.put(`/whatsapp/contact-groups/${groupUid}/`, payload);
     return {
       _uid: response._uid || groupUid,
       title: response.title || payload.title || '',
@@ -283,15 +279,15 @@ class ContactsService {
   }
 
   async deleteContactGroup(groupUid: string): Promise<void> {
-    await externalWhatsappService.deleteContactGroup(groupUid);
+    await crmClient.delete(`/whatsapp/contact-groups/${groupUid}/`);
   }
 
   async addContactsToGroup(groupUid: string, contactUids: string[]): Promise<void> {
-    await externalWhatsappService.addContactsToGroup(groupUid, { contact_uids: contactUids });
+    await crmClient.post(`/whatsapp/contact-groups/${groupUid}/contacts/`, { contact_uids: contactUids });
   }
 
   async removeContactsFromGroup(groupUid: string, contactUids: string[]): Promise<void> {
-    await externalWhatsappService.removeContactsFromGroup(groupUid, { contact_uids: contactUids });
+    await crmClient.delete(`/whatsapp/contact-groups/${groupUid}/contacts/`, { data: { contact_uids: contactUids } });
   }
 }
 

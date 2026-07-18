@@ -22,6 +22,28 @@ import {
 import { useTemplate } from '@/hooks/whatsapp/useTemplates';
 import { templatesService } from '@/services/whatsapp/templatesService';
 import {
+  renderTemplateBody,
+  getTemplateHeaderText,
+  getTemplateHeaderMedia,
+  getTemplateFooter,
+  getTemplateButtons,
+  type TemplateSource,
+} from '@/lib/whatsapp/renderTemplate';
+import {
+  CRM_VARIABLE_FIELDS,
+  crmFieldLabel,
+  saveVariableMapping,
+  type VariableMapping,
+} from '@/lib/whatsapp/templateVariables';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Eye,
   Pencil,
   Trash2,
@@ -140,6 +162,19 @@ export default function TemplatesFormDrawer({
   }, [bodyText]);
 
   const [previewVars, setPreviewVars] = useState<Record<string, string>>({});
+  // CRM variable mapping: positional param number ("1","2"…) → CRM lead field key.
+  const [variableMapping, setVariableMapping] = useState<VariableMapping>({});
+
+  // Insert a CRM variable: reuse this field's param number if already mapped,
+  // else assign the next number; append {{N}} to the body and record the mapping.
+  const insertCrmVariable = (fieldKey: string) => {
+    setVariableMapping((prev) => {
+      const existing = Object.entries(prev).find(([, f]) => f === fieldKey);
+      const num = existing ? existing[0] : String(Object.keys(prev).length + variableNumbers.length + 1);
+      setBodyText((b) => `${b}${b && !b.endsWith(' ') ? ' ' : ''}{{${num}}}`);
+      return existing ? prev : { ...prev, [num]: fieldKey };
+    });
+  };
 
   const handleVarChange = (indexNumber: string, value: string) => {
     setPreviewVars((prev) => ({ ...prev, [indexNumber]: value }));
@@ -149,6 +184,28 @@ export default function TemplatesFormDrawer({
     if (!bodyText) return '';
     return templatesService.replaceVariables(bodyText, previewVars);
   }, [bodyText, previewVars]);
+
+  // ===== View-mode preview derived from the loaded template via the SHARED
+  // renderTemplate util (case/shape-tolerant vs the live Laravel data). Keeps
+  // {{n}} placeholders in the body; resolves header media/text, footer, buttons.
+  const templatePreview = useMemo(() => {
+    if (!template) return null;
+    const src: TemplateSource = { template_components: (template.components as any[]) ?? null };
+    const media = getTemplateHeaderMedia(src);
+    const headerText = getTemplateHeaderText(src);
+    const headerType: HeaderType = media
+      ? (media.type.toUpperCase() as HeaderType)
+      : headerText
+      ? 'TEXT'
+      : 'NONE';
+    return {
+      headerType,
+      header: headerText || undefined,
+      body: renderTemplateBody(src),
+      footer: getTemplateFooter(src) || undefined,
+      buttons: (getTemplateButtons(src) as ButtonRow[] | null) ?? [],
+    };
+  }, [template]);
 
   // ===== Sync mode and data =====
   useEffect(() => setCurrentMode(mode), [mode]);
@@ -170,6 +227,7 @@ export default function TemplatesFormDrawer({
       setButtonsEnabled(false);
       setButtons([]);
       setPreviewVars({});
+      setVariableMapping({});
       setEditStatus(undefined);
       setActiveTab('builder');
     } else if (template) {
@@ -342,6 +400,9 @@ export default function TemplatesFormDrawer({
         };
 
         const created = await templatesService.createTemplate(payload);
+        // Persist the CRM variable→field mapping so sends from a lead can
+        // auto-substitute the lead's values (v1: local, keyed by template name).
+        saveVariableMapping(created.name || name.trim(), variableMapping);
         toast.success(`Template "${created.name}" created successfully`);
         onSuccess?.();
         handleClose();
@@ -869,19 +930,45 @@ export default function TemplatesFormDrawer({
               <p className="text-xs text-muted-foreground">
                 Use {'{{1}}'}, {'{{2}}'}, etc. for dynamic variables
               </p>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => {
-                  const currentVars = variableNumbers.length;
-                  const nextVar = currentVars + 1;
-                  setBodyText(prev => prev + ` {{${nextVar}}}`);
-                }}
-              >
-                <Plus className="h-3 w-3 mr-1" />
-                Add Variable
-              </Button>
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Plus className="h-3 w-3 mr-1" />
+                      Insert CRM variable
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuLabel>Lead field</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {CRM_VARIABLE_FIELDS.map((f) => (
+                      <DropdownMenuItem key={f.key} onClick={() => insertCrmVariable(f.key)}>
+                        {f.label}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() =>
+                        setBodyText((prev) => `${prev}${prev && !prev.endsWith(' ') ? ' ' : ''}{{${variableNumbers.length + 1}}}`)
+                      }
+                    >
+                      Blank variable
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
+            {Object.keys(variableMapping).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {Object.entries(variableMapping)
+                  .sort((a, b) => Number(a[0]) - Number(b[0]))
+                  .map(([num, fieldKey]) => (
+                    <span key={num} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">
+                      <span className="font-mono">{`{{${num}}}`}</span> → {crmFieldLabel(fieldKey)}
+                    </span>
+                  ))}
+              </div>
+            )}
           </div>
 
           {/* Footer Section */}
@@ -1073,10 +1160,13 @@ export default function TemplatesFormDrawer({
   // ===== View Template =====
   const renderViewer = () => {
     if (!template) return null;
-    const bodyComp = template.components.find((c: any) => c.type === 'BODY');
-    const headerComp = template.components.find((c: any) => c.type === 'HEADER');
-    const footerComp = template.components.find((c: any) => c.type === 'FOOTER');
-    const buttonsComp = template.components.find((c: any) => c.type === 'BUTTONS');
+    // Case/shape-tolerant lookups — live Laravel data may use lowercase types.
+    const comps = (template.components as any[]) ?? [];
+    const findComp = (t: string) => comps.find((c: any) => String(c?.type).toUpperCase() === t);
+    const bodyComp = findComp('BODY');
+    const headerComp = findComp('HEADER');
+    const footerComp = findComp('FOOTER');
+    const buttonsComp = findComp('BUTTONS');
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
@@ -1147,13 +1237,15 @@ export default function TemplatesFormDrawer({
         <div className="space-y-4 flex flex-col items-center lg:items-start">
           <Label className="text-base font-semibold self-start">Mobile Preview</Label>
           <div className="w-full flex justify-center">
-            <MobilePreview
-              headerType={headerComp?.format as HeaderType}
-              header={headerComp?.text}
-              body={bodyComp?.text}
-              footer={footerComp?.text}
-              buttonRows={buttonsComp?.buttons as ButtonRow[] | undefined}
-            />
+            {templatePreview && (
+              <MobilePreview
+                headerType={templatePreview.headerType}
+                header={templatePreview.header}
+                body={templatePreview.body}
+                footer={templatePreview.footer}
+                buttonRows={templatePreview.buttons}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -1517,15 +1609,15 @@ export default function TemplatesFormDrawer({
               footer={footerEnabled ? footerText : undefined}
               buttonRows={buttonsEnabled ? buttons : []}
             />
-          ) : template ? (
+          ) : template && templatePreview ? (
             <div className="space-y-4 flex flex-col items-center w-full">
               <Label className="text-base font-semibold self-start">Mobile Preview</Label>
               <MobilePreview
-                headerType={template.components.find((c: any) => c.type === 'HEADER')?.format as HeaderType}
-                header={template.components.find((c: any) => c.type === 'HEADER')?.text}
-                body={template.components.find((c: any) => c.type === 'BODY')?.text}
-                footer={template.components.find((c: any) => c.type === 'FOOTER')?.text}
-                buttonRows={template.components.find((c: any) => c.type === 'BUTTONS')?.buttons as ButtonRow[] | undefined}
+                headerType={templatePreview.headerType}
+                header={templatePreview.header}
+                body={templatePreview.body}
+                footer={templatePreview.footer}
+                buttonRows={templatePreview.buttons}
               />
             </div>
           ) : null}

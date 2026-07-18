@@ -123,9 +123,16 @@ export interface ChatMessage {
   status: string;
   message: string | null;
   timestamp: string;
+  /** Resolved template variable values ([{type:'body', parameters:{...}}]) — rich payload. */
+  template_component_values?: any[];
+  /** Resolved media on the message ({type,url}) — rich payload. */
+  media_values?: { type?: string; url?: string; link?: string } | null;
   meta?: {
     template_proforma?: { name?: string; components?: any[] };
     template_components?: any[];
+    template_component_values?: any[];
+    media_values?: { type?: string; url?: string; link?: string } | null;
+    template_name?: string;
     interaction_message_data?: {
       body_text?: string;
       header_text?: string;
@@ -149,6 +156,10 @@ export interface ChatHistoryResponse {
   page: number;
   per_page: number;
   messages: ChatMessage[];
+  // Backend-authoritative 24h window fields (rich payload — preferred by getWindowState)
+  reply_window_open?: boolean;
+  window_expires_at?: string | null;
+  requires_template?: boolean;
 }
 
 export interface AgentActionLog {

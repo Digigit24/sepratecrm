@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Pencil, Trash2, Phone, Mail, MessageCircle } from 'lucide-react';
+import { normalizeWhatsappPhone } from '@/lib/phone';
 import { toast } from 'sonner';
 
 import type { Lead, CreateLeadPayload, UpdateLeadPayload } from '@/types/crmTypes';
@@ -178,13 +179,9 @@ export function LeadsFormDrawer({
       return;
     }
 
-    // Format phone number for WhatsApp (remove all non-digits except +)
-    let cleanPhone = lead.phone.replace(/[^\d+]/g, '');
-
-    // Remove leading + if present for WhatsApp API
-    if (cleanPhone.startsWith('+')) {
-      cleanPhone = cleanPhone.substring(1);
-    }
+    // Normalize to the full international MSISDN (adds +91 default if a bare
+    // national number was stored) so wa.me works for 10-digit OR cc-prefixed.
+    const cleanPhone = normalizeWhatsappPhone(lead.phone);
 
     // Create pre-filled message
     const message = `Hi ${lead.name}, I'm reaching out regarding your inquiry.`;

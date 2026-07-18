@@ -207,7 +207,7 @@ export function useTemplates(options: UseTemplatesOptions = {}): UseTemplatesRet
       // Refresh templates after sync
       await fetchTemplates();
 
-      toast.success(`Synced ${result.updated} template(s)`);
+      toast.success('Templates synced');
       return result;
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to sync templates';
@@ -227,19 +227,9 @@ export function useTemplates(options: UseTemplatesOptions = {}): UseTemplatesRet
 
       const result = await templatesService.syncTemplate(id);
 
-      // Update local state if status changed
-      if (result.updated) {
-        setTemplates(prev =>
-          prev.map(template =>
-            template.id === id
-              ? { ...template, status: result.new_status }
-              : template
-          )
-        );
-        toast.success(`Template status updated: ${result.old_status} → ${result.new_status}`);
-      } else {
-        toast.info(`Template status unchanged: ${result.old_status}`);
-      }
+      // Adapter does a full sync (no per-template status delta) — refresh the list.
+      await fetchTemplates();
+      toast.success('Templates synced');
 
       return result;
     } catch (err: any) {
@@ -250,7 +240,7 @@ export function useTemplates(options: UseTemplatesOptions = {}): UseTemplatesRet
     } finally {
       setIsUpdating(false);
     }
-  }, []);
+  }, [fetchTemplates]);
 
   // Send template
   const sendTemplate = useCallback(async (payload: TemplateSendRequest): Promise<boolean> => {
