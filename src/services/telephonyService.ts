@@ -245,6 +245,31 @@ class TelephonyService {
     }
   }
 
+  /**
+   * Fetch a call recording's audio as a Blob.
+   *
+   * Deliberately NOT a plain URL you can drop into `<audio src>` — crmClient
+   * authenticates via an `Authorization: Bearer` header (see lib/client.ts's
+   * request interceptor), and browsers never attach custom headers to
+   * <audio>/<video> src requests. Backend: GET /api/telephony/calls/:id/recording/
+   * proxy-streams the file straight from TeleCMI (telephony/views.py
+   * CallLogViewSet.recording) — nothing is stored locally on the server.
+   *
+   * Callers should build an object URL from the result
+   * (`URL.createObjectURL(blob)`) and revoke it (`URL.revokeObjectURL`) when
+   * done — see the RecordingPlayer component in LeadTelephonyHistory.tsx.
+   */
+  async getRecordingBlob(id: number): Promise<Blob> {
+    try {
+      const res = await crmClient.get<Blob>(T.CALL_RECORDING.replace(':id', String(id)), {
+        responseType: 'blob',
+      });
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
   // ==================== SMS (§8) ====================
 
   async sendSMS(data: SendSMSRequest): Promise<SMSLog> {

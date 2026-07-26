@@ -5,7 +5,7 @@
 // TeleCMI-side fields (billed_sec, rate, cmiuid, telecmi_notes, error_message)
 // that the LeadActivity feed can't render.
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -24,10 +24,15 @@ import {
   RefreshCw,
   ChevronDown,
   Loader2,
+  Play,
+  Pause,
+  AlertCircle,
 } from 'lucide-react';
-import { useTelephony } from '@/hooks/useTelephony';
+import { useTelephony, revalidateLeadCalls } from '@/hooks/useTelephony';
+import { useTelephonyLiveEvents } from '@/hooks/useTelephonyLiveEvents';
 import { useUsers } from '@/hooks/useUsers';
-import { placeCall } from '@/lib/telephonyController';
+import { placeCall, normalizePhoneForDial } from '@/lib/telephonyController';
+import { telephonyService } from '@/services/telephonyService';
 import { SendSMSDialog } from '@/components/telephony/SendSMSDialog';
 import { Pager } from '@/components/telephony/Pager';
 import { formatDuration, safeRelative, safeExact, msToExact } from '@/lib/telephonyFormat';
@@ -42,6 +47,91 @@ import {
 
 const PAGE_SIZE = 10;
 
+// ── recording play button + inline audio player ────────────────────────
+// Fetches lazily (on click), not eagerly for every row — a lead can have
+// dozens of calls and most recordings never get played, so pre-fetching all
+// of them would waste bandwidth on both the browser and the TeleCMI proxy.
+const RecordingPlayer: React.FC<{ callId: number }> = ({ callId }) => {
+  const [state, setState] = useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
+  const objectUrlRef = useRef<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Revoke the blob URL on unmount (or when a new one replaces it) so we
+  // don't leak memory as the user pages through calls with recordings.
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    };
+  }, []);
+
+  const handleToggle = async () => {
+    if (state === 'playing') {
+      audioRef.current?.pause();
+      setState('idle');
+      return;
+    }
+    if (objectUrlRef.current) {
+      // Already fetched this row once — just resume instead of re-fetching.
+      audioRef.current?.play();
+      setState('playing');
+      return;
+    }
+
+    setState('loading');
+    try {
+      const blob = await telephonyService.getRecordingBlob(callId);
+      const url = URL.createObjectURL(blob);
+      objectUrlRef.current = url;
+      setState('playing');
+      // Give the <audio> element a tick to mount with the new src before playing.
+      requestAnimationFrame(() => audioRef.current?.play());
+    } catch {
+      setState('error');
+    }
+  };
+
+  if (state === 'error') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-red-600">
+        <AlertCircle className="h-3.5 w-3.5" />
+        Recording unavailable
+      </span>
+    );
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6"
+        onClick={handleToggle}
+        disabled={state === 'loading'}
+        aria-label={state === 'playing' ? 'Pause recording' : 'Play recording'}
+      >
+        {state === 'loading' ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : state === 'playing' ? (
+          <Pause className="h-3.5 w-3.5" />
+        ) : (
+          <Play className="h-3.5 w-3.5" />
+        )}
+      </Button>
+      <span className="text-xs text-muted-foreground">Recording</span>
+      {objectUrlRef.current && (
+        <audio
+          ref={audioRef}
+          src={objectUrlRef.current}
+          onEnded={() => setState('idle')}
+          onPause={() => setState((s) => (s === 'playing' ? 'idle' : s))}
+          className="hidden"
+        />
+      )}
+    </div>
+  );
+};
+
 interface LeadTelephonyHistoryProps {
   leadId: number;
   leadName: string;
@@ -54,29 +144,45 @@ interface LeadTelephonyHistoryProps {
 const CallRow: React.FC<{ call: CallLog }> = ({ call }) => {
   const [showNotes, setShowNotes] = useState(false);
   const inbound = call.direction === Direction.INBOUND;
+  // Negative id => the optimistic row prependOptimisticCall() inserted;
+  // still "in flight", hasn't been confirmed by a real CDR/live event yet.
+  const pending = call.id < 0;
   const missed = call.call_type === CallType.MISSED || call.duration <= 0;
-  const DirIcon = missed ? PhoneMissed : inbound ? PhoneIncoming : PhoneOutgoing;
+  const DirIcon = pending ? Phone : missed ? PhoneMissed : inbound ? PhoneIncoming : PhoneOutgoing;
   const title = call.caller_name || (inbound ? call.from_number : call.to_number) || 'Unknown';
   const notes: TeleCMINote[] = Array.isArray(call.telecmi_notes) ? call.telecmi_notes : [];
 
   return (
-    <div className="py-2.5 border-b last:border-b-0">
+    <div className={`py-2.5 border-b last:border-b-0 ${pending ? 'opacity-70' : ''}`}>
       <div className="flex items-start gap-3">
-        <DirIcon className={`h-4 w-4 mt-0.5 shrink-0 ${missed ? 'text-red-600' : inbound ? 'text-blue-600' : 'text-green-600'}`} />
+        <DirIcon
+          className={`h-4 w-4 mt-0.5 shrink-0 ${pending ? 'text-muted-foreground animate-pulse' : missed ? 'text-red-600' : inbound ? 'text-blue-600' : 'text-green-600'}`}
+        />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium truncate">{title}</span>
-            <Badge
-              variant="secondary"
-              className={missed ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-green-100 text-green-700 hover:bg-green-100'}
-            >
-              {missed ? 'Missed' : 'Answered'}
-            </Badge>
+            {pending ? (
+              <Badge variant="secondary" className="bg-muted text-muted-foreground">
+                Calling…
+              </Badge>
+            ) : (
+              <Badge
+                variant="secondary"
+                className={missed ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-green-100 text-green-700 hover:bg-green-100'}
+              >
+                {missed ? 'Missed' : 'Answered'}
+              </Badge>
+            )}
             <span className="text-xs text-muted-foreground capitalize">{call.direction_display || call.direction}</span>
           </div>
           <div className="text-xs text-muted-foreground mt-0.5 font-mono truncate">
             {call.from_number} → {call.to_number}
           </div>
+          {!pending && call.has_recording && (
+            <div className="mt-1">
+              <RecordingPlayer callId={call.id} />
+            </div>
+          )}
           {notes.length > 0 && (
             <button
               type="button"
@@ -103,7 +209,7 @@ const CallRow: React.FC<{ call: CallLog }> = ({ call }) => {
         </div>
         <div className="text-right shrink-0">
           <div className={`text-sm font-medium ${missed ? 'text-red-600' : ''}`}>
-            {formatDuration(call.duration, call.call_type)}
+            {pending ? '…' : formatDuration(call.duration, call.call_type)}
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -181,6 +287,26 @@ export const LeadTelephonyHistory: React.FC<LeadTelephonyHistoryProps> = ({
 
   const calls = useLeadCalls(leadId, callsPage, PAGE_SIZE);
   const sms = useLeadSMS(leadId, smsPage, PAGE_SIZE);
+
+  // Reconcile the optimistic "Calling…" row (and pick up inbound calls,
+  // recordings becoming available, etc.) as soon as the backend confirms
+  // them — see telephony/services/realtime.py on the backend and
+  // useTelephonyLiveEvents.ts here, which is a no-op until both
+  // VITE_TELEPHONY_REALTIME=true and the backend's PUSHER_SECRET are set.
+  // We only revalidate page 1 (where new calls land) and only when the
+  // event plausibly involves this lead's number, to avoid every open lead
+  // drawer in the tenant refetching on every unrelated call.
+  const leadPhoneDigits = leadPhone ? normalizePhoneForDial(leadPhone) : '';
+  useTelephonyLiveEvents({
+    onEvent: (evt) => {
+      if (evt.event !== 'answered' && evt.event !== 'ended') return;
+      const evtFrom = evt.from ? normalizePhoneForDial(evt.from) : '';
+      // Live events don't always carry a `to`; when we can't tell, err on
+      // the side of revalidating — it's one cheap GET, not a big deal.
+      const matchesLead = !leadPhoneDigits || !evtFrom || evtFrom === leadPhoneDigits;
+      if (matchesLead && callsPage === 1) revalidateLeadCalls(leadId, PAGE_SIZE);
+    },
+  });
 
   // Resolve SMS sender UUIDs -> names (cheap: single cached users list).
   const { data: usersData } = useUsersList({ page_size: 100 });

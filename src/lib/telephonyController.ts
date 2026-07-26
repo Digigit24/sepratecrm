@@ -12,7 +12,20 @@
 
 import { toast } from 'sonner';
 import { telephonyService, TelephonyApiError } from '@/services/telephonyService';
-import { toastTelephonyError } from '@/hooks/useTelephony';
+import {
+  toastTelephonyError,
+  prependOptimisticCall,
+  removeOptimisticCall,
+  revalidateLeadCalls,
+} from '@/hooks/useTelephony';
+
+// Safety-net revalidation delay for the optimistic "Calling…" row. Real-time
+// reconciliation (Pusher live events, see useTelephonyLiveEvents.ts) is the
+// fast path but depends on PUSHER_SECRET being configured on the backend —
+// until then, this timer is what clears the optimistic row instead of it
+// sitting there until the user manually hits refresh. ~most calls have
+// resolved (answered/missed) well within this window.
+const OPTIMISTIC_RECONCILE_MS = 15_000;
 
 export interface PlaceCallParams {
   /** Raw phone number (may contain +, spaces, dashes — it gets normalized). */
@@ -70,9 +83,26 @@ export const placeCall = async (
   // Prefer the in-browser softphone when it's connected and idle.
   if (dispatcher && dispatcher.getStatus() === 'ready') {
     const handled = dispatcher.call({ toNumber, leadId: params.leadId });
-    if (handled) return true;
+    if (handled) {
+      // Show it immediately — the softphone doesn't round-trip through our
+      // REST API, so there's no click2call response to key the toast off.
+      if (params.leadId) {
+        prependOptimisticCall(params.leadId, { toNumber });
+        const leadId = params.leadId;
+        setTimeout(() => revalidateLeadCalls(leadId), OPTIMISTIC_RECONCILE_MS);
+      }
+      return true;
+    }
     // If it declined to handle, fall through to REST.
   }
+
+  // Optimistic row: shows the call in the lead's history the instant the
+  // button is clicked, before TeleCMI's CDR/live webhook has round-tripped.
+  // Rolled back below if clickToCall itself fails outright (never placed).
+  // If the call DOES go through, this synthetic row is reconciled once the
+  // real CDR/live event arrives — see LeadTelephonyHistory's use of
+  // useTelephonyLiveEvents + revalidateLeadCalls.
+  const optimisticId = params.leadId ? prependOptimisticCall(params.leadId, { toNumber }) : null;
 
   try {
     const res = await telephonyService.clickToCall({
@@ -81,8 +111,14 @@ export const placeCall = async (
       caller_id: params.callerId,
     });
     toast.success(res.msg || 'Call initiated');
+    if (params.leadId) {
+      const leadId = params.leadId;
+      setTimeout(() => revalidateLeadCalls(leadId), OPTIMISTIC_RECONCILE_MS);
+    }
     return true;
   } catch (e) {
+    if (params.leadId && optimisticId !== null) removeOptimisticCall(params.leadId, optimisticId);
+
     if (e instanceof TelephonyApiError && e.isNotConfigured && options?.onRequireSetup) {
       toast.error('Set up telephony in Settings', {
         action: { label: 'Open Settings', onClick: options.onRequireSetup },

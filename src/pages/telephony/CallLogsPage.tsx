@@ -50,12 +50,12 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { tokenManager } from '@/lib/client';
 import { useTelephony } from '@/hooks/useTelephony';
 import { useUsers } from '@/hooks/useUsers';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Pager } from '@/components/telephony/Pager';
 import { formatDuration, safeRelative, safeExact, msToExact } from '@/lib/telephonyFormat';
+import { telephonyService } from '@/services/telephonyService';
 import {
   Direction,
   CallType,
@@ -154,12 +154,7 @@ export const CallLogsPage: React.FC = () => {
     if (recording?.url) URL.revokeObjectURL(recording.url);
     setRecording({ callId, url: null });
     try {
-      const token = tokenManager.getAccessToken();
-      const res = await fetch(`/api/telephony/calls/${callId}/recording/`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      if (!res.ok) throw new Error('Recording unavailable');
-      const blob = await res.blob();
+      const blob = await telephonyService.getRecordingBlob(callId);
       setRecording({ callId, url: URL.createObjectURL(blob) });
     } catch {
       toast.error('Could not load recording');

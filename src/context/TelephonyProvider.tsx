@@ -23,6 +23,7 @@ import {
   isTelephonyMarkedNotConfigured,
   markTelephonyNotConfigured,
   clearTelephonyNotConfigured,
+  TELEPHONY_NOT_CONFIGURED_RECHECK_MS,
 } from '@/hooks/useTelephony';
 import { useTelephonyLiveEvents, type TelephonyLiveEvent } from '@/hooks/useTelephonyLiveEvents';
 import { TelephonyApiError } from '@/services/telephonyService';
@@ -90,6 +91,8 @@ export interface TelephonyPhoneContextValue {
 
 const TelephonyPhoneContext = createContext<TelephonyPhoneContextValue | undefined>(undefined);
 
+const MAX_NOT_CONFIGURED_AUTO_RECHECKS = 4;
+
 export const useTelephonyPhone = (): TelephonyPhoneContextValue => {
   const ctx = useContext(TelephonyPhoneContext);
   if (!ctx) throw new Error('useTelephonyPhone must be used within a TelephonyProvider');
@@ -111,12 +114,18 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
   // SINGLE OWNER of webrtc-config loading. This provider is only mounted when
   // the telephony module is enabled (TelephonyShell in App.tsx), and it skips
   // the request entirely when a recent 424 already told us TeleCMI is not
-  // configured for the tenant (session flag, 10-min TTL). Result: dashboard
+  // configured for the tenant (short-lived session flag). Result: dashboard
   // load fires AT MOST one webrtc-config request — zero when the
-  // not-configured state is already known. Child components must read config
-  // state from this context, never call useWebRTCConfig() during app flow.
-  const [skipConfigFetch] = useState<boolean>(() => isTelephonyMarkedNotConfigured());
-  const { data: config, error: configError, isLoading: configIsLoading } =
+  // not-configured state is already known, then a small capped number of
+  // re-checks after quiet periods. Child components must read config state from this context.
+  const [skipConfigFetch, setSkipConfigFetch] =
+    useState<boolean>(() => isTelephonyMarkedNotConfigured());
+  const {
+    data: config,
+    error: configError,
+    isLoading: configIsLoading,
+    mutate: recheckConfig,
+  } =
     useWebRTCConfig(!skipConfigFetch);
 
   const piopiyRef = useRef<PIOPIY | null>(null);
@@ -133,6 +142,7 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
   const callStartRef = useRef<number | null>(null);
   const pendingDialRef = useRef<CallMeta | null>(null);
   const currentCallRef = useRef<CallMeta | null>(null);
+  const notConfiguredRetriesRef = useRef(0);
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
@@ -160,6 +170,7 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
     if (config) {
       // Config resolved — TeleCMI IS configured; clear any stale flag.
       clearTelephonyNotConfigured();
+      notConfiguredRetriesRef.current = 0;
       // Only downgrade to needs-password if we aren't already logged in / on a call.
       setStatus((s) => (s === 'loading' || s === 'not-configured' ? 'needs-password' : s));
     } else if (configError instanceof TelephonyApiError && configError.isNotConfigured) {
@@ -170,6 +181,30 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
       setStatus('not-configured');
     }
   }, [skipConfigFetch, config, configError]);
+
+  // A 424 can be transient immediately after login. Re-enable a skipped fetch,
+  // or revalidate a fetch that returned 424, after a short quiet period. Stop
+  // after a small number of consecutive 424s for tenants that genuinely do not
+  // have TeleCMI configured.
+  useEffect(() => {
+    const isNotConfiguredError =
+      configError instanceof TelephonyApiError && configError.isNotConfigured;
+    if (!skipConfigFetch && !isNotConfiguredError) return;
+    if (notConfiguredRetriesRef.current >= MAX_NOT_CONFIGURED_AUTO_RECHECKS) return;
+    notConfiguredRetriesRef.current += 1;
+
+    const timer = window.setTimeout(() => {
+      clearTelephonyNotConfigured();
+      setStatus('loading');
+      if (skipConfigFetch) {
+        setSkipConfigFetch(false);
+      } else {
+        void recheckConfig();
+      }
+    }, TELEPHONY_NOT_CONFIGURED_RECHECK_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [skipConfigFetch, configError, recheckConfig]);
 
   // ── create the PIOPIY instance + bind events once config is available ──
   useEffect(() => {

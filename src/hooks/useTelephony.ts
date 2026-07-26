@@ -2,6 +2,11 @@
 import useSWR, { mutate as swrMutate } from 'swr';
 import { toast } from 'sonner';
 import { telephonyService, TelephonyApiError } from '@/services/telephonyService';
+import {
+  Direction,
+  CallType,
+  CallSyncedVia,
+} from '@/types/telephony.types';
 import type {
   TeleCMICredential,
   TeleCMICredentialCreateData,
@@ -31,12 +36,95 @@ import type {
 // ==================== SWR KEYS ====================
 const CREDENTIALS_KEY = 'telephony:credentials';
 const AGENTS_KEY = 'telephony:agents';
-const CALLS_KEY = 'telephony:calls';
+export const CALLS_KEY = 'telephony:calls';
 const SMS_KEY = 'telephony:sms';
 const CALLER_IDS_KEY = 'telephony:caller-ids';
 const BREAK_KEY = 'telephony:break';
 const CALLBACKS_KEY = 'telephony:callbacks';
 const WEBRTC_CONFIG_KEY = 'telephony:webrtc-config';
+
+/** Matches the SWR key useLeadCalls builds — page 1 only (see below for why). */
+export const leadCallsKey = (leadId: number, pageSize = 10) =>
+  [CALLS_KEY, 'lead', leadId, 1, pageSize] as const;
+
+// ==================== OPTIMISTIC CALL INSERT ====================
+// New calls always sort first (useLeadCalls orders by -call_time), so an
+// optimistic row only ever needs to land on page 1 — later pages are
+// untouched and don't need reconciling.
+//
+// These are plain functions (not part of the useTelephony() hook body) so
+// non-component code — telephonyController.ts's placeCall(), which runs
+// outside React — can call them directly via the shared SWR cache, the same
+// way swrMutate() itself works outside components.
+
+/**
+ * Prepend a synthetic "calling…" row to a lead's call list (page 1) the
+ * instant a call is placed, before any CDR/live-event webhook has round-
+ * tripped. Returns the synthetic row's id so the caller can remove it via
+ * removeOptimisticCall() if the call attempt itself fails outright.
+ *
+ * This is intentionally NOT the final call state — it just makes the click
+ * feel instant. The real row (with real duration/recording/etc.) replaces
+ * it once revalidateLeadCalls() is called, which LeadTelephonyHistory wires
+ * to incoming Pusher live events (see useTelephonyLiveEvents usage there).
+ */
+export const prependOptimisticCall = (
+  leadId: number,
+  data: { toNumber: string; fromNumber?: string },
+  pageSize = 10,
+): number => {
+  const optimisticId = -Date.now(); // negative => can never collide with a real DB id
+  const nowIso = new Date().toISOString();
+  const optimisticRow: CallLog = {
+    id: optimisticId,
+    cmiuid: `optimistic-${optimisticId}`,
+    direction: Direction.OUTBOUND,
+    direction_display: 'Outbound',
+    call_type: CallType.ANSWERED,
+    call_type_display: 'Calling…',
+    from_number: data.fromNumber || '',
+    to_number: data.toNumber,
+    duration: 0,
+    billed_sec: 0,
+    rate: '0.0000',
+    caller_name: null,
+    telecmi_notes: [],
+    call_time: nowIso,
+    lead_id: leadId,
+    agent_user_id: null,
+    synced_via: CallSyncedVia.WEBHOOK,
+    has_recording: false,
+    created_at: nowIso,
+  };
+
+  void swrMutate<PaginatedResponse<CallLog>>(
+    leadCallsKey(leadId, pageSize),
+    (current) =>
+      current
+        ? { ...current, count: current.count + 1, results: [optimisticRow, ...current.results] }
+        : current,
+    { revalidate: false },
+  );
+
+  return optimisticId;
+};
+
+/** Roll back an optimistic row (e.g. clickToCall itself returned an error). */
+export const removeOptimisticCall = (leadId: number, optimisticId: number, pageSize = 10): void => {
+  void swrMutate<PaginatedResponse<CallLog>>(
+    leadCallsKey(leadId, pageSize),
+    (current) =>
+      current
+        ? { ...current, count: Math.max(0, current.count - 1), results: current.results.filter((c) => c.id !== optimisticId) }
+        : current,
+    { revalidate: false },
+  );
+};
+
+/** Ask SWR to refetch a lead's page-1 call list — call when a live event confirms the real row landed. */
+export const revalidateLeadCalls = (leadId: number, pageSize = 10): void => {
+  void swrMutate(leadCallsKey(leadId, pageSize));
+};
 
 // ==================== ERROR -> TOAST ====================
 
@@ -93,14 +181,14 @@ const READ_OPTIONS = {
 // The flag is cleared whenever telephony configuration changes (credential or
 // agent create/update, token refresh) so the next mount re-checks.
 const NOT_CONFIGURED_FLAG_KEY = 'celiyo_telephony_not_configured_at';
-const NOT_CONFIGURED_TTL_MS = 10 * 60 * 1000; // re-check at most every 10 min
+export const TELEPHONY_NOT_CONFIGURED_RECHECK_MS = 30 * 1000;
 
 export const isTelephonyMarkedNotConfigured = (): boolean => {
   try {
     const raw = sessionStorage.getItem(NOT_CONFIGURED_FLAG_KEY);
     if (!raw) return false;
     const ts = Number(raw);
-    if (!Number.isFinite(ts) || Date.now() - ts > NOT_CONFIGURED_TTL_MS) {
+    if (!Number.isFinite(ts) || Date.now() - ts > TELEPHONY_NOT_CONFIGURED_RECHECK_MS) {
       sessionStorage.removeItem(NOT_CONFIGURED_FLAG_KEY);
       return false;
     }
