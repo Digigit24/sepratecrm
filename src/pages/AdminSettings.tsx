@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import { RefreshCw, Loader2, AlertCircle, Save, Building2, Database, Settings as SettingsIcon, Image as ImageIcon, X, User, Plus, Trash2, Moon, Sun, IndianRupee, MessageSquare, Phone } from 'lucide-react';
 import { useTenant } from '@/hooks/useTenant';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,6 +21,17 @@ import { CurrencySettingsTab } from '@/components/admin-settings/CurrencySetting
 import { WhatsAppDefaultsTab } from '@/components/admin-settings/WhatsAppDefaultsTab';
 import { TelephonySettingsTab } from '@/components/admin-settings/TelephonySettingsTab';
 import { MyTelephonyCard } from '@/components/admin-settings/MyTelephonyCard';
+
+const KNOWN_MODULES = [
+  { key: 'crm', label: 'CRM' },
+  { key: 'telephony', label: 'Telephony' },
+  { key: 'whatsapp', label: 'WhatsApp' },
+  { key: 'integrations', label: 'Integrations' },
+  { key: 'hms', label: 'HMS' },
+  { key: 'real_estate', label: 'Real Estate' },
+] as const;
+
+const KNOWN_MODULE_KEYS = new Set<string>(KNOWN_MODULES.map(module => module.key));
 
 export const AdminSettings: React.FC = () => {
   // Get tenant from current session
@@ -59,7 +71,6 @@ export const AdminSettings: React.FC = () => {
 
   // Enabled modules (direct field)
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
-  const [newModule, setNewModule] = useState('');
 
   // Settings fields (all go into settings JSON)
   const [domain, setDomain] = useState('');
@@ -165,11 +176,12 @@ export const AdminSettings: React.FC = () => {
     }
   };
 
-  const handleAddModule = () => {
-    if (newModule.trim() && !enabledModules.includes(newModule.trim())) {
-      setEnabledModules([...enabledModules, newModule.trim()]);
-      setNewModule('');
-    }
+  const toggleModule = (module: string) => {
+    setEnabledModules(current =>
+      current.includes(module)
+        ? current.filter(m => m !== module)
+        : [...current, module]
+    );
   };
 
   const handleRemoveModule = (module: string) => {
@@ -883,34 +895,52 @@ export const AdminSettings: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {enabledModules.map((module) => (
-                  <Badge key={module} variant="secondary" className="px-3 py-1">
-                    {module}
-                    <button
-                      onClick={() => handleRemoveModule(module)}
-                      className="ml-2 hover:text-destructive"
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {KNOWN_MODULES.map((module) => {
+                  const checked = enabledModules.includes(module.key);
+                  return (
+                    <label
+                      key={module.key}
+                      htmlFor={`module-${module.key}`}
+                      className="flex items-center gap-3 rounded-lg border border-border/60 px-3 py-2.5 text-sm cursor-pointer hover:bg-muted/40 transition-colors"
                     >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-                {enabledModules.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No modules enabled</p>
-                )}
+                      <Checkbox
+                        id={`module-${module.key}`}
+                        checked={checked}
+                        onCheckedChange={() => toggleModule(module.key)}
+                      />
+                      <span className="font-medium text-foreground">{module.label}</span>
+                      <span className="ml-auto text-xs text-muted-foreground font-mono">{module.key}</span>
+                    </label>
+                  );
+                })}
               </div>
 
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Add module (e.g., crm, whatsapp, hms)"
-                  value={newModule}
-                  onChange={(e) => setNewModule(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddModule()}
-                />
-                <Button onClick={handleAddModule} variant="outline">
-                  Add
-                </Button>
-              </div>
+              {enabledModules.filter(module => !KNOWN_MODULE_KEYS.has(module)).length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <Label className="text-xs text-muted-foreground">Other</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {enabledModules
+                      .filter(module => !KNOWN_MODULE_KEYS.has(module))
+                      .map((module) => (
+                        <Badge key={module} variant="secondary" className="px-3 py-1">
+                          {module}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveModule(module)}
+                            className="ml-2 hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {enabledModules.length === 0 && (
+                <p className="text-sm text-muted-foreground">No modules enabled</p>
+              )}
             </CardContent>
           </Card>
 
