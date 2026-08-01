@@ -7,11 +7,20 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   ArrowLeft, Phone, Mail, Loader2, Calendar, Clock,
   MapPin, Plus, Check, Trash2, MessageSquare,
   MoreHorizontal, ChevronRight, Building2, User2, Star,
-  Activity, Paperclip, PhoneCall, Zap, ExternalLink,
+  Activity, Paperclip, PhoneCall, Zap, ExternalLink, Edit,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, isPast, isFuture, isToday } from 'date-fns';
@@ -19,8 +28,10 @@ import { format, isPast, isFuture, isToday } from 'date-fns';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
 import { placeCall } from '@/lib/telephonyController';
+import { hexBadgeStyle } from '@/lib/hexBadge';
 import { SendSMSDialog } from '@/components/telephony/SendSMSDialog';
 import { LeadTelephonyHistory } from '@/components/telephony/LeadTelephonyHistory';
+import { useRealEstate } from '@/hooks/useRealEstate';
 import { useMeeting } from '@/hooks/useMeeting';
 import LeadDetailsForm from '@/components/lead-drawer/LeadDetailsForm';
 import LeadActivities from '@/components/lead-drawer/LeadActivities';
@@ -28,11 +39,23 @@ import LeadTasks from '@/components/lead-drawer/LeadTasks';
 import LeadNotesSurface from '@/components/lead-drawer/LeadNotesSurface';
 import LeadTasksBlock from '@/components/lead-drawer/LeadTasksBlock';
 import MeetingsFormDrawer from '@/components/MeetingsFormDrawer';
+import { SideDrawer, type DrawerActionButton } from '@/components/SideDrawer';
 import { LeadScoreSlider } from '@/components/crm/LeadScoreSlider';
 import { LeadAttachments } from '@/components/crm/LeadAttachments';
 import { LeadGroupPicker } from '@/components/crm/LeadGroupPicker';
+import { CopyPhoneButton } from '@/components/crm/CopyPhoneButton';
 import type { Lead, LeadStatus } from '@/types/crmTypes';
 import type { Meeting } from '@/types/meeting.types';
+import {
+  LeadUnitRelation,
+  UnitType,
+  type Project,
+  type ProjectInterest,
+  type ProjectInterestCreateData,
+  type Unit,
+  type UnitLead,
+  type UnitLeadCreateData,
+} from '@/types/realEstate.types';
 import { LeadFormHandle } from '@/components/LeadsFormDrawer';
 import { LeadWhatsAppDrawer, WhatsAppIcon, useLeadWhatsAppWindow } from '@/components/crm/LeadWhatsAppDrawer';
 import { cn } from '@/lib/utils';
@@ -91,6 +114,35 @@ function getGradient(name: string) {
   const i = name.charCodeAt(0) % AVATAR_GRADIENTS.length;
   return AVATAR_GRADIENTS[i];
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object';
+
+const formatRealEstateLabel = (value?: string | null) =>
+  value ? value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Not specified';
+
+const formatMoney = (value?: string | number | null) => {
+  if (value === null || value === undefined || value === '') return null;
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return String(value);
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
+const projectName = (project: number | Project) =>
+  isRecord(project) && typeof project.name === 'string' ? project.name : `Project #${project}`;
+
+const unitNumber = (unit: number | Unit) =>
+  isRecord(unit) && typeof unit.unit_number === 'string' ? unit.unit_number : `Unit #${unit}`;
+
+const unitProjectName = (unit: number | Unit) =>
+  isRecord(unit) && unit.project ? projectName(unit.project as number | Project) : null;
+
+const relatedId = (value: number | { id: number } | null | undefined) =>
+  typeof value === 'number' ? value : value?.id;
 
 // ── Quick action button ──────────────────────────────────────────────
 function QuickAction({
@@ -165,6 +217,7 @@ export const LeadDetailsPage = ({
   // Telephony
   const { hasModuleAccess } = useAuth();
   const telephonyEnabled = hasModuleAccess('telephony');
+  const realEstateEnabled = hasModuleAccess('real_estate');
   const [smsDialogOpen, setSmsDialogOpen] = useState(false);
 
   // WhatsApp drawer
@@ -173,11 +226,51 @@ export const LeadDetailsPage = ({
   const { useLead, useLeadStatuses, updateLead, deleteLead, patchLead } = useCRM();
   const leadIdNum = leadIdOverride ?? (leadId ? parseInt(leadId, 10) : null);
   const { useMeetingsByLead } = useMeeting();
+  const {
+    useProjects,
+    useUnits,
+    useProjectInterests,
+    useUnitLeads,
+    createProjectInterest,
+    updateProjectInterest,
+    deleteProjectInterest,
+    createUnitLead,
+    updateUnitLead,
+    deleteUnitLead,
+  } = useRealEstate();
 
   const { data: lead, error: leadError, isLoading: leadLoading, mutate: mutateLead } = useLead(leadIdNum);
   const { data: statusesData } = useLeadStatuses({ page_size: 100, ordering: 'order_index', is_active: true });
   const { data: meetingsData, isLoading: meetingsLoading, mutate: mutateMeetings } = useMeetingsByLead(leadIdNum);
+  const {
+    data: projectInterestsData,
+    isLoading: projectInterestsLoading,
+    mutate: mutateProjectInterests,
+  } = useProjectInterests(realEstateEnabled ? leadIdNum : null);
+  const {
+    data: unitLeadsData,
+    isLoading: unitLeadsLoading,
+    mutate: mutateUnitLeads,
+  } = useUnitLeads(realEstateEnabled ? leadIdNum : null);
+  const { data: realEstateProjectsData } = useProjects();
   const meetings = meetingsData?.results || [];
+  const projectInterests = projectInterestsData?.results || [];
+  const unitLeads = unitLeadsData?.results || [];
+  const realEstateLoading = projectInterestsLoading || unitLeadsLoading;
+  const realEstateProjects = realEstateProjectsData?.results || [];
+
+  const [projectInterestOpen, setProjectInterestOpen] = useState(false);
+  const [editingProjectInterest, setEditingProjectInterest] = useState<ProjectInterest | null>(null);
+  const [projectInterestForm, setProjectInterestForm] = useState<ProjectInterestCreateData | null>(null);
+  const [unitLeadOpen, setUnitLeadOpen] = useState(false);
+  const [editingUnitLead, setEditingUnitLead] = useState<UnitLead | null>(null);
+  const [unitLeadProjectId, setUnitLeadProjectId] = useState<number | null>(null);
+  const [unitLeadForm, setUnitLeadForm] = useState<UnitLeadCreateData | null>(null);
+  const [realEstateSaving, setRealEstateSaving] = useState(false);
+  const { data: realEstateUnitsData } = useUnits(
+    unitLeadProjectId ? { project: unitLeadProjectId, page_size: 200 } : { page_size: 200 }
+  );
+  const realEstateUnits = realEstateUnitsData?.results || [];
 
   // WhatsApp 24h reply window status (shown in header)
   const { windowOpen: waWindowOpen } = useLeadWhatsAppWindow(leadIdNum, !!lead?.phone);
@@ -192,6 +285,151 @@ export const LeadDetailsPage = ({
     if (e.resource !== 'leads') return;
     mutateLead();
   });
+
+  const openCreateProjectInterest = useCallback(() => {
+    if (!leadIdNum) return;
+    setEditingProjectInterest(null);
+    setProjectInterestForm({
+      project: realEstateProjects[0]?.id || 0,
+      lead: leadIdNum,
+      budget_min: null,
+      budget_max: null,
+      preferred_unit_type: null,
+      preferred_configuration: '',
+      notes: '',
+      assigned_to: null,
+    });
+    setProjectInterestOpen(true);
+  }, [leadIdNum, realEstateProjects]);
+
+  const openEditProjectInterest = useCallback((interest: ProjectInterest) => {
+    if (!leadIdNum) return;
+    setEditingProjectInterest(interest);
+    setProjectInterestForm({
+      project: relatedId(interest.project) || 0,
+      lead: interest.lead || leadIdNum,
+      budget_min: interest.budget_min,
+      budget_max: interest.budget_max,
+      preferred_unit_type: interest.preferred_unit_type,
+      preferred_configuration: interest.preferred_configuration || '',
+      notes: interest.notes || '',
+      assigned_to: interest.assigned_to,
+    });
+    setProjectInterestOpen(true);
+  }, [leadIdNum]);
+
+  const saveProjectInterest = useCallback(async () => {
+    if (!projectInterestForm?.project || !leadIdNum) return;
+    setRealEstateSaving(true);
+    try {
+      const payload: ProjectInterestCreateData = {
+        ...projectInterestForm,
+        lead: leadIdNum,
+        budget_min: projectInterestForm.budget_min || null,
+        budget_max: projectInterestForm.budget_max || null,
+        preferred_configuration: projectInterestForm.preferred_configuration || null,
+        notes: projectInterestForm.notes || null,
+        assigned_to: projectInterestForm.assigned_to || null,
+      };
+      if (editingProjectInterest) {
+        await updateProjectInterest(editingProjectInterest.id, payload);
+      } else {
+        await createProjectInterest(payload);
+      }
+      await mutateProjectInterests();
+      setProjectInterestOpen(false);
+    } finally {
+      setRealEstateSaving(false);
+    }
+  }, [
+    createProjectInterest,
+    editingProjectInterest,
+    leadIdNum,
+    mutateProjectInterests,
+    projectInterestForm,
+    updateProjectInterest,
+  ]);
+
+  const removeProjectInterest = useCallback(async (interest: ProjectInterest) => {
+    if (!window.confirm(`Remove interest in "${projectName(interest.project)}"?`)) return;
+    await deleteProjectInterest(interest.id);
+    await mutateProjectInterests();
+  }, [deleteProjectInterest, mutateProjectInterests]);
+
+  const openCreateUnitLead = useCallback(() => {
+    if (!leadIdNum) return;
+    const firstUnit = realEstateUnits[0];
+    const firstProjectId = relatedId(firstUnit?.project) || realEstateProjects[0]?.id || null;
+    setEditingUnitLead(null);
+    setUnitLeadProjectId(firstProjectId);
+    setUnitLeadForm({
+      unit: firstUnit?.id || 0,
+      lead: leadIdNum,
+      relation_type: LeadUnitRelation.INTERESTED,
+      booking_amount: null,
+      booking_date: null,
+      notes: '',
+      assigned_to: null,
+    });
+    setUnitLeadOpen(true);
+  }, [leadIdNum, realEstateProjects, realEstateUnits]);
+
+  const openEditUnitLead = useCallback((unitLead: UnitLead) => {
+    if (!leadIdNum) return;
+    const unitId = relatedId(unitLead.unit) || 0;
+    const projectId = isRecord(unitLead.unit)
+      ? relatedId(unitLead.unit.project as number | Project)
+      : null;
+    setEditingUnitLead(unitLead);
+    setUnitLeadProjectId(projectId);
+    setUnitLeadForm({
+      unit: unitId,
+      lead: unitLead.lead || leadIdNum,
+      relation_type: unitLead.relation_type,
+      booking_amount: unitLead.booking_amount,
+      booking_date: unitLead.booking_date,
+      notes: unitLead.notes || '',
+      assigned_to: unitLead.assigned_to,
+    });
+    setUnitLeadOpen(true);
+  }, [leadIdNum]);
+
+  const saveUnitLead = useCallback(async () => {
+    if (!unitLeadForm?.unit || !leadIdNum) return;
+    setRealEstateSaving(true);
+    try {
+      const payload: UnitLeadCreateData = {
+        ...unitLeadForm,
+        lead: leadIdNum,
+        booking_amount: unitLeadForm.booking_amount || null,
+        booking_date: unitLeadForm.booking_date || null,
+        notes: unitLeadForm.notes || null,
+        assigned_to: unitLeadForm.assigned_to || null,
+      };
+      if (editingUnitLead) {
+        await updateUnitLead(editingUnitLead.id, payload);
+      } else {
+        await createUnitLead(payload);
+      }
+      await mutateUnitLeads();
+      setUnitLeadOpen(false);
+    } finally {
+      setRealEstateSaving(false);
+    }
+  }, [
+    createUnitLead,
+    editingUnitLead,
+    leadIdNum,
+    mutateUnitLeads,
+    unitLeadForm,
+    updateUnitLead,
+  ]);
+
+  const removeUnitLead = useCallback(async (unitLead: UnitLead) => {
+    if (!window.confirm(`Remove relation for "${unitNumber(unitLead.unit)}"?`)) return;
+    await deleteUnitLead(unitLead.id);
+    await mutateUnitLeads();
+  }, [deleteUnitLead, mutateUnitLeads]);
 
   const handleBack = useCallback(() => {
     if (embedded) {
@@ -331,6 +569,12 @@ export const LeadDetailsPage = ({
     { value: 'meetings',     label: 'Meetings',     icon: Calendar, count: meetings.length },
     { value: 'attachments',  label: 'Attachments',  icon: Paperclip },
     ...(telephonyEnabled ? [{ value: 'calls', label: 'Calls', icon: PhoneCall }] : []),
+    ...(realEstateEnabled ? [{
+      value: 'real-estate',
+      label: 'Real Estate',
+      icon: Building2,
+      count: projectInterests.length + unitLeads.length,
+    }] : []),
   ];
 
   // ── Loading / error states ──────────────────────────────────────────
@@ -473,11 +717,7 @@ export const LeadDetailsPage = ({
                 {statusObj && (
                   <span
                     className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium leading-none"
-                    style={{
-                      backgroundColor: `${statusObj.color_hex || '#6b7280'}18`,
-                      color: statusObj.color_hex || '#6b7280',
-                      border: `1px solid ${statusObj.color_hex || '#6b7280'}30`,
-                    }}
+                    style={hexBadgeStyle(statusObj.color_hex)}
                   >
                     <span
                       className="w-1.5 h-1.5 rounded-full mr-1.5 flex-shrink-0"
@@ -507,7 +747,8 @@ export const LeadDetailsPage = ({
                 {lead.phone && (
                   <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Phone className="h-3 w-3" />
-                    {lead.phone}
+                    <span>{lead.phone}</span>
+                    <CopyPhoneButton phone={lead.phone} className="h-5 w-5" />
                   </span>
                 )}
                 {lead.email && (
@@ -643,6 +884,153 @@ export const LeadDetailsPage = ({
         </TabsContent>
       )}
 
+      {/* Real Estate */}
+      {realEstateEnabled && (
+        <TabsContent value="real-estate" className="mt-0 focus-visible:outline-none">
+          <div className="px-5 py-5 max-w-3xl space-y-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <SectionLabel>Real Estate</SectionLabel>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Track project interest, unit interest, bookings, budgets, and visit-stage notes for this lead.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs rounded-lg"
+                  onClick={openCreateProjectInterest}
+                  disabled={realEstateProjects.length === 0}
+                >
+                  <Plus className="h-3 w-3 mr-1.5" /> Project Interest
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 text-xs rounded-lg"
+                  onClick={openCreateUnitLead}
+                  disabled={realEstateUnits.length === 0}
+                >
+                  <Plus className="h-3 w-3 mr-1.5" /> Unit Relation
+                </Button>
+              </div>
+            </div>
+
+            {realEstateLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : projectInterests.length === 0 && unitLeads.length === 0 ? (
+              <EmptyState
+                icon={Building2}
+                label="No real estate activity yet"
+                action={
+                  realEstateProjects.length > 0
+                    ? { label: 'Add project interest', onClick: openCreateProjectInterest }
+                    : undefined
+                }
+              />
+            ) : (
+              <>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <SectionLabel>{projectInterests.length} project {projectInterests.length === 1 ? 'interest' : 'interests'}</SectionLabel>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs rounded-md"
+                      onClick={openCreateProjectInterest}
+                      disabled={realEstateProjects.length === 0}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Add
+                    </Button>
+                  </div>
+                  <div className="mt-3 border border-border/50 rounded-lg overflow-hidden divide-y divide-border/40 shadow-sm">
+                    {projectInterests.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-muted-foreground bg-card">No project interests</div>
+                    ) : projectInterests.map(interest => {
+                      const budgetMin = formatMoney(interest.budget_min);
+                      const budgetMax = formatMoney(interest.budget_max);
+                      const budget = budgetMin && budgetMax ? `${budgetMin} - ${budgetMax}` : budgetMin || budgetMax || 'Budget not specified';
+                      return (
+                        <div key={interest.id} className="px-4 py-3 bg-card">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-foreground truncate">{projectName(interest.project)}</div>
+                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                <span>{formatRealEstateLabel(interest.preferred_unit_type)}</span>
+                                <span>{interest.preferred_configuration || 'Configuration not specified'}</span>
+                                <span>{budget}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditProjectInterest(interest)}>
+                                <Edit className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeProjectInterest(interest)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                          {interest.notes && <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{interest.notes}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between">
+                    <SectionLabel>{unitLeads.length} unit {unitLeads.length === 1 ? 'relation' : 'relations'}</SectionLabel>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs rounded-md"
+                      onClick={openCreateUnitLead}
+                      disabled={realEstateUnits.length === 0}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Add
+                    </Button>
+                  </div>
+                  <div className="mt-3 border border-border/50 rounded-lg overflow-hidden divide-y divide-border/40 shadow-sm">
+                    {unitLeads.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-muted-foreground bg-card">No unit relations</div>
+                    ) : unitLeads.map(unitLead => {
+                      const project = unitProjectName(unitLead.unit);
+                      const bookingAmount = formatMoney(unitLead.booking_amount);
+                      return (
+                        <div key={unitLead.id} className="px-4 py-3 bg-card">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-foreground truncate">{unitNumber(unitLead.unit)}</div>
+                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                {project && <span>{project}</span>}
+                                <span>{formatRealEstateLabel(unitLead.relation_type)}</span>
+                                {bookingAmount && <span>{bookingAmount}</span>}
+                                {unitLead.booking_date && <span>{format(new Date(unitLead.booking_date), 'MMM d, yyyy')}</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditUnitLead(unitLead)}>
+                                <Edit className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeUnitLead(unitLead)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                          {unitLead.notes && <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{unitLead.notes}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </TabsContent>
+      )}
+
       {/* Meetings */}
       <TabsContent value="meetings" className="mt-0 focus-visible:outline-none">
         <div className="px-5 py-5">
@@ -696,6 +1084,232 @@ export const LeadDetailsPage = ({
       </TabsContent>
 
       {/* ── Overlays / Dialogs ──────────────────────────────────── */}
+      <SideDrawer
+        open={projectInterestOpen}
+        onOpenChange={setProjectInterestOpen}
+        title={editingProjectInterest ? 'Edit project interest' : 'Add project interest'}
+        description="Capture which project this lead is considering, their budget, preferences, and sales notes."
+        mode={editingProjectInterest ? 'edit' : 'create'}
+        size="lg"
+        footerAlignment="right"
+        storageKey="lead-real-estate-project-interest-drawer"
+        footerButtons={[
+          {
+            label: 'Cancel',
+            onClick: () => setProjectInterestOpen(false),
+            variant: 'outline',
+            disabled: realEstateSaving,
+          },
+          {
+            label: editingProjectInterest ? 'Save Interest' : 'Add Interest',
+            onClick: saveProjectInterest,
+            loading: realEstateSaving,
+            disabled: !projectInterestForm?.project,
+          },
+        ] satisfies DrawerActionButton[]}
+      >
+        {projectInterestForm && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2 md:col-span-2">
+              <Label>Project</Label>
+              <Select
+                value={projectInterestForm.project ? String(projectInterestForm.project) : ''}
+                onValueChange={(value) => setProjectInterestForm(current => current && ({ ...current, project: Number(value) }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
+                <SelectContent>
+                  {realEstateProjects.map(project => (
+                    <SelectItem key={project.id} value={String(project.id)}>{project.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Preferred Unit Type</Label>
+              <Select
+                value={projectInterestForm.preferred_unit_type || 'none'}
+                onValueChange={(value) => setProjectInterestForm(current => current && ({
+                  ...current,
+                  preferred_unit_type: value === 'none' ? null : value as UnitType,
+                }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not specified</SelectItem>
+                  {Object.values(UnitType).map(type => (
+                    <SelectItem key={type} value={type}>{formatRealEstateLabel(type)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Preferred Configuration</Label>
+              <Input
+                placeholder="2 BHK, plot, shop..."
+                value={projectInterestForm.preferred_configuration || ''}
+                onChange={(event) => setProjectInterestForm(current => current && ({
+                  ...current,
+                  preferred_configuration: event.target.value,
+                }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Budget Min</Label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={projectInterestForm.budget_min ?? ''}
+                onChange={(event) => setProjectInterestForm(current => current && ({
+                  ...current,
+                  budget_min: event.target.value,
+                }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Budget Max</Label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={projectInterestForm.budget_max ?? ''}
+                onChange={(event) => setProjectInterestForm(current => current && ({
+                  ...current,
+                  budget_max: event.target.value,
+                }))}
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Notes</Label>
+              <Textarea
+                rows={4}
+                placeholder="Requirement notes, preferred tower/floor, objections, next step..."
+                value={projectInterestForm.notes || ''}
+                onChange={(event) => setProjectInterestForm(current => current && ({
+                  ...current,
+                  notes: event.target.value,
+                }))}
+              />
+            </div>
+          </div>
+        )}
+      </SideDrawer>
+
+      <SideDrawer
+        open={unitLeadOpen}
+        onOpenChange={setUnitLeadOpen}
+        title={editingUnitLead ? 'Edit unit relation' : 'Add unit relation'}
+        description="Link this lead to a specific unit and track interest, visit, negotiation, booking, or sale status."
+        mode={editingUnitLead ? 'edit' : 'create'}
+        size="lg"
+        footerAlignment="right"
+        storageKey="lead-real-estate-unit-relation-drawer"
+        footerButtons={[
+          {
+            label: 'Cancel',
+            onClick: () => setUnitLeadOpen(false),
+            variant: 'outline',
+            disabled: realEstateSaving,
+          },
+          {
+            label: editingUnitLead ? 'Save Relation' : 'Add Relation',
+            onClick: saveUnitLead,
+            loading: realEstateSaving,
+            disabled: !unitLeadForm?.unit,
+          },
+        ] satisfies DrawerActionButton[]}
+      >
+        {unitLeadForm && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Project Filter</Label>
+              <Select
+                value={unitLeadProjectId ? String(unitLeadProjectId) : 'all'}
+                onValueChange={(value) => {
+                  const nextProjectId = value === 'all' ? null : Number(value);
+                  setUnitLeadProjectId(nextProjectId);
+                  setUnitLeadForm(current => current && ({ ...current, unit: 0 }));
+                }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All projects</SelectItem>
+                  {realEstateProjects.map(project => (
+                    <SelectItem key={project.id} value={String(project.id)}>{project.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Unit</Label>
+              <Select
+                value={unitLeadForm.unit ? String(unitLeadForm.unit) : ''}
+                onValueChange={(value) => setUnitLeadForm(current => current && ({ ...current, unit: Number(value) }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger>
+                <SelectContent>
+                  {realEstateUnits.map(unit => (
+                    <SelectItem key={unit.id} value={String(unit.id)}>
+                      {unitNumber(unit)} · {unitProjectName(unit) || 'Project'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Relation Type</Label>
+              <Select
+                value={unitLeadForm.relation_type}
+                onValueChange={(value) => setUnitLeadForm(current => current && ({
+                  ...current,
+                  relation_type: value as LeadUnitRelation,
+                }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.values(LeadUnitRelation).map(relation => (
+                    <SelectItem key={relation} value={relation}>{formatRealEstateLabel(relation)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Booking Date</Label>
+              <Input
+                type="date"
+                value={unitLeadForm.booking_date || ''}
+                onChange={(event) => setUnitLeadForm(current => current && ({
+                  ...current,
+                  booking_date: event.target.value || null,
+                }))}
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Booking Amount</Label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={unitLeadForm.booking_amount ?? ''}
+                onChange={(event) => setUnitLeadForm(current => current && ({
+                  ...current,
+                  booking_amount: event.target.value,
+                }))}
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Notes</Label>
+              <Textarea
+                rows={4}
+                placeholder="Site visit, negotiation, payment, cancellation, or booking notes..."
+                value={unitLeadForm.notes || ''}
+                onChange={(event) => setUnitLeadForm(current => current && ({
+                  ...current,
+                  notes: event.target.value,
+                }))}
+              />
+            </div>
+          </div>
+        )}
+      </SideDrawer>
+
       <MeetingsFormDrawer
         open={meetingDrawerOpen}
         onOpenChange={setMeetingDrawerOpen}

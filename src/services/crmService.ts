@@ -40,7 +40,8 @@ import {
   BulkDeletePayload,
   BulkDeleteResponse,
   BulkStatusUpdatePayload,
-  BulkStatusUpdateResponse
+  BulkStatusUpdateResponse,
+  LeadPhoneLookupResult
 } from '@/types/crmTypes';
 
 class CRMService {
@@ -73,6 +74,24 @@ class CRMService {
       const message = error.response?.data?.error || 
                      error.response?.data?.message || 
                      'Failed to fetch lead';
+      throw new Error(message);
+    }
+  }
+
+  // Resolve a raw phone number to a matching lead (used by the softphone to
+  // show lead context for inbound calls / manual dialpad numbers that weren't
+  // dialled with a leadId already attached). Returns null when no lead matches.
+  async lookupLeadByPhone(phone: string): Promise<LeadPhoneLookupResult | null> {
+    try {
+      const response = await crmClient.get<LeadPhoneLookupResult | null>(
+        `${API_CONFIG.CRM.LEAD_LOOKUP_BY_PHONE}${buildQueryString({ phone })}`
+      );
+      return response.data || null;
+    } catch (error: any) {
+      if (error?.response?.status === 404) return null;
+      const message = error.response?.data?.error ||
+                     error.response?.data?.message ||
+                     'Failed to look up lead by phone';
       throw new Error(message);
     }
   }

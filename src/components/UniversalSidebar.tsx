@@ -36,6 +36,7 @@ import {
   PhoneForwarded,
   Layers,
   Megaphone,
+  BarChart3,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -130,11 +131,27 @@ const menuSections: MenuSection[] = [
         icon: PhoneCall,
         module: "telephony",
         children: [
+          { id: "telephony-dashboard", label: "Analytics", icon: BarChart3, path: "/telephony/dashboard", permission: "telephony.analytics.view" },
           { id: "telephony-calls", label: "Call Logs", icon: PhoneCall, path: "/telephony/calls", permission: "telephony.calls.view" },
+          { id: "telephony-campaigns", label: "Campaigns", icon: Megaphone, path: "/telephony/campaigns", permission: "telephony.campaigns.view" },
           { id: "telephony-sms", label: "SMS Logs", icon: MessageSquare, path: "/telephony/sms", permission: "telephony.sms.view" },
           { id: "telephony-caller-ids", label: "Caller IDs", icon: PhoneOutgoing, path: "/telephony/caller-ids", permission: "telephony.settings.view" },
           { id: "telephony-breaks", label: "Breaks", icon: Coffee, path: "/telephony/breaks", permission: "telephony.agents.view" },
           { id: "telephony-callbacks", label: "Callbacks", icon: PhoneForwarded, path: "/telephony/callbacks", permission: "telephony.callbacks.view" },
+        ],
+      },
+    ],
+  },
+  {
+    label: "REAL ESTATE",
+    items: [
+      {
+        id: "real-estate",
+        label: "Real Estate",
+        icon: Building2,
+        module: "real_estate",
+        children: [
+          { id: "real-estate-projects", label: "Projects", icon: Building2, path: "/real-estate/projects" },
         ],
       },
     ],

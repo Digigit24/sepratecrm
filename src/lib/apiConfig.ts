@@ -439,6 +439,7 @@ export const API_CONFIG = {
     // Lead endpoints (note: no /crm/ prefix since base URL already includes it)
     LEADS: '/crm/leads/',
     LEAD_DETAIL: '/crm/leads/:id/',
+    LEAD_LOOKUP_BY_PHONE: '/crm/leads/lookup-by-phone/',
     LEAD_CREATE: '/crm/leads/',
     LEAD_UPDATE: '/crm/leads/:id/',
     LEAD_DELETE: '/crm/leads/:id/',
@@ -570,6 +571,18 @@ export const API_CONFIG = {
       CALL_DETAIL: '/telephony/calls/:id/',
       CALL_RECORDING: '/telephony/calls/:id/recording/',
       CALL_SYNC: '/telephony/calls/sync/',
+      CALL_OUTCOME: '/telephony/calls/:id/outcome/',
+
+      // Analytics
+      ANALYTICS_DASHBOARD: '/telephony/analytics/',
+      ANALYTICS_DAILY: '/telephony/analytics/daily/',
+
+      // Campaigns (auto-dialer)
+      CAMPAIGNS: '/telephony/campaigns/',
+      CAMPAIGN_DETAIL: '/telephony/campaigns/:id/',
+      CAMPAIGN_PUSH_LEADS: '/telephony/campaigns/:id/push-leads/',
+      CAMPAIGN_PUSH_GROUP: '/telephony/campaigns/:id/push-group/',
+      CAMPAIGN_TOGGLE_ACTIVE: '/telephony/campaigns/:id/toggle-active/',
 
       // SMS
       SMS_SEND: '/telephony/sms/send/',
@@ -586,6 +599,22 @@ export const API_CONFIG = {
 
       // WebRTC config for the in-browser PIOPIY SDK
       WEBRTC_CONFIG: '/telephony/webrtc-config/',
+    },
+
+    // ==================== REAL ESTATE ====================
+    REAL_ESTATE: {
+      PROJECTS: '/real-estate/projects/',
+      PROJECT_DETAIL: '/real-estate/projects/:id/',
+      PROJECT_IMAGE: '/real-estate/projects/:id/image/',
+      PROJECT_SUMMARY: '/real-estate/projects/:id/summary/',
+      BLOCKS: '/real-estate/blocks/',
+      BLOCK_DETAIL: '/real-estate/blocks/:id/',
+      UNITS: '/real-estate/units/',
+      UNIT_DETAIL: '/real-estate/units/:id/',
+      PROJECT_INTERESTS: '/real-estate/project-interests/',
+      PROJECT_INTEREST_DETAIL: '/real-estate/project-interests/:id/',
+      UNIT_LEADS: '/real-estate/unit-leads/',
+      UNIT_LEAD_DETAIL: '/real-estate/unit-leads/:id/',
     },
   },
 

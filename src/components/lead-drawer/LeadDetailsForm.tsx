@@ -43,6 +43,7 @@ import { cn } from '@/lib/utils';
 
 import { DynamicFieldRenderer } from '@/components/crm/DynamicFieldRenderer';
 import { LeadScoreSlider } from '@/components/crm/LeadScoreSlider';
+import { CopyPhoneButton } from '@/components/crm/CopyPhoneButton';
 import type { Lead, CreateLeadPayload, PriorityEnum } from '@/types/crmTypes';
 import type { LeadFormHandle } from '../LeadsFormDrawer';
 import { useCRM } from '@/hooks/useCRM';
@@ -406,6 +407,7 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
               type="text" inputMode="numeric" placeholder="9876543210" maxLength={14} disabled={isReadOnly}
               className={cn(ghostInput, 'flex-1', errors.phone && 'text-destructive')} />
           )} />
+          {isReadOnly && <CopyPhoneButton phone={lead?.phone} />}
         </div>
       </PropRow>
     ));

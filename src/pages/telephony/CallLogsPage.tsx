@@ -1,6 +1,6 @@
 // src/pages/telephony/CallLogsPage.tsx
 import React, { useMemo, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLeadDrawerStore } from '@/store/leadDrawerStore';
 import {
   Table,
   TableBody,
@@ -29,13 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+import { SideDrawer } from '@/components/SideDrawer';
 import {
   Phone,
   PhoneIncoming,
@@ -55,6 +49,7 @@ import { useUsers } from '@/hooks/useUsers';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Pager } from '@/components/telephony/Pager';
 import { formatDuration, safeRelative, safeExact, msToExact } from '@/lib/telephonyFormat';
+import { telephonyBadgeClass, callOutcomeTone, callOutcomeLabel } from '@/lib/telephonyBadge';
 import { telephonyService } from '@/services/telephonyService';
 import {
   Direction,
@@ -74,7 +69,7 @@ const DirectionIcon: React.FC<{ call: CallLog; className?: string }> = ({ call, 
 };
 
 export const CallLogsPage: React.FC = () => {
-  const navigate = useNavigate();
+  const openLead = useLeadDrawerStore((s) => s.openLead);
   const { useCalls, syncCalls } = useTelephony();
   const { useUsersList } = useUsers();
 
@@ -271,13 +266,25 @@ export const CallLogsPage: React.FC = () => {
                 return (
                   <TableRow key={call.id} className="cursor-pointer" onClick={() => setSelected(call)}>
                     <TableCell><DirectionIcon call={call} /></TableCell>
-                    <TableCell className="font-medium">{title}</TableCell>
+                    <TableCell className="font-medium">
+                      {call.lead_id ? (
+                        <button
+                          type="button"
+                          className="hover:underline underline-offset-2 text-left"
+                          onClick={(e) => { e.stopPropagation(); openLead(call.lead_id!); }}
+                        >
+                          {title}
+                        </button>
+                      ) : (
+                        title
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge
                         variant="secondary"
-                        className={call.call_type === CallType.MISSED ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-green-100 text-green-700 hover:bg-green-100'}
+                        className={telephonyBadgeClass(callOutcomeTone(call.call_type === CallType.MISSED))}
                       >
-                        {call.call_type === CallType.MISSED ? 'Missed' : 'Answered'}
+                        {callOutcomeLabel(call.call_type === CallType.MISSED)}
                       </Badge>
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-xs font-mono text-muted-foreground">
@@ -328,7 +335,7 @@ export const CallLogsPage: React.FC = () => {
                             size="icon"
                             className="h-7 w-7"
                             title="View lead"
-                            onClick={() => navigate(`/crm/leads/${call.lead_id}`)}
+                            onClick={(e) => { e.stopPropagation(); openLead(call.lead_id!); }}
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
                           </Button>
@@ -392,72 +399,78 @@ export const CallLogsPage: React.FC = () => {
       </Dialog>
 
       {/* Detail drawer */}
-      <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-          {selected && (
-            <>
-              <SheetHeader>
-                <SheetTitle className="flex items-center gap-2">
-                  <DirectionIcon call={selected} />
-                  {selected.caller_name || selected.from_number}
-                </SheetTitle>
-                <SheetDescription>{selected.direction_display || selected.direction} call</SheetDescription>
-              </SheetHeader>
-              <div className="mt-4 space-y-3 text-sm">
-                <DetailRow label="Type" value={selected.call_type === CallType.MISSED ? 'Missed' : 'Answered'} />
-                <DetailRow label="From" value={selected.from_number} mono />
-                <DetailRow label="To" value={selected.to_number} mono />
-                <DetailRow label="Duration" value={formatDuration(selected.duration, selected.call_type)} />
-                <DetailRow label="Billed seconds" value={String(selected.billed_sec ?? '—')} />
-                <DetailRow label="Rate" value={selected.rate ?? '—'} mono />
-                <DetailRow label="When" value={safeExact(selected.call_time)} />
-                <DetailRow label="cmiuid" value={selected.cmiuid} mono />
-                <DetailRow label="Synced via" value={selected.synced_via} />
-                {selected.has_recording && (
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground mb-1.5">Recording</p>
-                    {recording?.callId === selected.id && recording.url ? (
-                      <audio className="w-full h-9" src={recording.url} controls />
+      <SideDrawer
+        open={!!selected}
+        onOpenChange={(o) => !o && setSelected(null)}
+        title={selected ? (selected.caller_name || selected.from_number) : 'Call Detail'}
+        description={selected ? `${selected.direction_display || selected.direction} call` : undefined}
+        size="sm"
+        storageKey="telephony-call-detail-drawer-width"
+      >
+        {selected && (
+          <div className="space-y-4 text-sm">
+            <div className="flex items-center gap-2">
+              <DirectionIcon call={selected} className="h-5 w-5" />
+              <Badge
+                variant="secondary"
+                className={telephonyBadgeClass(callOutcomeTone(selected.call_type === CallType.MISSED))}
+              >
+                {callOutcomeLabel(selected.call_type === CallType.MISSED)}
+              </Badge>
+            </div>
+            <div className="space-y-3">
+              <DetailRow label="From" value={selected.from_number} mono />
+              <DetailRow label="To" value={selected.to_number} mono />
+              <DetailRow label="Duration" value={formatDuration(selected.duration, selected.call_type)} />
+              <DetailRow label="Billed seconds" value={String(selected.billed_sec ?? '—')} />
+              <DetailRow label="Rate" value={selected.rate ?? '—'} mono />
+              <DetailRow label="When" value={safeExact(selected.call_time)} />
+              <DetailRow label="cmiuid" value={selected.cmiuid} mono />
+              <DetailRow label="Synced via" value={selected.synced_via} />
+            </div>
+            {selected.has_recording && (
+              <div>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Recording</p>
+                {recording?.callId === selected.id && recording.url ? (
+                  <audio className="w-full h-9" src={recording.url} controls />
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-1.5"
+                    disabled={recording?.callId === selected.id && recording.url === null}
+                    onClick={(e) => loadRecording(selected.id, e)}
+                  >
+                    {recording?.callId === selected.id && recording.url === null ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…</>
                     ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full gap-1.5"
-                        disabled={recording?.callId === selected.id && recording.url === null}
-                        onClick={(e) => loadRecording(selected.id, e)}
-                      >
-                        {recording?.callId === selected.id && recording.url === null ? (
-                          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…</>
-                        ) : (
-                          <><Play className="h-3.5 w-3.5" /> Play Recording</>
-                        )}
-                      </Button>
+                      <><Play className="h-3.5 w-3.5" /> Play Recording</>
                     )}
-                  </div>
-                )}
-                {selected.lead_id ? (
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => navigate(`/crm/leads/${selected.lead_id}`)}>
-                    <ExternalLink className="h-3.5 w-3.5 mr-2" /> View Lead #{selected.lead_id}
                   </Button>
-                ) : null}
-                {Array.isArray(selected.telecmi_notes) && selected.telecmi_notes.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground mb-1.5">Notes</p>
-                    <div className="space-y-1.5">
-                      {selected.telecmi_notes.map((n, i) => (
-                        <div key={i} className="text-xs bg-muted/60 rounded px-2 py-1.5">
-                          <p className="whitespace-pre-wrap">{n.msg}</p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">{n.agent}{n.date ? ` · ${msToExact(n.date)}` : ''}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 )}
               </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+            )}
+            {selected.lead_id ? (
+              <Button variant="outline" size="sm" className="w-full" onClick={() => openLead(selected.lead_id!)}>
+                <ExternalLink className="h-3.5 w-3.5 mr-2" /> View Lead #{selected.lead_id}
+              </Button>
+            ) : null}
+            {Array.isArray(selected.telecmi_notes) && selected.telecmi_notes.length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Notes</p>
+                <div className="space-y-1.5">
+                  {selected.telecmi_notes.map((n, i) => (
+                    <div key={i} className="text-xs bg-muted/60 rounded px-2 py-1.5">
+                      <p className="whitespace-pre-wrap">{n.msg}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{n.agent}{n.date ? ` · ${msToExact(n.date)}` : ''}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </SideDrawer>
     </div>
   );
 };

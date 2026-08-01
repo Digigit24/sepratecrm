@@ -1,6 +1,6 @@
 // src/pages/telephony/SMSLogsPage.tsx
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLeadDrawerStore } from '@/store/leadDrawerStore';
 import {
   Table,
   TableBody,
@@ -26,12 +26,13 @@ import { useUsers } from '@/hooks/useUsers';
 import { Pager } from '@/components/telephony/Pager';
 import { SendSMSDialog } from '@/components/telephony/SendSMSDialog';
 import { safeRelative, safeExact } from '@/lib/telephonyFormat';
+import { telephonyBadgeClass, smsStatusTone } from '@/lib/telephonyBadge';
 import { SmsStatus, type SMSLogsQueryParams } from '@/types/telephony.types';
 
 const PAGE_SIZE = 25;
 
 export const SMSLogsPage: React.FC = () => {
-  const navigate = useNavigate();
+  const openLead = useLeadDrawerStore((s) => s.openLead);
   const { useSMS } = useTelephony();
   const { useUsersList } = useUsers();
 
@@ -152,10 +153,7 @@ export const SMSLogsPage: React.FC = () => {
                 return (
                   <TableRow key={sms.id}>
                     <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={failed ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-green-100 text-green-700 hover:bg-green-100'}
-                      >
+                      <Badge variant="secondary" className={telephonyBadgeClass(smsStatusTone(failed))}>
                         {sms.status_display || (failed ? 'Failed' : 'Sent')}
                       </Badge>
                     </TableCell>
@@ -179,7 +177,7 @@ export const SMSLogsPage: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       {sms.lead_id ? (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="View lead" onClick={() => navigate(`/crm/leads/${sms.lead_id}`)}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="View lead" onClick={() => openLead(sms.lead_id!)}>
                           <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
                       ) : null}

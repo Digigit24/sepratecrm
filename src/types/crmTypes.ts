@@ -69,6 +69,18 @@ export interface LeadGroupMinimal {
   color_hex?: string;
 }
 
+// GET /crm/leads/lookup-by-phone/?phone=<digits> — last-10-digit match.
+export interface LeadPhoneLookupResult {
+  id: number;
+  name: string;
+  phone: string;
+  status: {
+    id: number;
+    name: string;
+    color_hex?: string;
+  } | null;
+}
+
 export interface LeadActivity {
   id: number;
   tenant_id: string;

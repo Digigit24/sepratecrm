@@ -56,6 +56,10 @@ const SMSLogsPage = lazy(() => import("./pages/telephony/SMSLogsPage").then(m =>
 const CallerIDsPage = lazy(() => import("./pages/telephony/CallerIDsPage").then(m => ({ default: m.CallerIDsPage })));
 const BreaksPage = lazy(() => import("./pages/telephony/BreaksPage").then(m => ({ default: m.BreaksPage })));
 const CallbacksPage = lazy(() => import("./pages/telephony/CallbacksPage").then(m => ({ default: m.CallbacksPage })));
+const TelephonyDashboardPage = lazy(() => import("./pages/telephony/TelephonyDashboardPage").then(m => ({ default: m.TelephonyDashboardPage })));
+const CampaignsPage = lazy(() => import("./pages/telephony/CampaignsPage").then(m => ({ default: m.CampaignsPage })));
+const RealEstateProjectsPage = lazy(() => import("./pages/real-estate/ProjectsPage").then(m => ({ default: m.ProjectsPage })));
+const RealEstateProjectDetailPage = lazy(() => import("./pages/real-estate/ProjectDetailPage").then(m => ({ default: m.ProjectDetailPage })));
 const OAuthCallback = lazy(() => import("./pages/OAuthCallback").then(m => ({ default: m.OAuthCallback })));
 
 import { ThemeSync } from "@/components/ThemeSync";
@@ -64,6 +68,7 @@ import { RealtimeChatProvider } from "./context/RealtimeChatProvider";
 import { TelephonyProvider } from "./context/TelephonyProvider";
 import { ChatProvider } from "./context/ChatProvider";
 import { CopilotPanel } from "@/components/copilot/CopilotPanel";
+import { GlobalLeadDrawer } from "@/components/GlobalLeadDrawer";
 import { Softphone } from "./components/telephony/Softphone";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -171,6 +176,12 @@ const AppLayout = () => {
               <Route path="/telephony/caller-ids" element={<ModuleProtectedRoute requiredModule="telephony" requiredPermission="telephony.settings.view"><CallerIDsPage /></ModuleProtectedRoute>} />
               <Route path="/telephony/breaks" element={<ModuleProtectedRoute requiredModule="telephony" requiredPermission="telephony.agents.view"><BreaksPage /></ModuleProtectedRoute>} />
               <Route path="/telephony/callbacks" element={<ModuleProtectedRoute requiredModule="telephony" requiredPermission="telephony.callbacks.view"><CallbacksPage /></ModuleProtectedRoute>} />
+              <Route path="/telephony/dashboard" element={<ModuleProtectedRoute requiredModule="telephony" requiredPermission="telephony.analytics.view"><TelephonyDashboardPage /></ModuleProtectedRoute>} />
+              <Route path="/telephony/campaigns" element={<ModuleProtectedRoute requiredModule="telephony" requiredPermission="telephony.campaigns.view"><CampaignsPage /></ModuleProtectedRoute>} />
+
+              {/* Real Estate Routes */}
+              <Route path="/real-estate/projects" element={<ModuleProtectedRoute requiredModule="real_estate"><RealEstateProjectsPage /></ModuleProtectedRoute>} />
+              <Route path="/real-estate/projects/:id" element={<ModuleProtectedRoute requiredModule="real_estate"><RealEstateProjectDetailPage /></ModuleProtectedRoute>} />
 
               {/* 404 */}
               <Route path="*" element={<NotFound />} />
@@ -181,6 +192,8 @@ const AppLayout = () => {
         {/* AI copilot right slide-out panel (toggled from the header bot button) */}
         <CopilotPanel />
       </div>
+      {/* App-wide Lead Details drawer — openable from any page via useLeadDrawerStore */}
+      <GlobalLeadDrawer />
       </ChatProvider>
     </TelephonyShell>
   );

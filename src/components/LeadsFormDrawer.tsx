@@ -1,7 +1,7 @@
 // src/components/LeadsFormDrawer.tsx
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Pencil, Trash2, Phone, Mail, MessageCircle } from 'lucide-react';
+import { Copy, Pencil, Trash2, Phone, Mail, MessageCircle } from 'lucide-react';
 import { normalizeWhatsappPhone } from '@/lib/phone';
 import { toast } from 'sonner';
 
@@ -204,6 +204,19 @@ export function LeadsFormDrawer({
             icon: Phone,
             onClick: () => window.open(`tel:${lead.phone}`, '_self'),
             label: 'Call lead',
+            variant: 'ghost',
+          },
+          {
+            icon: Copy,
+            onClick: async () => {
+              try {
+                await navigator.clipboard.writeText(lead.phone);
+                toast.success('Phone number copied', { description: lead.phone, duration: 1600 });
+              } catch {
+                toast.error('Could not copy phone number');
+              }
+            },
+            label: 'Copy phone',
             variant: 'ghost',
           },
           {
