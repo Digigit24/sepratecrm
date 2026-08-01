@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTelephonyPhone, type PhoneStatus } from '@/context/TelephonyProvider';
+import { SoftphoneLeadContext } from './SoftphoneLeadContext';
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -231,6 +232,7 @@ const IncomingCall: React.FC = () => {
         <p className="text-xs text-muted-foreground">Incoming call</p>
         <p className="text-base font-semibold font-mono">{phone.currentCall?.number || 'Unknown'}</p>
       </div>
+      <SoftphoneLeadContext leadId={phone.currentCall?.leadId} number={phone.currentCall?.number} />
       <div className="flex gap-2">
         <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={phone.answer}>
           <Phone className="h-4 w-4 mr-2" />
@@ -256,6 +258,7 @@ const OutgoingCall: React.FC = () => {
         </p>
         <p className="text-base font-semibold font-mono">{phone.currentCall?.number}</p>
       </div>
+      <SoftphoneLeadContext leadId={phone.currentCall?.leadId} number={phone.currentCall?.number} />
       <Button variant="destructive" className="w-full" onClick={phone.hangUp}>
         <PhoneOff className="h-4 w-4 mr-2" />
         Cancel
@@ -279,6 +282,8 @@ const ActiveCall: React.FC = () => {
           {fmt(phone.durationSec)}
         </p>
       </div>
+
+      <SoftphoneLeadContext leadId={phone.currentCall?.leadId} number={phone.currentCall?.number} />
 
       <div className="grid grid-cols-3 gap-2">
         <Button variant={phone.isMuted ? 'default' : 'outline'} className="h-12 flex-col gap-1" onClick={phone.isMuted ? phone.unmute : phone.mute}>

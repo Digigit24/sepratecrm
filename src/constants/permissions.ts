@@ -175,6 +175,15 @@ export const PERMISSIONS = {
   "telephony.settings.create": "telephony.settings.create",
   "telephony.settings.edit": "telephony.settings.edit",
   "telephony.settings.delete": "telephony.settings.delete",
+  // MANUALLY ADDED — not yet in superadmin/apps/common/permissions_catalog.yaml.
+  // The analytics dashboard and campaign manager pages need these. Add the
+  // matching keys to that YAML catalog and regenerate this file, or the next
+  // regeneration will drop these lines.
+  "telephony.analytics.view": "telephony.analytics.view",
+  "telephony.campaigns.view": "telephony.campaigns.view",
+  "telephony.campaigns.create": "telephony.campaigns.create",
+  "telephony.campaigns.edit": "telephony.campaigns.edit",
+  "telephony.campaigns.delete": "telephony.campaigns.delete",
   "meetings.meetings.view": "meetings.meetings.view",
   "meetings.meetings.create": "meetings.meetings.create",
   "meetings.meetings.edit": "meetings.meetings.edit",

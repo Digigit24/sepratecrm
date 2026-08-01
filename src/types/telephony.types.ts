@@ -37,6 +37,22 @@ export enum CallSyncedVia {
   SYNC = 'sync',
 }
 
+/** Agent-set call disposition. */
+export enum CallOutcome {
+  INTERESTED = 'interested',
+  CONVERTED = 'converted',
+  FOLLOW_UP = 'follow_up',
+  CALLBACK = 'callback',
+  NOT_INTERESTED = 'not_interested',
+  DND = 'dnd',
+}
+
+/** Auto-dialer campaign ring rule. */
+export enum CampaignRingRule {
+  RING_ALL = 'ring-all',
+  ROUND_ROBIN = 'round-robin',
+}
+
 // ==================== SHARED ====================
 
 /** Standard DRF paginated list envelope. */
@@ -169,16 +185,180 @@ export interface CallLog {
   /** True when a recording file exists for this call and can be fetched via GET /api/telephony/calls/{id}/recording/. */
   has_recording: boolean;
   created_at: string;
+
+  // ── outbound Leg A/B dedup + routing metadata ──
+  call_leg: 'a' | 'b' | null;
+  telecmi_call_id: string | null;
+  conversation_uuid: string | null;
+  ivr_name: string | null;
+  team_name: string | null;
+
+  // ── voicemail (inbound missed) ──
+  is_voicemail: boolean;
+  voicemail_filename: string | null;
+  wait_seconds: number | null;
+  hangup_reason: string | null;
+
+  // ── disposition ── (kept as plain string, not the CallOutcome enum, since
+  // LeadTelephonyHistory's optimistic update assigns the raw string returned
+  // by CallOutcomeButton's onOutcomeSet callback directly onto this field)
+  call_outcome: string | null;
+  call_outcome_note: string | null;
+  call_outcome_set_at: string | null;
 }
 
 export interface CallLogsQueryParams {
   direction?: Direction;
   call_type?: CallType;
+  call_outcome?: CallOutcome | string;
   lead_id?: number;
   agent_user_id?: string;
   ordering?: 'call_time' | '-call_time' | 'duration' | '-duration';
   page?: number;
   page_size?: number;
+}
+
+export interface SetCallOutcomeRequest {
+  outcome: CallOutcome | string;
+  note?: string;
+}
+
+// ==================== ANALYTICS ====================
+
+export interface TeamCallSummary {
+  total_calls: number;
+  answered_calls: number;
+  missed_calls: number;
+  total_talk_time: number;
+  avg_call_duration: number | null;
+  outbound_calls: number;
+  inbound_calls: number;
+  converted_calls: number;
+  calls_with_outcome: number;
+}
+
+export interface AgentCallSummary {
+  agent_user_id: string;
+  agent_name: string;
+  total_calls: number;
+  answered_calls: number;
+  missed_calls: number;
+  total_talk_time: number;
+  avg_call_duration: number | null;
+  outbound_calls: number;
+  inbound_calls: number;
+  converted_calls: number;
+  miss_rate: number;
+  conversion_rate: number;
+}
+
+export interface MissedUnattendedCall {
+  id: number;
+  from_number: string;
+  call_time: string;
+  agent_user_id: string | null;
+  hours_waiting: number;
+  is_urgent: boolean;
+}
+
+export interface CallOutcomeBreakdown {
+  call_outcome: string;
+  count: number;
+}
+
+export interface TelephonyAnalyticsDashboard {
+  date_from: string;
+  date_to: string;
+  team_summary: TeamCallSummary;
+  agent_summary: AgentCallSummary[];
+  missed_unattended: MissedUnattendedCall[];
+  outcome_breakdown: CallOutcomeBreakdown[];
+}
+
+export interface AgentDailyStat {
+  agent_user_id: string;
+  day: string;
+  total_calls: number;
+  answered_calls: number;
+  missed_calls: number;
+  total_talk_time: number;
+  outbound_calls: number;
+  inbound_calls: number;
+  calls_with_outcome: number;
+  converted_calls: number;
+}
+
+export interface AgentDailyStatsResponse {
+  date_from: string;
+  date_to: string;
+  data: AgentDailyStat[];
+}
+
+// ==================== CAMPAIGNS (auto-dialer) ====================
+
+export interface CampaignSourceGroup {
+  id: number;
+  name: string;
+  color_hex?: string;
+}
+
+export interface TeleCMICampaign {
+  id: number;
+  telecmi_campaign_id: string | null;
+  name: string;
+  is_active: boolean;
+  timezone: string;
+  start_date: string;
+  end_date: string;
+  start_time: string;
+  end_time: string;
+  call_interval: number;
+  ring_rule: CampaignRingRule;
+  agent_user_ids: string[];
+  lead_count: number;
+  leads_called: number;
+  telecmi_lead_list_name: string | null;
+  notes: string;
+  /** CRM Lead Group this campaign's leads are synced from, if any. */
+  source_group: CampaignSourceGroup | null;
+  created_by_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type TeleCMICampaignCreateData = Partial<
+  Pick<
+    TeleCMICampaign,
+    | 'name'
+    | 'timezone'
+    | 'start_date'
+    | 'end_date'
+    | 'start_time'
+    | 'end_time'
+    | 'call_interval'
+    | 'ring_rule'
+    | 'agent_user_ids'
+    | 'notes'
+  > & { source_group_id: number | null }
+>;
+
+export type TeleCMICampaignUpdateData = TeleCMICampaignCreateData & { is_active?: boolean };
+
+export interface CampaignToggleActiveResponse {
+  is_active: boolean;
+}
+
+export interface CampaignPushLeadsRequest {
+  lead_ids: string[];
+}
+
+export interface CampaignPushLeadsResponse {
+  pushed: number;
+  campaign_id: string;
+}
+
+export interface CampaignPushGroupRequest {
+  group_id: number;
 }
 
 export interface CallSyncRequest {

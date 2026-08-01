@@ -15,6 +15,9 @@ vi.mock('@/services/telephonyService', () => {
 // toastTelephonyError lives in the hooks module; stub it (and avoid loading SWR).
 vi.mock('@/hooks/useTelephony', () => ({
   toastTelephonyError: vi.fn(),
+  prependOptimisticCall: vi.fn().mockReturnValue(-1),
+  removeOptimisticCall: vi.fn(),
+  revalidateLeadCalls: vi.fn(),
 }));
 
 // Silence toasts.

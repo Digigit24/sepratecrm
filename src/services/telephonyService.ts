@@ -18,6 +18,7 @@ import type {
   CallLogsQueryParams,
   CallSyncRequest,
   CallSyncResponse,
+  SetCallOutcomeRequest,
   SMSLog,
   SendSMSRequest,
   SMSLogsQueryParams,
@@ -27,6 +28,13 @@ import type {
   CallbacksQueryParams,
   WebRTCConfig,
   PaginatedResponse,
+  TelephonyAnalyticsDashboard,
+  AgentDailyStatsResponse,
+  TeleCMICampaign,
+  TeleCMICampaignCreateData,
+  TeleCMICampaignUpdateData,
+  CampaignToggleActiveResponse,
+  CampaignPushLeadsResponse,
 } from '@/types/telephony.types';
 
 const T = API_CONFIG.CRM.TELEPHONY;
@@ -346,6 +354,119 @@ class TelephonyService {
   async getWebRTCConfig(): Promise<WebRTCConfig> {
     try {
       const res = await crmClient.get<WebRTCConfig>(T.WEBRTC_CONFIG);
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  // ==================== CALL OUTCOME (disposition) ====================
+
+  /** Set the agent disposition on a call. Returns the updated CallLog. */
+  async setCallOutcome(id: number, data: SetCallOutcomeRequest): Promise<CallLog> {
+    try {
+      const res = await crmClient.patch<CallLog>(T.CALL_OUTCOME.replace(':id', String(id)), data);
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  // ==================== ANALYTICS ====================
+
+  /** Admin telephony analytics dashboard: team + per-agent summary, missed-unattended, outcome breakdown. */
+  async getAnalyticsDashboard(days = 30): Promise<TelephonyAnalyticsDashboard> {
+    try {
+      const res = await crmClient.get<TelephonyAnalyticsDashboard>(
+        `${T.ANALYTICS_DASHBOARD}${buildQueryString({ days })}`
+      );
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  /** Per-agent per-day breakdown. Backend restricts non-admins to their own stats. */
+  async getAgentDailyStats(days = 7, agentUserId?: string): Promise<AgentDailyStatsResponse> {
+    try {
+      const res = await crmClient.get<AgentDailyStatsResponse>(
+        `${T.ANALYTICS_DAILY}${buildQueryString({ days, agent_user_id: agentUserId })}`
+      );
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  // ==================== CAMPAIGNS (auto-dialer) ====================
+
+  async getCampaigns(): Promise<PaginatedResponse<TeleCMICampaign>> {
+    try {
+      const res = await crmClient.get<PaginatedResponse<TeleCMICampaign>>(T.CAMPAIGNS);
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  async createCampaign(data: TeleCMICampaignCreateData): Promise<TeleCMICampaign> {
+    try {
+      const res = await crmClient.post<TeleCMICampaign>(T.CAMPAIGNS, data);
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  async updateCampaign(id: number, data: TeleCMICampaignUpdateData): Promise<TeleCMICampaign> {
+    try {
+      const res = await crmClient.patch<TeleCMICampaign>(T.CAMPAIGN_DETAIL.replace(':id', String(id)), data);
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  async deleteCampaign(id: number): Promise<void> {
+    try {
+      await crmClient.delete(T.CAMPAIGN_DETAIL.replace(':id', String(id)));
+    } catch (e) {
+      wrap(e);
+    }
+  }
+
+  async toggleCampaignActive(id: number): Promise<CampaignToggleActiveResponse> {
+    try {
+      const res = await crmClient.post<CampaignToggleActiveResponse>(
+        T.CAMPAIGN_TOGGLE_ACTIVE.replace(':id', String(id)),
+        {}
+      );
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  async pushCampaignLeads(id: number, leadIds: string[]): Promise<CampaignPushLeadsResponse> {
+    try {
+      const res = await crmClient.post<CampaignPushLeadsResponse>(
+        T.CAMPAIGN_PUSH_LEADS.replace(':id', String(id)),
+        { lead_ids: leadIds }
+      );
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  // Resolves the campaign's source Group's current members and pushes them
+  // into the dialer — the "Sync from Group" action.
+  async pushCampaignFromGroup(id: number, groupId: number): Promise<CampaignPushLeadsResponse> {
+    try {
+      const res = await crmClient.post<CampaignPushLeadsResponse>(
+        T.CAMPAIGN_PUSH_GROUP.replace(':id', String(id)),
+        { group_id: groupId }
+      );
       return res.data;
     } catch (e) {
       return wrap(e);

@@ -13,6 +13,8 @@ import { LeadStatusFormDrawer } from '@/components/LeadStatusFormDrawer';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { LeadImportMappingDialog } from '@/components/LeadImportMappingDialog';
 import { LeadWhatsAppDrawer } from '@/components/crm/LeadWhatsAppDrawer';
+import { CopyPhoneButton } from '@/components/crm/CopyPhoneButton';
+import { PushLeadsToCampaignDrawer } from '@/components/crm/PushLeadsToCampaignDrawer';
 import { EditableNotesCell } from '@/components/crm/EditableNotesCell';
 import { EditableFollowupCell } from '@/components/crm/EditableFollowupCell';
 import { EditableStatusCell } from '@/components/crm/EditableStatusCell';
@@ -27,7 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, RefreshCw, Building2, Phone, Mail, IndianRupee, LayoutGrid, List, Download, Upload, FileSpreadsheet, ChevronDown, MessageCircle, Trash2, FileText, CalendarClock, MoreVertical, Eye, EyeOff, SlidersHorizontal, X, Layers } from 'lucide-react';
+import { Plus, RefreshCw, Building2, Phone, Mail, IndianRupee, LayoutGrid, List, Download, Upload, FileSpreadsheet, ChevronDown, MessageCircle, Trash2, FileText, CalendarClock, MoreVertical, Eye, EyeOff, SlidersHorizontal, X, Layers, Megaphone } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 // Note: Target import removed - lead score filter is now in LeadsFilterDrawer
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -87,6 +89,7 @@ export const CRMLeads: React.FC = () => {
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [isBulkUpdatingStatus, setIsBulkUpdatingStatus] = useState(false);
   const [isBulkAddingToGroup, setIsBulkAddingToGroup] = useState(false);
+  const [pushToCampaignOpen, setPushToCampaignOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({ hide_duplicates: true });
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
@@ -424,7 +427,9 @@ export const CRMLeads: React.FC = () => {
           pages?.map((page) => ({
             ...page,
             results: page.results.map((l) =>
-              l.id === leadId ? { ...l, ...patch, updated_at: new Date().toISOString() } : l
+              l.id === leadId
+                ? { ...l, ...patch, updated_at: patch.updated_at ?? new Date().toISOString() }
+                : l
             ),
           })),
         false // don't revalidate yet
@@ -433,20 +438,33 @@ export const CRMLeads: React.FC = () => {
     [mutateInfinite]
   );
 
+  // Notes are edited inline and must never flicker. We write the new value into
+  // the SWR cache immediately, PATCH in the background, then reconcile against
+  // the value the PATCH response itself returns. Deliberately NO list refetch:
+  // a bare mutateInfinite() here re-fetched every loaded page and blanked the
+  // cell whenever that GET came back before the write was visible to the read
+  // path. Background freshness still arrives via the normal revalidation
+  // triggers (refresh button, crmDataChanged, reconnect).
   const handleUpdateNotes = useCallback(
     async (leadId: number, notes: string) => {
-      // Optimistic update in infinite list
+      const previousNotes =
+        infinitePages?.flatMap((p) => p.results).find((l) => l.id === leadId)?.notes ?? '';
+
       optimisticInfiniteUpdate(leadId, { notes });
+
       try {
-        await patchLead(leadId, { notes });
-        mutateInfinite(); // confirm with server
+        const updated = await patchLead(leadId, { notes });
+        optimisticInfiniteUpdate(leadId, {
+          notes: updated?.notes ?? notes,
+          updated_at: updated?.updated_at,
+        });
       } catch (error: any) {
+        optimisticInfiniteUpdate(leadId, { notes: previousNotes });
         toast.error(error?.message || 'Failed to update notes');
-        mutateInfinite(); // revert via revalidation
         throw error;
       }
     },
-    [patchLead, mutateInfinite, optimisticInfiniteUpdate]
+    [patchLead, optimisticInfiniteUpdate, infinitePages]
   );
 
   const handleUpdateFollowup = useCallback(
@@ -1084,7 +1102,23 @@ export const CRMLeads: React.FC = () => {
         key: 'contact',
         cell: (lead) => (
           <div>
-            <div className="text-sm">{lead.phone}</div>
+            <div className="flex items-center gap-1 text-sm">
+              <span>{lead.phone}</span>
+              {lead.phone && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-100"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCallLead(lead); }}
+                  title="Call lead"
+                  aria-label="Call lead"
+                >
+                  <Phone className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <CopyPhoneButton phone={lead.phone} />
+            </div>
             {lead.email && standardFieldsMap.has('email') && (
               <div className="text-xs text-muted-foreground truncate max-w-[180px]">{lead.email}</div>
             )}
@@ -1309,6 +1343,20 @@ export const CRMLeads: React.FC = () => {
             <div className="flex items-center gap-1.5 text-sm">
               <Phone className="h-3.5 w-3.5 text-muted-foreground" />
               <span>{lead.phone}</span>
+              {lead.phone && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-100"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCallLead(lead); }}
+                  title="Call lead"
+                  aria-label="Call lead"
+                >
+                  <Phone className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <CopyPhoneButton phone={lead.phone} />
             </div>
           )}
           {lead.email && isFieldVisible('email') && (
@@ -1486,6 +1534,19 @@ export const CRMLeads: React.FC = () => {
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+              )}
+
+              {/* Bulk Push to Campaign */}
+              {canManageSettings && hasModuleAccess('telephony') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs px-1.5"
+                  onClick={() => setPushToCampaignOpen(true)}
+                >
+                  <Megaphone className="h-3 w-3 mr-1" />
+                  Push to Campaign
+                </Button>
               )}
 
               {canDeleteLead && (
@@ -2023,6 +2084,16 @@ export const CRMLeads: React.FC = () => {
         onSuccess={handleDrawerSuccess}
         onDelete={(id) => {}}
         onModeChange={handleModeChange}
+      />
+
+      <PushLeadsToCampaignDrawer
+        open={pushToCampaignOpen}
+        onOpenChange={setPushToCampaignOpen}
+        leadIds={Array.from(selectedLeadIds)}
+        onDone={() => {
+          setSelectedLeadIds(new Set());
+          mutate();
+        }}
       />
 
       <LeadStatusFormDrawer
