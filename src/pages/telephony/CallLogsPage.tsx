@@ -151,8 +151,10 @@ export const CallLogsPage: React.FC = () => {
     try {
       const blob = await telephonyService.getRecordingBlob(callId);
       setRecording({ callId, url: URL.createObjectURL(blob) });
-    } catch {
-      toast.error('Could not load recording');
+    } catch (e) {
+      // Surface the real reason (TeleCMI message, credentials not decryptable,
+      // file missing) instead of a generic failure the user can't act on.
+      toast.error(e instanceof Error && e.message ? e.message : 'Could not load recording');
       setRecording(null);
     }
   };
@@ -363,6 +365,11 @@ export const CallLogsPage: React.FC = () => {
             controls
             autoPlay
             style={{ minWidth: 0 }}
+            onError={() => {
+              toast.error('This recording could not be played.');
+              if (recording.url) URL.revokeObjectURL(recording.url);
+              setRecording(null);
+            }}
           />
           <Button
             variant="ghost"

@@ -53,6 +53,7 @@ const PAGE_SIZE = 10;
 // of them would waste bandwidth on both the browser and the TeleCMI proxy.
 const RecordingPlayer: React.FC<{ callId: number }> = ({ callId }) => {
   const [state, setState] = useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const objectUrlRef = useRef<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -85,14 +86,20 @@ const RecordingPlayer: React.FC<{ callId: number }> = ({ callId }) => {
       setState('playing');
       // Give the <audio> element a tick to mount with the new src before playing.
       requestAnimationFrame(() => audioRef.current?.play());
-    } catch {
+    } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : '');
       setState('error');
     }
   };
 
   if (state === 'error') {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-red-600">
+      <span
+        className="inline-flex items-center gap-1 text-xs text-red-600"
+        // The reason lives in the tooltip so the row stays compact but the
+        // actual upstream message is still recoverable without the console.
+        title={errorMessage || undefined}
+      >
         <AlertCircle className="h-3.5 w-3.5" />
         Recording unavailable
       </span>
@@ -125,6 +132,10 @@ const RecordingPlayer: React.FC<{ callId: number }> = ({ callId }) => {
           src={objectUrlRef.current}
           onEnded={() => setState('idle')}
           onPause={() => setState((s) => (s === 'playing' ? 'idle' : s))}
+          onError={() => {
+            setErrorMessage('The browser could not decode this recording.');
+            setState('error');
+          }}
           className="hidden"
         />
       )}

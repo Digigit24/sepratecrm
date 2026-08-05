@@ -41,7 +41,9 @@ import {
   BulkDeleteResponse,
   BulkStatusUpdatePayload,
   BulkStatusUpdateResponse,
-  LeadPhoneLookupResult
+  LeadPhoneLookupResult,
+  FollowUpSchedulePayload,
+  FollowUpScheduleResponse
 } from '@/types/crmTypes';
 
 class CRMService {
@@ -780,6 +782,45 @@ class CRMService {
       const message = error.response?.data?.error ||
                      error.response?.data?.message ||
                      'Failed to delete field configuration';
+      throw new Error(message);
+    }
+  }
+
+  async updateLeadFollowUpSchedule(
+    id: number,
+    schedule: FollowUpSchedulePayload,
+  ): Promise<FollowUpScheduleResponse> {
+    try {
+      const response = await crmClient.patch<FollowUpScheduleResponse>(
+        API_CONFIG.CRM.LEAD_FOLLOW_UP_SCHEDULE.replace(':id', id.toString()),
+        schedule,
+      );
+      return response.data;
+    } catch (error: any) {
+      const detail = error.response?.data?.reminder;
+      const message = (Array.isArray(detail) ? detail[0] : detail) ||
+                     error.response?.data?.error ||
+                     error.response?.data?.message ||
+                     'Failed to update follow-up reminder';
+      throw new Error(message);
+    }
+  }
+
+  // Atomically save the complete field order and visibility layout
+  async updateFieldConfigurationLayout(
+    layout: import('@/types/crmTypes').LeadFieldLayoutPayload
+  ): Promise<LeadFieldConfiguration[]> {
+    try {
+      const response = await crmClient.patch<LeadFieldConfiguration[]>(
+        API_CONFIG.CRM.FIELD_CONFIGURATION_LAYOUT,
+        layout
+      );
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.fields?.[0] ||
+                     error.response?.data?.error ||
+                     error.response?.data?.message ||
+                     'Failed to save field layout';
       throw new Error(message);
     }
   }

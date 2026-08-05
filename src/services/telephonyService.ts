@@ -98,6 +98,25 @@ const wrap = (error: unknown): never => {
   throw new TelephonyApiError(error);
 };
 
+// ── recording blob helpers ──────────────────────────────────────────────
+// Anything that is not decodable audio must fail loudly here. If a JSON error
+// body reaches URL.createObjectURL() the player mounts, reports a 0:00
+// duration and silently never plays — the failure becomes invisible.
+
+const PLAYABLE_AUDIO_TYPES = /^(audio\/|application\/octet-stream|binary\/octet-stream)/i;
+
+const readBlobAsJson = async (blob: Blob): Promise<Record<string, unknown>> => {
+  try {
+    return JSON.parse(await blob.text()) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+};
+
+/** Build a TelephonyApiError from a body the server sent as a Blob. */
+const blobError = (status: number, message: string): TelephonyApiError =>
+  new TelephonyApiError({ response: { status, data: { error: message } }, message });
+
 class TelephonyService {
   // ==================== CREDENTIALS (§4) ====================
 
@@ -268,14 +287,41 @@ class TelephonyService {
    * done — see the RecordingPlayer component in LeadTelephonyHistory.tsx.
    */
   async getRecordingBlob(id: number): Promise<Blob> {
+    let res;
     try {
-      const res = await crmClient.get<Blob>(T.CALL_RECORDING.replace(':id', String(id)), {
+      res = await crmClient.get<Blob>(T.CALL_RECORDING.replace(':id', String(id)), {
         responseType: 'blob',
       });
-      return res.data;
     } catch (e) {
-      return wrap(e);
+      // With responseType 'blob' Axios hands us the *error* body as a Blob too,
+      // so TelephonyApiError's usual `data.error` lookup finds nothing and the
+      // user gets a generic message. Decode it back to JSON first.
+      const axiosError = e as AxiosError<unknown>;
+      const body = axiosError?.response?.data;
+      if (body instanceof Blob) {
+        (axiosError.response as { data: unknown }).data = await readBlobAsJson(body);
+      }
+      return wrap(axiosError);
     }
+
+    const blob = res.data;
+
+    // A 200 does not guarantee audio: the TeleCMI proxy can pass through a
+    // small JSON error payload. Reject it here rather than letting it become a
+    // dead 0:00 player.
+    if (blob.size === 0) {
+      throw blobError(502, 'The recording file is empty.');
+    }
+    if (blob.type && !PLAYABLE_AUDIO_TYPES.test(blob.type)) {
+      const payload = await readBlobAsJson(blob);
+      const message =
+        (typeof payload.error === 'string' && payload.error) ||
+        (typeof payload.msg === 'string' && payload.msg) ||
+        'The server did not return a playable recording.';
+      throw blobError(502, message);
+    }
+
+    return blob;
   }
 
   // ==================== SMS (§8) ====================

@@ -450,6 +450,15 @@ export const API_CONFIG = {
     LEAD_BULK_STATUS_UPDATE: '/crm/leads/bulk-status-update/',
     LEAD_ATTACHMENTS: '/crm/leads/:id/attachments/',
     LEAD_ATTACHMENT_DETAIL: '/crm/leads/:id/attachments/:attachmentId/',
+    LEAD_FOLLOW_UP_SCHEDULE: '/crm/leads/:id/follow-up-schedule/',
+
+    // Personal in-app notifications
+    NOTIFICATIONS: '/notifications/',
+    NOTIFICATION_UNREAD_COUNT: '/notifications/unread-count/',
+    NOTIFICATION_MARK_READ: '/notifications/:id/mark-read/',
+    NOTIFICATION_MARK_ALL_READ: '/notifications/mark-all-read/',
+    NOTIFICATION_MARK_SEEN: '/notifications/mark-seen/',
+    NOTIFICATION_REALTIME_AUTH: '/notifications/realtime/auth/',
 
     // Lead Status endpoints
     LEAD_STATUSES: '/crm/statuses/',
@@ -503,6 +512,7 @@ export const API_CONFIG = {
     FIELD_CONFIGURATION_CREATE: '/crm/field-configurations/',
     FIELD_CONFIGURATION_UPDATE: '/crm/field-configurations/:id/',
     FIELD_CONFIGURATION_DELETE: '/crm/field-configurations/:id/',
+    FIELD_CONFIGURATION_LAYOUT: '/crm/field-configurations/layout/',
     FIELD_SCHEMA: '/crm/field-configurations/field_schema/',
 
     // Integration System endpoints

@@ -69,6 +69,32 @@ export interface LeadGroupMinimal {
   color_hex?: string;
 }
 
+export interface FollowUpReminder {
+  id: number;
+  lead: number;
+  recipient_user_id: string;
+  follow_up_at: string;
+  remind_at: string;
+  offset_minutes: number;
+  status: 'PENDING' | 'PROCESSING' | 'DELIVERED' | 'CANCELLED' | 'MISSED';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FollowUpSchedulePayload {
+  follow_up_at: string | null;
+  reminder: {
+    enabled: boolean;
+    offset_minutes: number;
+    remind_at?: string | null;
+  };
+}
+
+export interface FollowUpScheduleResponse {
+  lead: Lead;
+  reminder: FollowUpReminder | null;
+}
+
 // GET /crm/leads/lookup-by-phone/?phone=<digits> — last-10-digit match.
 export interface LeadPhoneLookupResult {
   id: number;
@@ -163,8 +189,9 @@ export interface Lead {
   owner_user_id: string;
   assigned_to?: string; // UUID of assigned user
   metadata?: Record<string, any>; // Custom fields stored as JSON
-  last_contacted_at?: string;
-  next_follow_up_at?: string;
+  last_contacted_at?: string | null;
+  next_follow_up_at?: string | null;
+  follow_up_reminder?: FollowUpReminder | null;
   notes?: string;
   address_line1?: string;
   address_line2?: string;
@@ -429,8 +456,8 @@ export interface CreateLeadPayload {
   owner_user_id?: string;
   assigned_to?: string;
   metadata?: Record<string, any>;
-  last_contacted_at?: string;
-  next_follow_up_at?: string;
+  last_contacted_at?: string | null;
+  next_follow_up_at?: string | null;
   notes?: string;
   address_line1?: string;
   address_line2?: string;
@@ -505,6 +532,13 @@ export interface CreateLeadFieldConfigurationPayload {
 }
 
 export interface UpdateLeadFieldConfigurationPayload extends Partial<CreateLeadFieldConfigurationPayload> {}
+
+export interface LeadFieldLayoutPayload {
+  fields: Array<{
+    id: number;
+    is_visible: boolean;
+  }>;
+}
 
 // Filter and Sort Options
 export const PRIORITY_OPTIONS = [

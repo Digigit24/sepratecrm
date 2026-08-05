@@ -857,6 +857,47 @@ export const useCRM = () => {
     }
   }, [hasCRMAccess]);
 
+  const updateLeadFollowUpSchedule = useCallback(async (
+    id: number,
+    schedule: import('@/types/crmTypes').FollowUpSchedulePayload,
+  ) => {
+    if (!hasCRMAccess) {
+      throw new Error('CRM module not enabled for this user');
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      return await crmService.updateLeadFollowUpSchedule(id, schedule);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update follow-up reminder');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [hasCRMAccess]);
+
+  const updateFieldConfigurationLayout = useCallback(async (
+    layout: import('@/types/crmTypes').LeadFieldLayoutPayload
+  ) => {
+    if (!hasCRMAccess) {
+      throw new Error('CRM module not enabled for this user');
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      return await crmService.updateFieldConfigurationLayout(layout);
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to save field layout';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [hasCRMAccess]);
+
   // ==================== LEAD GROUPS ====================
 
   const useLeadGroups = (params?: import('@/types/crmTypes').LeadGroupsQueryParams) => {
@@ -928,6 +969,7 @@ export const useCRM = () => {
     createLead,
     updateLead,
     patchLead,
+    updateLeadFollowUpSchedule,
     deleteLead,
     bulkCreateLeads,
     bulkDeleteLeads,
@@ -970,6 +1012,7 @@ export const useCRM = () => {
     updateFieldConfiguration,
     patchFieldConfiguration,
     deleteFieldConfiguration,
+    updateFieldConfigurationLayout,
 
     // Lead Groups
     useLeadGroups,

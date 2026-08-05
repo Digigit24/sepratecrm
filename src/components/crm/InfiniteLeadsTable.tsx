@@ -1,7 +1,8 @@
 // src/components/crm/InfiniteLeadsTable.tsx
 // Infinite-scroll table for CRM leads — fetches 100 at a time as the user scrolls.
 // Mirrors DataTable's column/row-action interface so it's a drop-in for list view.
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect } from 'react';
+import type { CSSProperties } from 'react';
 import { Loader2, Users } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ interface InfiniteLeadsTableProps {
   onDelete?: (lead: Lead) => void;
   renderInlineActions?: (lead: Lead) => React.ReactNode;
   rowClassName?: (lead: Lead) => string;
+  rowStyle?: (lead: Lead) => CSSProperties | undefined;
 }
 
 export function InfiniteLeadsTable({
@@ -51,6 +53,7 @@ export function InfiniteLeadsTable({
   onDelete,
   renderInlineActions,
   rowClassName,
+  rowStyle,
 }: InfiniteLeadsTableProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -132,10 +135,12 @@ export function InfiniteLeadsTable({
             {leads.map((lead) => {
               const isSelected = selectedIds.has(lead.id);
               const extraClass = rowClassName?.(lead) ?? '';
+              const extraStyle = rowStyle?.(lead);
               return (
                 <TableRow
                   key={lead.id}
-                  className={`group cursor-pointer transition-colors ${isSelected ? 'bg-primary/5' : ''} ${extraClass}`}
+                  className={`group cursor-pointer transition-colors ${isSelected ? 'ring-2 ring-inset ring-primary/40' : ''} ${extraClass}`}
+                  style={extraStyle}
                   onClick={() => onView?.(lead)}
                 >
                   {/* Checkbox */}

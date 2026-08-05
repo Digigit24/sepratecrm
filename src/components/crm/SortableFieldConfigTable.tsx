@@ -4,7 +4,8 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -38,6 +39,8 @@ interface SortableFieldConfigTableProps {
   onEdit: (field: LeadFieldConfiguration) => void;
   onDelete: (field: LeadFieldConfiguration) => void;
   onView: (field: LeadFieldConfiguration) => void;
+  onVisibilityChange: (field: LeadFieldConfiguration, isVisible: boolean) => void;
+  disabled?: boolean;
 }
 
 function SortableRow({
@@ -45,11 +48,15 @@ function SortableRow({
   onEdit,
   onDelete,
   onView,
+  onVisibilityChange,
+  disabled,
 }: {
   field: LeadFieldConfiguration;
   onEdit: (field: LeadFieldConfiguration) => void;
   onDelete: (field: LeadFieldConfiguration) => void;
   onView: (field: LeadFieldConfiguration) => void;
+  onVisibilityChange: (field: LeadFieldConfiguration, isVisible: boolean) => void;
+  disabled?: boolean;
 }) {
   const {
     attributes,
@@ -58,12 +65,14 @@ function SortableRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: field.id });
+  } = useSortable({ id: field.id, disabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.9 : 1,
+    position: 'relative' as const,
+    zIndex: isDragging ? 20 : undefined,
   };
 
   const getFieldTypeBadge = (fieldType?: string) => {
@@ -96,15 +105,23 @@ function SortableRow({
   };
 
   return (
-    <TableRow ref={setNodeRef} style={style} className="group">
+    <TableRow
+      ref={setNodeRef}
+      style={style}
+      className={`group bg-background ${isDragging ? 'shadow-lg ring-1 ring-primary/30' : ''}`}
+    >
       <TableCell className="w-12">
-        <div
+        <button
+          type="button"
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing"
+          className="flex h-8 w-8 touch-none items-center justify-center rounded-md cursor-grab active:cursor-grabbing hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
+          disabled={disabled}
+          aria-label={`Move ${field.field_label}`}
+          title="Drag to reorder"
         >
           <GripVertical className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
-        </div>
+        </button>
       </TableCell>
       <TableCell className="font-mono text-sm text-muted-foreground">
         #{field.display_order}
@@ -147,6 +164,25 @@ function SortableRow({
         {formatDistanceToNow(new Date(field.updated_at), { addSuffix: true })}
       </TableCell>
       <TableCell>
+        <Button
+          type="button"
+          variant={field.is_visible ? 'outline' : 'ghost'}
+          size="sm"
+          className="h-8 min-w-[92px] justify-start"
+          onClick={() => onVisibilityChange(field, !field.is_visible)}
+          disabled={disabled}
+          aria-pressed={field.is_visible}
+          title={field.is_visible ? 'Hide this column from the leads list' : 'Show this column in the leads list'}
+        >
+          {field.is_visible ? (
+            <Eye className="mr-1.5 h-4 w-4 text-emerald-600" />
+          ) : (
+            <EyeOff className="mr-1.5 h-4 w-4 text-muted-foreground" />
+          )}
+          {field.is_visible ? 'Visible' : 'Hidden'}
+        </Button>
+      </TableCell>
+      <TableCell>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button
             variant="ghost"
@@ -185,13 +221,21 @@ export function SortableFieldConfigTable({
   onEdit,
   onDelete,
   onView,
+  onVisibilityChange,
+  disabled = false,
 }: SortableFieldConfigTableProps) {
   const [localFields, setLocalFields] = useState(fields);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 4,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -211,16 +255,11 @@ export function SortableFieldConfigTable({
       const oldIndex = localFields.findIndex((f) => f.id === active.id);
       const newIndex = localFields.findIndex((f) => f.id === over.id);
 
+      if (oldIndex < 0 || newIndex < 0) return;
+
       const reorderedFields = arrayMove(localFields, oldIndex, newIndex);
-
-      // Update display_order for each field
-      const updatedFields = reorderedFields.map((field, index) => ({
-        ...field,
-        display_order: index + 1,
-      }));
-
-      setLocalFields(updatedFields);
-      onReorder(updatedFields);
+      setLocalFields(reorderedFields);
+      onReorder(reorderedFields);
     }
   };
 
@@ -238,6 +277,7 @@ export function SortableFieldConfigTable({
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
+        autoScroll
       >
         <Table>
           <TableHeader>
@@ -248,6 +288,7 @@ export function SortableFieldConfigTable({
               <TableHead>Type</TableHead>
               <TableHead>Properties</TableHead>
               <TableHead>Updated</TableHead>
+              <TableHead className="w-28">List column</TableHead>
               <TableHead className="w-32">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -263,6 +304,8 @@ export function SortableFieldConfigTable({
                   onEdit={onEdit}
                   onDelete={onDelete}
                   onView={onView}
+                  onVisibilityChange={onVisibilityChange}
+                  disabled={disabled}
                 />
               ))}
             </SortableContext>

@@ -1,33 +1,35 @@
 // src/pages/CRMFieldConfigurations.tsx
 import { useState, useCallback, useMemo } from 'react';
 import { useCRM } from '@/hooks/useCRM';
-import { useAuth } from '@/hooks/useAuth';
-import { DataTable, type DataTableColumn } from '@/components/DataTable';
 import { FieldConfigurationFormDrawer } from '@/components/FieldConfigurationFormDrawer';
 import { SortableFieldConfigTable } from '@/components/crm/SortableFieldConfigTable';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, RefreshCw, Settings2, Eye, EyeOff, Save } from 'lucide-react';
+import { Plus, RefreshCw, Save, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatDistanceToNow } from 'date-fns';
+import { useSWRConfig } from 'swr';
 import type { LeadFieldConfiguration, LeadFieldConfigurationsQueryParams } from '@/types/crmTypes';
 
 type DrawerMode = 'view' | 'edit' | 'create';
 
 export const CRMFieldConfigurations: React.FC = () => {
-  const { user, hasModuleAccess } = useAuth();
-  const { hasCRMAccess, useFieldConfigurations, deleteFieldConfiguration, patchFieldConfiguration } = useCRM();
+  const { mutate: mutateAll } = useSWRConfig();
+  const {
+    hasCRMAccess,
+    useFieldConfigurations,
+    deleteFieldConfiguration,
+    updateFieldConfigurationLayout,
+  } = useCRM();
 
   const [activeTab, setActiveTab] = useState<'all' | 'standard' | 'custom'>('all');
   const [isSavingOrder, setIsSavingOrder] = useState(false);
-  const [pendingReorder, setPendingReorder] = useState<LeadFieldConfiguration[] | null>(null);
+  const [layoutDraft, setLayoutDraft] = useState<LeadFieldConfiguration[] | null>(null);
 
   // Query parameters state
-  const [queryParams, setQueryParams] = useState<LeadFieldConfigurationsQueryParams>({
+  const [queryParams] = useState<LeadFieldConfigurationsQueryParams>({
     page: 1,
-    page_size: 100,
+    page_size: 500,
     ordering: 'display_order',
   });
 
@@ -37,35 +39,21 @@ export const CRMFieldConfigurations: React.FC = () => {
   const [drawerMode, setDrawerMode] = useState<DrawerMode>('view');
 
   // Fetch field configurations
-  const { data: configurationsData, error, isLoading, mutate } = useFieldConfigurations(queryParams);
+  const { data: configurationsData, mutate } = useFieldConfigurations(queryParams);
+
+  const allConfigurations = useMemo(
+    () => layoutDraft || configurationsData?.results || [],
+    [layoutDraft, configurationsData?.results],
+  );
 
   // Filter configurations based on active tab
   const filteredConfigurations = useMemo(() => {
-    const results = configurationsData?.results || [];
-    return results.filter((config) => {
+    return allConfigurations.filter((config) => {
       if (activeTab === 'standard') return config.is_standard;
       if (activeTab === 'custom') return !config.is_standard;
       return true;
     });
-  }, [configurationsData?.results, activeTab]);
-
-  // Check access
-  if (!hasCRMAccess) {
-    return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">CRM Access Required</h2>
-              <p className="text-gray-600">
-                CRM module is not enabled for your account. Please contact your administrator.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  }, [allConfigurations, activeTab]);
 
   // Handlers
   const handleCreateConfiguration = useCallback(() => {
@@ -97,9 +85,10 @@ export const CRMFieldConfigurations: React.FC = () => {
       try {
         await deleteFieldConfiguration(config.id);
         toast.success(`Field configuration "${config.field_label}" deleted successfully`);
+        setLayoutDraft(null);
         mutate(); // Refresh the list
-      } catch (error: any) {
-        toast.error(error?.message || 'Failed to delete field configuration');
+      } catch (error: unknown) {
+        toast.error(error instanceof Error ? error.message : 'Failed to delete field configuration');
         throw error;
       }
     },
@@ -107,6 +96,7 @@ export const CRMFieldConfigurations: React.FC = () => {
   );
 
   const handleDrawerSuccess = useCallback(() => {
+    setLayoutDraft(null);
     mutate(); // Refresh the list
   }, [mutate]);
 
@@ -116,213 +106,97 @@ export const CRMFieldConfigurations: React.FC = () => {
 
   const handleRefresh = useCallback(() => {
     mutate();
-    setPendingReorder(null);
+    setLayoutDraft(null);
     toast.success('Field configurations refreshed');
   }, [mutate]);
 
   const handleReorder = useCallback((reorderedFields: LeadFieldConfiguration[]) => {
-    setPendingReorder(reorderedFields);
-  }, []);
+    const movedIds = new Set(reorderedFields.map((field) => field.id));
+
+    setLayoutDraft((currentDraft) => {
+      let movedIndex = 0;
+      const currentFields = currentDraft || configurationsData?.results || [];
+      const mergedFields = currentFields.map((field) =>
+        movedIds.has(field.id) ? reorderedFields[movedIndex++] : field
+      );
+      return mergedFields.map((field, index) => ({ ...field, display_order: index + 1 }));
+    });
+  }, [configurationsData?.results]);
+
+  const handleVisibilityChange = useCallback((field: LeadFieldConfiguration, isVisible: boolean) => {
+    setLayoutDraft((currentDraft) => {
+      const currentFields = currentDraft || configurationsData?.results || [];
+      return currentFields.map((item) =>
+        item.id === field.id ? { ...item, is_visible: isVisible } : item
+      );
+    });
+  }, [configurationsData?.results]);
 
   const handleSaveOrder = useCallback(async () => {
-    if (!pendingReorder) return;
+    if (!layoutDraft) return;
 
     setIsSavingOrder(true);
     try {
-      // Update each field's display_order
-      await Promise.all(
-        pendingReorder.map((field) =>
-          patchFieldConfiguration(field.id, {
-            display_order: field.display_order,
-            field_type: field.field_type // Required for custom fields
-          })
-        )
-      );
+      const savedFields = await updateFieldConfigurationLayout({
+        fields: layoutDraft.map((field) => ({
+          id: field.id,
+          is_visible: field.is_visible,
+        })),
+      });
 
-      toast.success('Field order saved successfully');
-      setPendingReorder(null);
-      mutate(); // Refresh the list
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to save field order');
+      if (configurationsData) {
+        await mutate({
+          ...configurationsData,
+          count: savedFields.length,
+          next: null,
+          previous: null,
+          results: savedFields,
+        }, false);
+      } else {
+        await mutate();
+      }
+      toast.success('Field layout saved. The leads list now uses this column order.');
+      setLayoutDraft(null);
+      void mutateAll(
+        (key) => Array.isArray(key) && key[0] === 'field-configurations',
+      );
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save field layout');
     } finally {
       setIsSavingOrder(false);
     }
-  }, [pendingReorder, patchFieldConfiguration, mutate]);
+  }, [layoutDraft, updateFieldConfigurationLayout, configurationsData, mutate, mutateAll]);
 
   const handleCancelReorder = useCallback(() => {
-    setPendingReorder(null);
-    mutate(); // Reset to original order
-  }, [mutate]);
-
-  // Field type badge helper
-  const getFieldTypeBadge = (fieldType?: string) => {
-    if (!fieldType) return null;
-
-    const colors: Record<string, string> = {
-      TEXT: 'bg-blue-100 text-blue-800 border-blue-200',
-      NUMBER: 'bg-green-100 text-green-800 border-green-200',
-      EMAIL: 'bg-purple-100 text-purple-800 border-purple-200',
-      PHONE: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      DATE: 'bg-pink-100 text-pink-800 border-pink-200',
-      DATETIME: 'bg-pink-100 text-pink-800 border-pink-200',
-      DROPDOWN: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-      MULTISELECT: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-      CHECKBOX: 'bg-cyan-100 text-cyan-800 border-cyan-200',
-      URL: 'bg-orange-100 text-orange-800 border-orange-200',
-      TEXTAREA: 'bg-blue-100 text-blue-800 border-blue-200',
-      DECIMAL: 'bg-green-100 text-green-800 border-green-200',
-      CURRENCY: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    };
-
-    return (
-      <Badge variant="outline" className={colors[fieldType] || 'bg-gray-100 text-gray-800 border-gray-200'}>
-        {fieldType}
-      </Badge>
-    );
-  };
-
-  // Properties badge helper
-  const getPropertiesBadges = (config: LeadFieldConfiguration) => (
-    <div className="flex flex-wrap gap-1">
-      {config.is_standard && (
-        <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200">
-          Standard
-        </Badge>
-      )}
-      {!config.is_standard && (
-        <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200">
-          Custom
-        </Badge>
-      )}
-      {config.is_required && (
-        <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
-          Required
-        </Badge>
-      )}
-      {!config.is_visible && (
-        <Badge variant="outline" className="bg-gray-100 text-gray-800 border-gray-200">
-          <EyeOff className="w-3 h-3 mr-1" />
-          Hidden
-        </Badge>
-      )}
-      {!config.is_active && (
-        <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200">
-          Inactive
-        </Badge>
-      )}
-    </div>
-  );
-
-  // Desktop table columns
-  const columns: DataTableColumn<LeadFieldConfiguration>[] = [
-    {
-      header: 'Order',
-      key: 'display_order',
-      cell: (config) => (
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-sm text-muted-foreground">
-            #{config.display_order}
-          </span>
-        </div>
-      ),
-      sortable: true,
-    },
-    {
-      header: 'Field Name',
-      key: 'field_name',
-      cell: (config) => (
-        <div className="flex flex-col gap-1">
-          <div className="font-medium">{config.field_label}</div>
-          <div className="text-sm text-muted-foreground font-mono">
-            {config.field_name}
-          </div>
-        </div>
-      ),
-      sortable: true,
-    },
-    {
-      header: 'Type',
-      key: 'field_type',
-      cell: (config) => getFieldTypeBadge(config.field_type),
-      sortable: true,
-    },
-    {
-      header: 'Properties',
-      key: 'properties',
-      cell: (config) => getPropertiesBadges(config),
-    },
-    {
-      header: 'Updated',
-      key: 'updated_at',
-      cell: (config) => (
-        <span className="text-sm text-muted-foreground">
-          {formatDistanceToNow(new Date(config.updated_at), { addSuffix: true })}
-        </span>
-      ),
-      sortable: true,
-    },
-  ];
-
-  // Mobile card renderer
-  const renderMobileCard = (config: LeadFieldConfiguration) => (
-    <Card key={config.id} className="hover:shadow-md transition-shadow cursor-pointer">
-      <CardContent className="p-4" onClick={() => handleViewConfiguration(config)}>
-        <div className="space-y-3">
-          {/* Header */}
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-mono text-sm text-muted-foreground">
-                  #{config.display_order}
-                </span>
-                <h3 className="font-semibold text-base">{config.field_label}</h3>
-              </div>
-              <p className="text-sm text-muted-foreground font-mono">
-                {config.field_name}
-              </p>
-            </div>
-          </div>
-
-          {/* Field Type */}
-          {config.field_type && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Type:</span>
-              {getFieldTypeBadge(config.field_type)}
-            </div>
-          )}
-
-          {/* Properties */}
-          <div>{getPropertiesBadges(config)}</div>
-
-          {/* Help Text */}
-          {config.help_text && (
-            <p className="text-sm text-muted-foreground line-clamp-2">
-              {config.help_text}
-            </p>
-          )}
-
-          {/* Footer */}
-          <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 border-t">
-            <span>
-              Updated {formatDistanceToNow(new Date(config.updated_at), { addSuffix: true })}
-            </span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+    setLayoutDraft(null);
+  }, []);
 
   // Statistics
   const stats = useMemo(() => {
-    const results = configurationsData?.results || [];
+    const results = allConfigurations;
     return {
       total: results.length,
       standard: results.filter(c => c.is_standard).length,
       custom: results.filter(c => !c.is_standard).length,
-      visible: results.filter(c => c.is_visible).length,
-      required: results.filter(c => c.is_required).length,
     };
-  }, [configurationsData?.results]);
+  }, [allConfigurations]);
+
+  if (!hasCRMAccess) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold mb-2">CRM Access Required</h2>
+              <p className="text-gray-600">
+                CRM module is not enabled for your account. Please contact your administrator.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 space-y-3">
@@ -333,7 +207,7 @@ export const CRMFieldConfigurations: React.FC = () => {
           <span className="text-xs text-muted-foreground">{stats.total} fields</span>
         </div>
         <div className="flex items-center gap-1.5">
-          {pendingReorder && (
+          {layoutDraft && (
             <>
               <Button
                 variant="ghost"
@@ -358,7 +232,7 @@ export const CRMFieldConfigurations: React.FC = () => {
                 ) : (
                   <>
                     <Save className="w-3.5 h-3.5 mr-1" />
-                    Save Order
+                    Save Layout
                   </>
                 )}
               </Button>
@@ -372,6 +246,11 @@ export const CRMFieldConfigurations: React.FC = () => {
             Create Field
           </Button>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        <GripVertical className="h-4 w-4 shrink-0" />
+        <span>Drag any row by its handle to reorder it. Use the visibility button to show or hide that column on the leads list, then save the layout.</span>
       </div>
 
       {/* Tabs */}
@@ -391,11 +270,13 @@ export const CRMFieldConfigurations: React.FC = () => {
         <TabsContent value="all" className="mt-3">
           <div className="border rounded-lg overflow-hidden">
             <SortableFieldConfigTable
-              fields={pendingReorder || filteredConfigurations}
+              fields={filteredConfigurations}
               onReorder={handleReorder}
+              onVisibilityChange={handleVisibilityChange}
               onView={handleViewConfiguration}
               onEdit={handleEditConfiguration}
               onDelete={handleDeleteConfiguration}
+              disabled={isSavingOrder}
             />
           </div>
         </TabsContent>
@@ -403,11 +284,13 @@ export const CRMFieldConfigurations: React.FC = () => {
         <TabsContent value="standard" className="mt-3">
           <div className="border rounded-lg overflow-hidden">
             <SortableFieldConfigTable
-              fields={pendingReorder || filteredConfigurations}
+              fields={filteredConfigurations}
               onReorder={handleReorder}
+              onVisibilityChange={handleVisibilityChange}
               onView={handleViewConfiguration}
               onEdit={handleEditConfiguration}
               onDelete={handleDeleteConfiguration}
+              disabled={isSavingOrder}
             />
           </div>
         </TabsContent>
@@ -426,11 +309,13 @@ export const CRMFieldConfigurations: React.FC = () => {
           ) : (
             <div className="border rounded-lg overflow-hidden">
               <SortableFieldConfigTable
-                fields={pendingReorder || filteredConfigurations}
+                fields={filteredConfigurations}
                 onReorder={handleReorder}
+                onVisibilityChange={handleVisibilityChange}
                 onView={handleViewConfiguration}
                 onEdit={handleEditConfiguration}
                 onDelete={handleDeleteConfiguration}
+                disabled={isSavingOrder}
               />
             </div>
           )}

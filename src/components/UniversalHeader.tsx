@@ -1,6 +1,6 @@
-import { Settings, User, LogOut, ChevronDown, Sun, Moon, Bell, Menu } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Settings, User, LogOut, ChevronDown, Sun, Moon, Menu, MessageCircle } from "lucide-react";
 import { HeaderCopilotButton } from "@/components/copilot/HeaderCopilotButton";
+import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
 import { authService } from "@/services/authService";
 import { useWebSocket } from "@/context/WebSocketProvider";
-import { useIsMobile } from "@/hooks/use-is-mobile";
 
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -118,7 +117,6 @@ export const UniversalHeader = ({ onMenuClick }: UniversalHeaderProps) => {
   const { logout, user } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
   const { newMessageCount, clearNewMessageCount, socketStatus } = useWebSocket();
-  const isMobile = useIsMobile();
 
   const rawUsername = user?.first_name || user?.email?.split('@')[0] || 'User';
   const username = rawUsername.charAt(0).toUpperCase() + rawUsername.slice(1).toLowerCase();
@@ -145,7 +143,7 @@ export const UniversalHeader = ({ onMenuClick }: UniversalHeaderProps) => {
     authService.updateUserPreferences({ theme: newTheme });
   };
 
-  const handleNotificationClick = () => {
+  const handleMessagesClick = () => {
     navigate('/whatsapp/chats');
     clearNewMessageCount();
   };
@@ -190,18 +188,21 @@ export const UniversalHeader = ({ onMenuClick }: UniversalHeaderProps) => {
         {/* AI Copilot toggle */}
         <HeaderCopilotButton />
 
-        {/* Notifications */}
+        {/* WhatsApp messages stay separate from durable CRM notifications. */}
         <button
-          onClick={handleNotificationClick}
+          onClick={handleMessagesClick}
           className="relative p-2 rounded-lg hover:bg-accent transition-colors"
+          aria-label={newMessageCount ? `${newMessageCount} new WhatsApp messages` : 'WhatsApp messages'}
         >
-          <Bell className="w-4 h-4 text-muted-foreground" />
+          <MessageCircle className="w-4 h-4 text-muted-foreground" />
           {newMessageCount > 0 && (
             <span className="absolute top-1 right-1 h-3.5 w-3.5 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center font-medium">
               {newMessageCount}
             </span>
           )}
         </button>
+
+        <NotificationCenter />
 
         {/* Theme Toggle */}
         <button

@@ -16,7 +16,7 @@ import { LeadWhatsAppDrawer } from '@/components/crm/LeadWhatsAppDrawer';
 import { CopyPhoneButton } from '@/components/crm/CopyPhoneButton';
 import { PushLeadsToCampaignDrawer } from '@/components/crm/PushLeadsToCampaignDrawer';
 import { EditableNotesCell } from '@/components/crm/EditableNotesCell';
-import { EditableFollowupCell } from '@/components/crm/EditableFollowupCell';
+import { EditableDateTimeCell, EditableFollowupCell } from '@/components/crm/EditableFollowupCell';
 import { EditableStatusCell } from '@/components/crm/EditableStatusCell';
 import { EditablePriorityCell } from '@/components/crm/EditablePriorityCell';
 import { LeadScoreSlider } from '@/components/crm/LeadScoreSlider';
@@ -38,7 +38,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { useUsers } from '@/hooks/useUsers';
 import { toast } from 'sonner';
 import { formatDistanceToNow, isValid } from 'date-fns';
-import type { Lead, LeadsQueryParams, PriorityEnum, LeadStatus } from '@/types/crmTypes';
+import type { FollowUpSchedulePayload, Lead, LeadsQueryParams, PriorityEnum, LeadStatus, UpdateLeadPayload } from '@/types/crmTypes';
 import { FieldTypeEnum } from '@/types/crmTypes';
 import { crmService } from '@/services/crmService';
 import { exportLeadsToExcel } from '@/utils/excelUtils';
@@ -49,14 +49,38 @@ import type { ActiveFilters, FilterFieldDef, FilterFieldType } from '@/types/fil
 import { PERMISSIONS } from '@/constants/permissions';
 import { CreateWithAIButton } from '@/components/copilot/CreateWithAIButton';
 import { useCrmDataChanged } from '@/lib/crmEvents';
+import type { CSSProperties } from 'react';
 
 type DrawerMode = 'view' | 'edit' | 'create';
 type ViewMode = 'list' | 'kanban' | 'followups';
 
+const getStatusRowStyle = (lead: Lead, statuses: LeadStatus[]): CSSProperties | undefined => {
+  const statusId = typeof lead.status === 'number' ? lead.status : lead.status?.id;
+  const statusColor = (
+    typeof lead.status === 'object' ? lead.status?.color_hex : undefined
+  ) || statuses.find((status) => status.id === statusId)?.color_hex;
+
+  if (!statusColor) return undefined;
+
+  const compactHex = statusColor.trim();
+  const normalizedHex = /^#[0-9a-f]{6}$/i.test(compactHex)
+    ? compactHex
+    : /^#[0-9a-f]{3}$/i.test(compactHex)
+      ? `#${compactHex.slice(1).split('').map((character) => character.repeat(2)).join('')}`
+      : null;
+
+  if (!normalizedHex) return undefined;
+
+  return {
+    backgroundColor: `${normalizedHex}1f`,
+    boxShadow: `inset 4px 0 0 ${normalizedHex}`,
+  };
+};
+
 export const CRMLeads: React.FC = () => {
   const navigate = useNavigate();
   const { user, hasModuleAccess, hasPermission } = useAuth();
-  const { hasCRMAccess, useLeads, useLeadsInfinite, useLeadStatuses, useFieldConfigurations, deleteLead, patchLead, updateLeadStatus, deleteLeadStatus, bulkCreateLeads, bulkDeleteLeads, bulkUpdateLeadStatus, exportLeads, importLeads, useLeadGroups, addLeadsToGroup } = useCRM();
+  const { hasCRMAccess, useLeads, useLeadsInfinite, useLeadStatuses, useFieldConfigurations, deleteLead, patchLead, updateLeadFollowUpSchedule, updateLeadStatus, deleteLeadStatus, bulkCreateLeads, bulkDeleteLeads, bulkUpdateLeadStatus, exportLeads, importLeads, useLeadGroups, addLeadsToGroup } = useCRM();
   const { formatCurrency: formatCurrencyDynamic, getCurrencyCode, getCurrencySymbol } = useCurrency();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canCreateLead = hasPermission(PERMISSIONS['crm.leads.create']);
@@ -467,19 +491,91 @@ export const CRMLeads: React.FC = () => {
     [patchLead, optimisticInfiniteUpdate, infinitePages]
   );
 
-  const handleUpdateFollowup = useCallback(
-    async (leadId: number, nextFollowUpAt: string | null) => {
-      optimisticInfiniteUpdate(leadId, { next_follow_up_at: nextFollowUpAt });
+  const handleUpdateDateField = useCallback(
+    async (
+      lead: Lead,
+      fieldName: string,
+      isStandard: boolean,
+      value: string | null,
+    ) => {
+      if (isStandard) {
+        const previousValue = (lead as unknown as Record<string, unknown>)[fieldName];
+        const optimisticUpdate = { [fieldName]: value } as Partial<Lead>;
+        optimisticInfiniteUpdate(lead.id, optimisticUpdate);
+
+        try {
+          const updated = await patchLead(
+            lead.id,
+            optimisticUpdate as unknown as Partial<UpdateLeadPayload>,
+          );
+          const confirmedValue = (updated as unknown as Record<string, unknown>)[fieldName] ?? value;
+          optimisticInfiniteUpdate(lead.id, { [fieldName]: confirmedValue } as Partial<Lead>);
+        } catch (error) {
+          optimisticInfiniteUpdate(lead.id, { [fieldName]: previousValue } as Partial<Lead>);
+          throw error;
+        }
+        return;
+      }
+
+      const previousMetadata = { ...(lead.metadata || {}) };
+      const nextMetadata = { ...previousMetadata };
+      if (value === null) {
+        delete nextMetadata[fieldName];
+      } else {
+        nextMetadata[fieldName] = value;
+      }
+      optimisticInfiniteUpdate(lead.id, { metadata: nextMetadata });
+
       try {
-        await patchLead(leadId, { next_follow_up_at: nextFollowUpAt });
-        mutateInfinite();
-      } catch (error: any) {
-        toast.error(error?.message || 'Failed to update follow-up');
-        mutateInfinite();
+        const updated = await patchLead(lead.id, { metadata: nextMetadata });
+        optimisticInfiniteUpdate(lead.id, { metadata: updated.metadata || nextMetadata });
+      } catch (error) {
+        optimisticInfiniteUpdate(lead.id, { metadata: previousMetadata });
         throw error;
       }
     },
-    [patchLead, mutateInfinite, optimisticInfiniteUpdate]
+    [patchLead, optimisticInfiniteUpdate]
+  );
+
+  const handleUpdateFollowUpSchedule = useCallback(
+    async (lead: Lead, schedule: FollowUpSchedulePayload) => {
+      const previousDate = lead.next_follow_up_at;
+      const previousReminder = lead.follow_up_reminder;
+      optimisticInfiniteUpdate(lead.id, {
+        next_follow_up_at: schedule.follow_up_at || undefined,
+        follow_up_reminder: schedule.reminder.enabled && schedule.follow_up_at
+          ? {
+              id: previousReminder?.id ?? -1,
+              lead: lead.id,
+              recipient_user_id: previousReminder?.recipient_user_id ?? user?.id ?? '',
+              follow_up_at: schedule.follow_up_at,
+              remind_at: new Date(
+                new Date(schedule.follow_up_at).getTime() - schedule.reminder.offset_minutes * 60_000,
+              ).toISOString(),
+              offset_minutes: schedule.reminder.offset_minutes,
+              status: 'PENDING',
+              created_at: previousReminder?.created_at ?? new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }
+          : null,
+      });
+
+      try {
+        const result = await updateLeadFollowUpSchedule(lead.id, schedule);
+        optimisticInfiniteUpdate(lead.id, {
+          next_follow_up_at: result.lead.next_follow_up_at,
+          follow_up_reminder: result.reminder,
+          updated_at: result.lead.updated_at,
+        });
+      } catch (error) {
+        optimisticInfiniteUpdate(lead.id, {
+          next_follow_up_at: previousDate,
+          follow_up_reminder: previousReminder,
+        });
+        throw error;
+      }
+    },
+    [optimisticInfiniteUpdate, updateLeadFollowUpSchedule, user?.id],
   );
 
   const handleUpdateLeadScore = useCallback(
@@ -1071,10 +1167,6 @@ export const CRMLeads: React.FC = () => {
 
   const dynamicColumns = useMemo(() => {
     const allFields = configurationsData?.results || [];
-    // Use all configured fields (not just is_standard) so display_order is respected for every field
-    const standardFieldsMap = new Map(
-      allFields.map((field) => [field.field_name, { order: field.display_order, visible: field.is_visible, config: field }])
-    );
 
     const columnDefinitions: Record<string, DataTableColumn<Lead>> = {
       name: {
@@ -1087,46 +1179,43 @@ export const CRMLeads: React.FC = () => {
         filterable: true,
         accessor: (lead) => lead.name,
       },
-      company: {
-        header: 'Company',
-        key: 'company',
-        cell: (lead) => (
-          <span className="text-sm">{lead.company || '-'}</span>
-        ),
-        sortable: true,
-        filterable: true,
-        accessor: (lead) => lead.company || '',
-      },
       phone: {
-        header: 'Contact',
-        key: 'contact',
+        header: 'Phone',
+        key: 'phone',
         cell: (lead) => (
-          <div>
-            <div className="flex items-center gap-1 text-sm">
-              <span>{lead.phone}</span>
-              {lead.phone && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-100"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCallLead(lead); }}
-                  title="Call lead"
-                  aria-label="Call lead"
-                >
-                  <Phone className="h-3.5 w-3.5" />
-                </Button>
-              )}
-              <CopyPhoneButton phone={lead.phone} />
-            </div>
-            {lead.email && standardFieldsMap.has('email') && (
-              <div className="text-xs text-muted-foreground truncate max-w-[180px]">{lead.email}</div>
+          <div className="flex items-center gap-1 text-sm">
+            <span>{lead.phone || '-'}</span>
+            {lead.phone && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-100"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCallLead(lead); }}
+                title="Call lead"
+                aria-label="Call lead"
+              >
+                <Phone className="h-3.5 w-3.5" />
+              </Button>
             )}
+            <CopyPhoneButton phone={lead.phone} />
           </div>
         ),
         sortable: true,
         filterable: true,
-        accessor: (lead) => `${lead.phone} ${lead.email || ''}`,
+        accessor: (lead) => lead.phone || '',
+      },
+      email: {
+        header: 'Email',
+        key: 'email',
+        cell: (lead) => (
+          <span className="block max-w-[220px] truncate text-sm" title={lead.email || undefined}>
+            {lead.email || '-'}
+          </span>
+        ),
+        sortable: true,
+        filterable: true,
+        accessor: (lead) => lead.email || '',
       },
       status: {
         header: 'Status',
@@ -1175,7 +1264,7 @@ export const CRMLeads: React.FC = () => {
       },
       value_amount: {
         header: 'Value',
-        key: 'value',
+        key: 'value_amount',
         cell: (lead) => (
           <span className="text-sm">
             {formatCurrency(lead.value_amount, lead.value_currency)}
@@ -1208,10 +1297,9 @@ export const CRMLeads: React.FC = () => {
         cell: (lead) => (
           <div onClick={(e) => e.stopPropagation()}>
             <EditableFollowupCell
-              dateValue={lead.next_follow_up_at}
-              onSave={async (date) => {
-                await handleUpdateFollowup(lead.id, date);
-              }}
+              dateValue={lead.next_follow_up_at || null}
+              reminder={lead.follow_up_reminder}
+              onSaveSchedule={(schedule) => handleUpdateFollowUpSchedule(lead, schedule)}
               leadName={lead.name}
             />
           </div>
@@ -1241,61 +1329,84 @@ export const CRMLeads: React.FC = () => {
       },
     };
 
-    const visibleColumns: Array<{ column: DataTableColumn<Lead>; order: number }> = [];
-
-    const defaultFieldOrder: Record<string, number> = {
-      name: 0,
-      phone: 1,
-      company: 2,
-      status: 3,
-      priority: 4,
-      value_amount: 5,
-      notes: 6,
-      next_follow_up_at: 7,
-      lead_score: 8,
+    const getConfiguredValue = (lead: Lead, fieldName: string, isStandard: boolean) => {
+      if (!isStandard) return lead.metadata?.[fieldName];
+      return (lead as unknown as Record<string, unknown>)[fieldName];
     };
 
-    Object.entries(columnDefinitions).forEach(([fieldName, columnDef]) => {
-      const fieldConfig = standardFieldsMap.get(fieldName);
-
-      if (fieldName === 'notes' || fieldName === 'next_follow_up_at' || fieldName === 'lead_score') {
-        const order = fieldConfig?.order ?? defaultFieldOrder[fieldName] ?? 6;
-        visibleColumns.push({ column: columnDef, order });
-        return;
+    const renderConfiguredValue = (value: unknown, fieldType?: FieldTypeEnum) => {
+      if (value === null || value === undefined || value === '') return '-';
+      if (Array.isArray(value)) return value.join(', ') || '-';
+      if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+      if (fieldType === FieldTypeEnum.DATE || fieldType === FieldTypeEnum.DATETIME) {
+        const date = new Date(String(value));
+        if (isValid(date)) {
+          return fieldType === FieldTypeEnum.DATE
+            ? date.toLocaleDateString()
+            : date.toLocaleString();
+        }
       }
+      if (typeof value === 'object') return JSON.stringify(value);
+      return String(value);
+    };
 
-      const shouldShow = !fieldConfig || fieldConfig.visible;
+    // Until the configuration request resolves, keep a compact stable table instead
+    // of flashing an empty table. Once loaded, settings become fully authoritative.
+    if (!configurationsData) {
+      return ['name', 'phone', 'email', 'status', 'priority']
+        .map((fieldName) => columnDefinitions[fieldName]);
+    }
 
-      if (shouldShow) {
-        const order = fieldConfig?.order ?? defaultFieldOrder[fieldName] ?? 999;
-        visibleColumns.push({ column: columnDef, order });
-      }
-    });
+    return [...allFields]
+      .filter((field) => field.is_active && field.is_visible)
+      .sort((a, b) => a.display_order - b.display_order || a.id - b.id)
+      .map((field): DataTableColumn<Lead> => {
+        const specializedColumn = columnDefinitions[field.field_name];
+        if (specializedColumn) {
+          return {
+            ...specializedColumn,
+            header: field.field_label,
+            key: field.field_name,
+          };
+        }
 
-    const sortedColumns = visibleColumns
-      .sort((a, b) => a.order - b.order)
-      .map((item) => item.column);
+        return {
+          header: field.field_label,
+          key: field.field_name,
+          cell: (lead) => {
+            if (field.field_type === FieldTypeEnum.DATE || field.field_type === FieldTypeEnum.DATETIME) {
+              const rawValue = getConfiguredValue(lead, field.field_name, field.is_standard);
+              return (
+                <EditableDateTimeCell
+                  value={rawValue ? String(rawValue) : null}
+                  onSave={(date) => handleUpdateDateField(lead, field.field_name, field.is_standard, date)}
+                  mode={field.field_type === FieldTypeEnum.DATE ? 'date' : 'datetime'}
+                  label={field.field_label}
+                  entityName={lead.name}
+                  allowPast={field.field_name !== 'next_follow_up_at'}
+                />
+              );
+            }
 
-    sortedColumns.push({
-      header: 'Updated',
-      key: 'updated',
-      cell: (lead) => (
-        <span className="text-sm text-muted-foreground">
-          {lead.updated_at && isValid(new Date(lead.updated_at))
-            ? formatDistanceToNow(new Date(lead.updated_at), { addSuffix: true })
-            : '-'}
-        </span>
-      ),
-      sortable: true,
-      filterable: false,
-      accessor: (lead) => {
-        const d = new Date(lead.updated_at);
-        return isValid(d) ? d.getTime() : 0;
-      },
-    });
-
-    return sortedColumns;
-  }, [configurationsData?.results, statusesData?.results, selectedLeadIds, toggleLeadSelection, filteredLeads, toggleAllLeads, handleUpdateNotes, handleUpdateFollowup, handleUpdateLeadScore, handleUpdateLeadStatus, handleUpdateLeadPriority]);
+            const displayValue = renderConfiguredValue(
+              getConfiguredValue(lead, field.field_name, field.is_standard),
+              field.field_type,
+            );
+            return (
+              <span className="block max-w-[240px] truncate text-sm" title={displayValue}>
+                {displayValue}
+              </span>
+            );
+          },
+          sortable: true,
+          filterable: true,
+          accessor: (lead) => {
+            const value = getConfiguredValue(lead, field.field_name, field.is_standard);
+            return typeof value === 'object' ? JSON.stringify(value ?? '') : value ?? '';
+          },
+        };
+      });
+  }, [configurationsData, statusesData?.results, formatCurrency, handleCallLead, handleUpdateNotes, handleUpdateDateField, handleUpdateFollowUpSchedule, handleUpdateLeadScore, handleUpdateLeadStatus, handleUpdateLeadPriority]);
 
   const columns: DataTableColumn<Lead>[] = dynamicColumns;
 
@@ -2020,6 +2131,7 @@ export const CRMLeads: React.FC = () => {
                 ? 'bg-green-50 dark:bg-green-950/30'
                 : ''
             }
+            rowStyle={(lead) => getStatusRowStyle(lead, statusesData?.results || [])}
             renderInlineActions={(lead) => (
               <>
                 {canUseWhatsApp && (
