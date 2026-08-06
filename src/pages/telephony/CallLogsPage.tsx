@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTelephony } from '@/hooks/useTelephony';
+import { useTelephonyLiveEvents } from '@/hooks/useTelephonyLiveEvents';
 import { useUsers } from '@/hooks/useUsers';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Pager } from '@/components/telephony/Pager';
@@ -99,6 +100,11 @@ export const CallLogsPage: React.FC = () => {
   }, [direction, callType, debouncedLeadIdInput, agentUserId, ordering, page]);
 
   const { data, error, isLoading, isValidating, mutate } = useCalls(params);
+  useTelephonyLiveEvents({
+    onEvent: (event) => {
+      if (event.event === 'ended') void mutate();
+    },
+  });
   const { data: usersData } = useUsersList({ page_size: 100 });
 
   const nameById = useMemo(() => {
@@ -132,25 +138,34 @@ export const CallLogsPage: React.FC = () => {
   };
 
   // ── recording playback ──
-  const [recording, setRecording] = useState<{ callId: number; url: string | null } | null>(null);
+  const [recording, setRecording] = useState<{
+    callId: number;
+    url: string | null;
+    fallbackAttempted: boolean;
+  } | null>(null);
 
   useEffect(() => {
     const url = recording?.url;
-    return () => { if (url) URL.revokeObjectURL(url); };
+    return () => { if (url?.startsWith('blob:')) URL.revokeObjectURL(url); };
   }, [recording?.url]);
 
   const loadRecording = async (callId: number, e: React.MouseEvent) => {
     e.stopPropagation();
     if (recording?.callId === callId) {
-      if (recording.url) URL.revokeObjectURL(recording.url);
+      if (recording.url?.startsWith('blob:')) URL.revokeObjectURL(recording.url);
       setRecording(null);
       return;
     }
-    if (recording?.url) URL.revokeObjectURL(recording.url);
-    setRecording({ callId, url: null });
+    if (recording?.url?.startsWith('blob:')) URL.revokeObjectURL(recording.url);
+    setRecording({ callId, url: null, fallbackAttempted: false });
     try {
-      const blob = await telephonyService.getRecordingBlob(callId);
-      setRecording({ callId, url: URL.createObjectURL(blob) });
+      const access = await telephonyService.getRecordingAccess(callId);
+      if (access.source === 'zata' && access.url) {
+        setRecording({ callId, url: access.url, fallbackAttempted: false });
+      } else {
+        const blob = await telephonyService.getRecordingBlob(callId);
+        setRecording({ callId, url: URL.createObjectURL(blob), fallbackAttempted: true });
+      }
     } catch (e) {
       // Surface the real reason (TeleCMI message, credentials not decryptable,
       // file missing) instead of a generic failure the user can't act on.
@@ -365,9 +380,26 @@ export const CallLogsPage: React.FC = () => {
             controls
             autoPlay
             style={{ minWidth: 0 }}
-            onError={() => {
-              toast.error('This recording could not be played.');
-              if (recording.url) URL.revokeObjectURL(recording.url);
+            onError={async () => {
+              // A signed Zata URL can be blocked by an incorrectly configured
+              // bucket CORS policy. Retry once through our authenticated proxy.
+              if (!recording.url?.startsWith('blob:') && !recording.fallbackAttempted) {
+                setRecording({ ...recording, url: null, fallbackAttempted: true });
+                try {
+                  const blob = await telephonyService.getRecordingBlob(recording.callId);
+                  setRecording({
+                    callId: recording.callId,
+                    url: URL.createObjectURL(blob),
+                    fallbackAttempted: true,
+                  });
+                  return;
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : 'This recording could not be played.');
+                }
+              } else {
+                toast.error('This recording could not be played.');
+              }
+              if (recording.url?.startsWith('blob:')) URL.revokeObjectURL(recording.url);
               setRecording(null);
             }}
           />
@@ -376,7 +408,7 @@ export const CallLogsPage: React.FC = () => {
             size="icon"
             className="h-7 w-7 shrink-0"
             title="Close player"
-            onClick={() => { if (recording.url) URL.revokeObjectURL(recording.url); setRecording(null); }}
+            onClick={() => { if (recording.url?.startsWith('blob:')) URL.revokeObjectURL(recording.url); setRecording(null); }}
           >
             <X className="h-3.5 w-3.5" />
           </Button>

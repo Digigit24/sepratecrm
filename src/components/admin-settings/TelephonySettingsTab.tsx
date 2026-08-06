@@ -269,15 +269,16 @@ export const TelephonySettingsTab: React.FC<TelephonySettingsTabProps> = ({ tena
                 type="password"
                 autoComplete="new-password"
                 placeholder={
-                  credential?.webhook_secret ? SECRET_PLACEHOLDER : 'optional-shared-secret'
+                  credential?.webhook_secret_configured ? SECRET_PLACEHOLDER : 'optional-shared-secret'
                 }
                 value={webhookSecret}
                 onChange={(e) => setWebhookSecret(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Optional. If set, TeleCMI must send it as the{' '}
-                <span className="font-mono">X-Webhook-Secret</span> header on every webhook.
-                {credential?.webhook_secret ? ' Leave blank to keep the current value.' : ''}
+                Recommended. Append it as <span className="font-mono">&amp;key=YOUR_SECRET</span>{' '}
+                to both TeleCMI callback URLs. The{' '}
+                <span className="font-mono">X-Webhook-Secret</span> header is also accepted.
+                {credential?.webhook_secret_configured ? ' Leave blank to keep the current value.' : ''}
               </p>
             </div>
           </div>
@@ -396,7 +397,8 @@ const WebhookUrlsCard: React.FC<WebhookUrlsCardProps> = ({ tenantId }) => {
             connle.telecmi.com
           </a>{' '}
           — CDR URL under Webhook → CDR, Live Events URL under Webhook → Live Events. This is a
-          one-time setup per tenant.
+          one-time setup per tenant. When a webhook secret is configured, append{' '}
+          <span className="font-mono">&amp;key=YOUR_SECRET</span> to each copied URL.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

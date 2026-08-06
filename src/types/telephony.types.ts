@@ -82,7 +82,7 @@ export interface TeleCMICredential {
   /** Derived from sbc_region on the backend (read-only), e.g. "sbcind.telecmi.com". */
   sbc_host: string;
   default_caller_id: string | null;
-  webhook_secret: string | null;
+  webhook_secret_configured: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -99,6 +99,31 @@ export interface TeleCMICredentialCreateData {
 
 /** On update every field is optional (e.g. rotate secret, change caller id). */
 export type TeleCMICredentialUpdateData = Partial<TeleCMICredentialCreateData>;
+
+export interface ZataStorageCredential {
+  id: number;
+  endpoint_url: string;
+  bucket_name: string;
+  access_key_id: string;
+  secret_configured: boolean;
+  object_prefix: string;
+  region_name: string;
+  is_active: boolean;
+  last_tested_at: string | null;
+  last_test_error: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ZataStorageCredentialInput {
+  endpoint_url: string;
+  bucket_name: string;
+  access_key_id: string;
+  secret_access_key?: string;
+  object_prefix: string;
+  region_name?: string;
+  is_active?: boolean;
+}
 
 // ==================== AGENTS (§5) ====================
 // One record per CRM user. `password` is write-only and never returned.
@@ -184,6 +209,10 @@ export interface CallLog {
   synced_via: CallSyncedVia;
   /** True when a recording file exists for this call and can be fetched via GET /api/telephony/calls/{id}/recording/. */
   has_recording: boolean;
+  recording_storage_status: 'telecmi' | 'pending' | 'archiving' | 'archived' | 'failed';
+  recording_content_type: string | null;
+  recording_size: number | null;
+  recording_archived_at: string | null;
   created_at: string;
 
   // ── outbound Leg A/B dedup + routing metadata ──
@@ -370,6 +399,15 @@ export interface CallSyncResponse {
   created: number;
   updated: number;
   errors: number;
+  status: 'success' | 'partial' | 'failed';
+  error?: string;
+  error_details?: string[];
+}
+
+export interface RecordingAccessResponse {
+  source: 'zata' | 'telecmi';
+  url: string | null;
+  expires_in: number;
 }
 
 // ==================== SMS (§8) ====================

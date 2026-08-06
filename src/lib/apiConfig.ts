@@ -565,6 +565,9 @@ export const API_CONFIG = {
       // Tenant credentials (admin) — one record per tenant
       CREDENTIALS: '/telephony/credentials/',
       CREDENTIAL_DETAIL: '/telephony/credentials/:id/',
+      STORAGE_CREDENTIALS: '/telephony/storage-credentials/',
+      STORAGE_CREDENTIAL_DETAIL: '/telephony/storage-credentials/:id/',
+      STORAGE_TEST: '/telephony/storage-credentials/test/',
 
       // Per-user agent config
       AGENTS: '/telephony/agents/',
@@ -580,6 +583,7 @@ export const API_CONFIG = {
       CALLS: '/telephony/calls/',
       CALL_DETAIL: '/telephony/calls/:id/',
       CALL_RECORDING: '/telephony/calls/:id/recording/',
+      CALL_RECORDING_ACCESS: '/telephony/calls/:id/recording-access/',
       CALL_SYNC: '/telephony/calls/sync/',
       CALL_OUTCOME: '/telephony/calls/:id/outcome/',
 

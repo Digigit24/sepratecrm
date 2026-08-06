@@ -21,6 +21,7 @@ import { CurrencySettingsTab } from '@/components/admin-settings/CurrencySetting
 import { WhatsAppDefaultsTab } from '@/components/admin-settings/WhatsAppDefaultsTab';
 import { TelephonySettingsTab } from '@/components/admin-settings/TelephonySettingsTab';
 import { MyTelephonyCard } from '@/components/admin-settings/MyTelephonyCard';
+import { telephonyService } from '@/services/telephonyService';
 
 const KNOWN_MODULES = [
   { key: 'crm', label: 'CRM' },
@@ -88,6 +89,14 @@ export const AdminSettings: React.FC = () => {
   // Zata Cloud Storage Settings
   const [zataWorkspaceBucket, setZataWorkspaceBucket] = useState('');
   const [zataFolderId, setZataFolderId] = useState('');
+  const [zataCredentialId, setZataCredentialId] = useState<number | null>(null);
+  const [zataEndpoint, setZataEndpoint] = useState('https://idr01.zata.ai');
+  const [zataAccessKeyId, setZataAccessKeyId] = useState('');
+  const [zataSecretAccessKey, setZataSecretAccessKey] = useState('');
+  const [zataSecretConfigured, setZataSecretConfigured] = useState(false);
+  const [zataObjectPrefix, setZataObjectPrefix] = useState('telephony/recordings');
+  const [zataStorageLoading, setZataStorageLoading] = useState(false);
+  const [zataStorageTesting, setZataStorageTesting] = useState(false);
 
   // Branding settings (all go into settings JSON)
   const [headerBgColor, setHeaderBgColor] = useState('#3b82f6');
@@ -164,6 +173,31 @@ export const AdminSettings: React.FC = () => {
     }
   }, [tenantData]);
 
+  useEffect(() => {
+    if (!tenantId || !telephonyEnabled) return;
+    let cancelled = false;
+    setZataStorageLoading(true);
+    telephonyService.getZataStorageCredentials()
+      .then((response) => {
+        if (cancelled) return;
+        const credential = response.results[0];
+        if (!credential) return;
+        setZataCredentialId(credential.id);
+        setZataWorkspaceBucket(credential.bucket_name);
+        setZataEndpoint(credential.endpoint_url);
+        setZataAccessKeyId(credential.access_key_id);
+        setZataObjectPrefix(credential.object_prefix);
+        setZataSecretConfigured(credential.secret_configured);
+      })
+      .catch(() => {
+        // The card remains editable even if storage has never been configured.
+      })
+      .finally(() => {
+        if (!cancelled) setZataStorageLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [tenantId, telephonyEnabled]);
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -239,6 +273,28 @@ export const AdminSettings: React.FC = () => {
 
       await updateTenant(tenantId, updateData);
 
+      if (telephonyEnabled && (zataCredentialId || zataAccessKeyId || zataSecretAccessKey)) {
+        if (!zataWorkspaceBucket || !zataAccessKeyId) {
+          throw new Error('Zata bucket name and Access Key ID are required.');
+        }
+        if (!zataCredentialId && !zataSecretAccessKey) {
+          throw new Error('Zata Secret Access Key is required for the first setup.');
+        }
+        const storageData = {
+          endpoint_url: zataEndpoint || 'https://idr01.zata.ai',
+          bucket_name: zataWorkspaceBucket,
+          access_key_id: zataAccessKeyId,
+          object_prefix: zataObjectPrefix || 'telephony/recordings',
+          ...(zataSecretAccessKey ? { secret_access_key: zataSecretAccessKey } : {}),
+        };
+        const saved = zataCredentialId
+          ? await telephonyService.updateZataStorageCredential(zataCredentialId, storageData)
+          : await telephonyService.createZataStorageCredential(storageData);
+        setZataCredentialId(saved.id);
+        setZataSecretConfigured(saved.secret_configured);
+        setZataSecretAccessKey('');
+      }
+
       // Sync enabled_modules into the stored user so sidebar reflects changes immediately
       authService.updateUserTenant({ enabled_modules: enabledModules });
 
@@ -246,6 +302,22 @@ export const AdminSettings: React.FC = () => {
       mutate();
     } catch (err: any) {
       toast.error(err.message || 'Failed to save tenant settings');
+    }
+  };
+
+  const handleTestZata = async () => {
+    if (!zataCredentialId) {
+      toast.error('Save the Zata storage settings before testing.');
+      return;
+    }
+    setZataStorageTesting(true);
+    try {
+      const result = await telephonyService.testZataStorage();
+      toast.success(result.detail);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Zata connection test failed');
+    } finally {
+      setZataStorageTesting(false);
     }
   };
 
@@ -652,8 +724,12 @@ export const AdminSettings: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-xs text-muted-foreground">
-                Configure your Zata storage bucket and folder options to enable generic file attachments (audio, PDFs, documents, images) for lead management.
+                Private S3-compatible storage for call recordings. Secret keys are encrypted by the CRM backend and are never returned to the browser; the legacy folder below remains available for existing attachment uploads.
               </p>
+
+              {zataSecretConfigured && (
+                <Badge variant="secondary" className="w-fit">Secret key securely configured</Badge>
+              )}
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -665,7 +741,57 @@ export const AdminSettings: React.FC = () => {
                     onChange={(e) => setZataWorkspaceBucket(e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground">
-                    The Zata S3 workspace bucket identifier where files are securely uploaded.
+                    The private Zata bucket used for tenant files and call recordings.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="zataEndpoint">Zata S3 Endpoint</Label>
+                  <Input
+                    id="zataEndpoint"
+                    placeholder="https://idr01.zata.ai"
+                    value={zataEndpoint}
+                    onChange={(e) => setZataEndpoint(e.target.value)}
+                    disabled={zataStorageLoading}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="zataAccessKeyId">Access Key ID</Label>
+                  <Input
+                    id="zataAccessKeyId"
+                    autoComplete="off"
+                    placeholder="Zata Access Key ID"
+                    value={zataAccessKeyId}
+                    onChange={(e) => setZataAccessKeyId(e.target.value)}
+                    disabled={zataStorageLoading}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="zataSecretAccessKey">Secret Access Key</Label>
+                  <Input
+                    id="zataSecretAccessKey"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder={zataSecretConfigured ? 'Leave blank to keep existing key' : 'Required on first setup'}
+                    value={zataSecretAccessKey}
+                    onChange={(e) => setZataSecretAccessKey(e.target.value)}
+                    disabled={zataStorageLoading}
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="zataObjectPrefix">Call Recording Prefix</Label>
+                  <Input
+                    id="zataObjectPrefix"
+                    placeholder="telephony/recordings"
+                    value={zataObjectPrefix}
+                    onChange={(e) => setZataObjectPrefix(e.target.value)}
+                    disabled={zataStorageLoading}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Recordings are stored below this prefix, separated by tenant, year and month.
                   </p>
                 </div>
 
@@ -678,9 +804,25 @@ export const AdminSettings: React.FC = () => {
                     onChange={(e) => setZataFolderId(e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground">
-                    The UUID of the specific target folder in Zata cloud storage.
+                    Optional legacy folder UUID used by existing lead attachment uploads.
                   </p>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+                <p className="text-xs text-muted-foreground">
+                  Save first, then verify that DigiCRM can write, read and remove a temporary test object.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestZata}
+                  disabled={!zataCredentialId || zataStorageTesting}
+                >
+                  {zataStorageTesting && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                  Test connection
+                </Button>
               </div>
             </CardContent>
           </Card>

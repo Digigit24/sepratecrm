@@ -56,12 +56,13 @@ const RecordingPlayer: React.FC<{ callId: number }> = ({ callId }) => {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const objectUrlRef = useRef<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const proxyFallbackAttemptedRef = useRef(false);
 
   // Revoke the blob URL on unmount (or when a new one replaces it) so we
   // don't leak memory as the user pages through calls with recordings.
   useEffect(() => {
     return () => {
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+      if (objectUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(objectUrlRef.current);
     };
   }, []);
 
@@ -80,8 +81,10 @@ const RecordingPlayer: React.FC<{ callId: number }> = ({ callId }) => {
 
     setState('loading');
     try {
-      const blob = await telephonyService.getRecordingBlob(callId);
-      const url = URL.createObjectURL(blob);
+      const access = await telephonyService.getRecordingAccess(callId);
+      const url = access.source === 'zata' && access.url
+        ? access.url
+        : URL.createObjectURL(await telephonyService.getRecordingBlob(callId));
       objectUrlRef.current = url;
       setState('playing');
       // Give the <audio> element a tick to mount with the new src before playing.
@@ -132,8 +135,24 @@ const RecordingPlayer: React.FC<{ callId: number }> = ({ callId }) => {
           src={objectUrlRef.current}
           onEnded={() => setState('idle')}
           onPause={() => setState((s) => (s === 'playing' ? 'idle' : s))}
-          onError={() => {
-            setErrorMessage('The browser could not decode this recording.');
+          onError={async () => {
+            if (!objectUrlRef.current?.startsWith('blob:') && !proxyFallbackAttemptedRef.current) {
+              proxyFallbackAttemptedRef.current = true;
+              setState('loading');
+              try {
+                const blobUrl = URL.createObjectURL(
+                  await telephonyService.getRecordingBlob(callId),
+                );
+                objectUrlRef.current = blobUrl;
+                setState('playing');
+                requestAnimationFrame(() => audioRef.current?.play());
+                return;
+              } catch (error) {
+                setErrorMessage(error instanceof Error ? error.message : '');
+              }
+            } else {
+              setErrorMessage('The browser could not decode this recording.');
+            }
             setState('error');
           }}
           className="hidden"
@@ -302,8 +321,8 @@ export const LeadTelephonyHistory: React.FC<LeadTelephonyHistoryProps> = ({
   // Reconcile the optimistic "Calling…" row (and pick up inbound calls,
   // recordings becoming available, etc.) as soon as the backend confirms
   // them — see telephony/services/realtime.py on the backend and
-  // useTelephonyLiveEvents.ts here, which is a no-op until both
-  // VITE_TELEPHONY_REALTIME=true and the backend's PUSHER_SECRET are set.
+  // useTelephonyLiveEvents.ts here. The browser subscription is on by default;
+  // the backend publishes when its Pusher credentials are configured.
   // We only revalidate page 1 (where new calls land) and only when the
   // event plausibly involves this lead's number, to avoid every open lead
   // drawer in the tenant refetching on every unrelated call.

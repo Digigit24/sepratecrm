@@ -1,11 +1,11 @@
 // src/hooks/useTelephonyLiveEvents.ts
 //
 // Subscribes to TeleCMI live call events (API doc §13 "live" webhook) once the
-// backend pushes them to the browser. Today the backend only logs those events
-// server-side, so this hook is a NO-OP by default and returns empty state.
+// backend pushes them to the browser. Realtime is enabled by default and can be
+// disabled explicitly with VITE_TELEPHONY_REALTIME=false.
 //
-// One-line wire-up later: set VITE_TELEPHONY_REALTIME=true (and have the backend
-// broadcast on the Pusher channel `telephony.<tenant_id>`). No other code changes.
+// The backend broadcasts on the Pusher channel `telephony.<tenant_id>` when its
+// Pusher credentials are configured.
 //
 // Transport choice: a standalone pusher-js client on the app's existing Pusher
 // account. We deliberately do NOT reuse the Laravel Echo instance (pusherService)
@@ -44,8 +44,8 @@ const RING_BUFFER = 10;
 const PUSHER_KEY = '649db422ae8f2e9c7a9d';
 const PUSHER_CLUSTER = 'ap2';
 
-// Off by default — the backend doesn't broadcast telephony events yet.
-const REALTIME_ENABLED = import.meta.env.VITE_TELEPHONY_REALTIME === 'true';
+// On by default; production can opt out explicitly.
+const REALTIME_ENABLED = import.meta.env.VITE_TELEPHONY_REALTIME !== 'false';
 
 const normalizeEvent = (raw: unknown): TelephonyLiveEvent | null => {
   if (!raw || typeof raw !== 'object') return null;
@@ -86,7 +86,7 @@ export const useTelephonyLiveEvents = (
     // NO-OP path: realtime not enabled → log once at debug level, stay disconnected.
     if (!REALTIME_ENABLED) {
       if (import.meta.env.DEV) {
-        console.debug('[telephony] live events disabled (set VITE_TELEPHONY_REALTIME=true to enable)');
+        console.debug('[telephony] live events disabled by VITE_TELEPHONY_REALTIME=false');
       }
       return;
     }

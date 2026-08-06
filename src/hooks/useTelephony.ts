@@ -412,9 +412,9 @@ export const useTelephony = () => {
   const syncCalls = async (data?: CallSyncRequest): Promise<CallSyncResponse> => {
     try {
       const result = await telephonyService.syncCalls(data);
-      toast.success(
-        `Synced: ${result.created} new, ${result.updated} updated, ${result.errors} errors`
-      );
+      const message = `Synced: ${result.created} new, ${result.updated} updated, ${result.errors} errors`;
+      if (result.errors > 0 || result.status === 'partial') toast.warning(message);
+      else toast.success(message);
       return result;
     } catch (e) {
       toastTelephonyError(e, 'Failed to sync calls');

@@ -35,6 +35,9 @@ import type {
   TeleCMICampaignUpdateData,
   CampaignToggleActiveResponse,
   CampaignPushLeadsResponse,
+  ZataStorageCredential,
+  ZataStorageCredentialInput,
+  RecordingAccessResponse,
 } from '@/types/telephony.types';
 
 const T = API_CONFIG.CRM.TELEPHONY;
@@ -158,6 +161,48 @@ class TelephonyService {
       await crmClient.delete(T.CREDENTIAL_DETAIL.replace(':id', String(id)));
     } catch (e) {
       wrap(e);
+    }
+  }
+
+  async getZataStorageCredentials(): Promise<PaginatedResponse<ZataStorageCredential>> {
+    try {
+      const res = await crmClient.get<PaginatedResponse<ZataStorageCredential>>(T.STORAGE_CREDENTIALS);
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  async createZataStorageCredential(data: ZataStorageCredentialInput): Promise<ZataStorageCredential> {
+    try {
+      const res = await crmClient.post<ZataStorageCredential>(T.STORAGE_CREDENTIALS, data);
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  async updateZataStorageCredential(
+    id: number,
+    data: Partial<ZataStorageCredentialInput>,
+  ): Promise<ZataStorageCredential> {
+    try {
+      const res = await crmClient.patch<ZataStorageCredential>(
+        T.STORAGE_CREDENTIAL_DETAIL.replace(':id', String(id)),
+        data,
+      );
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  async testZataStorage(): Promise<{ detail: string }> {
+    try {
+      const res = await crmClient.post<{ detail: string }>(T.STORAGE_TEST, {});
+      return res.data;
+    } catch (e) {
+      return wrap(e);
     }
   }
 
@@ -322,6 +367,17 @@ class TelephonyService {
     }
 
     return blob;
+  }
+
+  async getRecordingAccess(id: number): Promise<RecordingAccessResponse> {
+    try {
+      const res = await crmClient.get<RecordingAccessResponse>(
+        T.CALL_RECORDING_ACCESS.replace(':id', String(id)),
+      );
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
   }
 
   // ==================== SMS (§8) ====================
