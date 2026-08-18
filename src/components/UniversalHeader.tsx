@@ -43,6 +43,8 @@ const routeTitles: Record<string, string> = {
   "/admin/debug": "Debug",
   "/integrations": "Integrations",
   "/integrations/workflows/new": "New Workflow",
+  "/integrations/composio/callback": "Connecting…",
+  "/integrations/composio/admin": "Connected apps",
   "/telephony/calls": "Call Logs",
   "/telephony/sms": "SMS Logs",
   "/telephony/caller-ids": "Caller IDs",

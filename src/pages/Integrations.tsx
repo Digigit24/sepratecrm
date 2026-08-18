@@ -8,15 +8,30 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, RefreshCw, Plug, Workflow, ExternalLink, Check } from 'lucide-react';
+import { Plus, RefreshCw, Plug, Workflow, ExternalLink, Check, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Integration } from '@/types/integration.types';
+import { ToolkitCatalogue } from '@/components/composio/ToolkitCatalogue';
+import { MyConnectionsList } from '@/components/composio/MyConnectionsList';
+import { PermissionGate } from '@/components/PermissionGate';
+import { revalidateComposio } from '@/hooks/useComposio';
+import { describeComposioReason } from '@/hooks/useComposioConnectFlow';
+import {
+  COMPOSIO_RESULT_PARAMS,
+  FEATURED_TOOLKIT_LABELS,
+} from '@/types/composio.types';
+
+type IntegrationsTab = 'apps' | 'connections' | 'available' | 'connected' | 'workflows';
+const VALID_TABS: IntegrationsTab[] = ['apps', 'connections', 'available', 'connected', 'workflows'];
 
 export const Integrations = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { useIntegrationsList, useConnectionsList, useWorkflowsList, initiateOAuth } = useIntegrations();
-  const [activeTab, setActiveTab] = useState<'available' | 'connected' | 'workflows'>('available');
+  const [activeTab, setActiveTab] = useState<IntegrationsTab>(() => {
+    const requested = searchParams.get('tab') as IntegrationsTab | null;
+    return requested && VALID_TABS.includes(requested) ? requested : 'apps';
+  });
   const [isProcessingOAuth, setIsProcessingOAuth] = useState(false);
   const debugOAuth = import.meta.env.DEV || import.meta.env.VITE_DEBUG_OAUTH === 'true';
 
@@ -144,6 +159,59 @@ useEffect(() => {
     }
   }, [searchParams, setSearchParams, mutateConnections]);
 
+  // Keep ?tab= in sync so the sidebar "Apps" entry and browser back/forward work.
+  const handleTabChange = useCallback((value: string) => {
+    const next = (VALID_TABS.includes(value as IntegrationsTab) ? value : 'apps') as IntegrationsTab;
+    setActiveTab(next);
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', next);
+      return params;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  useEffect(() => {
+    const requested = searchParams.get('tab') as IntegrationsTab | null;
+    if (requested && VALID_TABS.includes(requested) && requested !== activeTab) {
+      setActiveTab(requested);
+    }
+  }, [searchParams, activeTab]);
+
+  // Composio connect result arriving via the FULL-PAGE REDIRECT fallback (the
+  // popup was blocked, so ComposioCallback bounced the browser back here with
+  // the outcome in the query string instead of postMessage-ing an opener).
+  useEffect(() => {
+    const status = searchParams.get(COMPOSIO_RESULT_PARAMS.STATUS);
+    if (!status) return;
+
+    const slug = searchParams.get(COMPOSIO_RESULT_PARAMS.TOOLKIT) || '';
+    const reason = searchParams.get(COMPOSIO_RESULT_PARAMS.REASON);
+    const label = FEATURED_TOOLKIT_LABELS[slug.toUpperCase()] || slug || 'the app';
+
+    if (status === 'connected') {
+      toast.success(`Connected to ${label}`, {
+        description: `You can now use ${label} actions`,
+        duration: 5000,
+      });
+    } else if (status === 'pending') {
+      toast.info(`Finishing the ${label} connection…`, {
+        description: 'This can take a few seconds. Refresh if it does not appear.',
+      });
+    } else {
+      toast.error(describeComposioReason(reason, label));
+    }
+
+    void revalidateComposio();
+    setActiveTab(status === 'connected' ? 'connections' : 'apps');
+
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      Object.values(COMPOSIO_RESULT_PARAMS).forEach((key) => params.delete(key));
+      params.set('tab', status === 'connected' ? 'connections' : 'apps');
+      return params;
+    }, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   const handleRefresh = useCallback(() => {
     mutateIntegrations();
     mutateConnections();
@@ -252,6 +320,17 @@ useEffect(() => {
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefresh}>
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
+          <PermissionGate permission="integrations.connections.view">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => navigate('/integrations/composio/admin')}
+            >
+              <Shield className="h-3.5 w-3.5 mr-1" />
+              Workspace apps
+            </Button>
+          </PermissionGate>
           <Button onClick={handleCreateWorkflow} size="sm" className="h-7 text-xs">
             <Plus className="h-3.5 w-3.5 mr-1" />
             New Workflow
@@ -260,12 +339,24 @@ useEffect(() => {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="h-8">
+          <TabsTrigger value="apps" className="text-xs h-6 px-2.5">Apps</TabsTrigger>
+          <TabsTrigger value="connections" className="text-xs h-6 px-2.5">My connections</TabsTrigger>
           <TabsTrigger value="available" className="text-xs h-6 px-2.5">Available</TabsTrigger>
           <TabsTrigger value="connected" className="text-xs h-6 px-2.5">Connected</TabsTrigger>
           <TabsTrigger value="workflows" className="text-xs h-6 px-2.5">Workflows</TabsTrigger>
         </TabsList>
+
+        {/* Composio app catalogue — Gmail, Notion, Google Drive, Google Calendar, … */}
+        <TabsContent value="apps" className="mt-3">
+          <ToolkitCatalogue onManageConnection={() => setActiveTab('connections')} />
+        </TabsContent>
+
+        {/* Composio connections owned by the current user */}
+        <TabsContent value="connections" className="mt-3">
+          <MyConnectionsList onBrowseApps={() => handleTabChange('apps')} />
+        </TabsContent>
 
         {/* Available Integrations Tab */}
         <TabsContent value="available" className="mt-3">

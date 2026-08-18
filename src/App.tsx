@@ -62,6 +62,8 @@ const RealEstateProjectsPage = lazy(() => import("./pages/real-estate/ProjectsPa
 const RealEstateProjectDetailPage = lazy(() => import("./pages/real-estate/ProjectDetailPage").then(m => ({ default: m.ProjectDetailPage })));
 const OAuthCallback = lazy(() => import("./pages/OAuthCallback").then(m => ({ default: m.OAuthCallback })));
 const Work = lazy(() => import("./pages/Work"));
+const ComposioCallback = lazy(() => import("./pages/ComposioCallback").then(m => ({ default: m.ComposioCallback })));
+const ComposioConnections = lazy(() => import("./pages/ComposioConnections"));
 
 import { ThemeSync } from "@/components/ThemeSync";
 import { WebSocketProvider } from "./context/WebSocketProvider";
@@ -174,6 +176,9 @@ const AppLayout = () => {
               <Route path="/integrations/workflows/:workflowId/logs" element={<ModuleProtectedRoute requiredModule="integrations" requiredPermission="integrations.workflows.view"><WorkflowLogs /></ModuleProtectedRoute>} />
               <Route path="/integrations/oauth/callback" element={<ModuleProtectedRoute requiredModule="integrations" requiredPermission="integrations.connections.view"><OAuthCallback /></ModuleProtectedRoute>} />
 
+              {/* Composio Routes */}
+              <Route path="/integrations/composio/admin" element={<ModuleProtectedRoute requiredModule="integrations" requiredPermission="integrations.connections.view"><ComposioConnections /></ModuleProtectedRoute>} />
+
               {/* Telephony Routes */}
               <Route path="/telephony/calls" element={<ModuleProtectedRoute requiredModule="telephony" requiredPermission="telephony.calls.view"><CallLogsPage /></ModuleProtectedRoute>} />
               <Route path="/telephony/sms" element={<ModuleProtectedRoute requiredModule="telephony" requiredPermission="telephony.sms.view"><SMSLogsPage /></ModuleProtectedRoute>} />
@@ -235,6 +240,15 @@ const App = () => {
                     isAuthenticated ? <Navigate to="/" replace /> : <Login />
                   }
                 />
+                {/*
+                  Composio hosted-auth return. Deliberately NOT wrapped in
+                  ProtectedRoute/ModuleProtectedRoute (plan §D.3): it usually
+                  renders inside a fresh 520x720 popup, whose only job is to
+                  postMessage the result to the opener and close. It renders no
+                  tenant data, so gating it would just flash a login or
+                  permission card at the user mid-flow.
+                */}
+                <Route path="/integrations/composio/callback" element={<Suspense fallback={<RouteFallback />}><ComposioCallback /></Suspense>} />
                 <Route
                   path="/*"
                   element={
