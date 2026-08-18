@@ -35,7 +35,8 @@ import {
 } from '@/hooks/whatsapp/useChat';
 import { useLabels, useLabelMutations } from '@/hooks/whatsapp/useContacts';
 import { useCRM } from '@/hooks/useCRM';
-import { useUsers } from '@/hooks/useUsers';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
+import { UserAvatar } from '@/components/user';
 import { useAuth } from '@/hooks/useAuth';
 import { crmService } from '@/services/crmService';
 import { PRIORITY_OPTIONS, FieldTypeEnum } from '@/types/crmTypes';
@@ -230,7 +231,6 @@ export function ContactChatDrawer({
 
   const { user } = useAuth();
   const { useLeadStatuses, useFieldSchema } = useCRM();
-  const { useUsersList } = useUsers();
 
   // CRM metadata: only when the drawer is open on the Add-Lead tab. All three
   // use shared SWR keys + 60s master-data dedupe, so switching to the tab
@@ -238,9 +238,14 @@ export function ContactChatDrawer({
   const { data: statusesData, isLoading: statusesLoading } = useLeadStatuses({
     page_size: 100, ordering: 'order_index', is_active: true,
   }, { enabled: isAddLeadTabActive });
-  const { data: usersData,   isLoading: usersLoading  } = useUsersList({
-    page: 1, page_size: 1000, is_active: true,
-  }, { enabled: isAddLeadTabActive });
+  // Not gated on the active tab: the user directory is ONE canonical, deduped,
+  // localStorage-persisted key shared by every screen, so this costs at most a
+  // single request per session (and usually zero — it is already warm).
+  const { users: directoryUsers, isLoading: usersLoading } = useUserDirectory();
+  const assignableUsers = useMemo(
+    () => directoryUsers.filter(u => u.isActive),
+    [directoryUsers]
+  );
   const { data: fieldSchema, isLoading: schemaLoading } = useFieldSchema({ enabled: isAddLeadTabActive });
 
   const [fieldMapping, setFieldMapping] = useState<Record<string, string>>(DEFAULT_MAPPING);
@@ -385,10 +390,9 @@ export function ContactChatDrawer({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="unassigned">No assignment</SelectItem>
-            {usersData?.results?.map(u => (
+            {assignableUsers.map(u => (
               <SelectItem key={u.id} value={u.id}>
-                <span>{u.first_name} {u.last_name}</span>
-                <span className="ml-1.5 text-xs text-muted-foreground">({u.email})</span>
+                <UserAvatar id={u.id} size="xs" showName />
               </SelectItem>
             ))}
           </SelectContent>

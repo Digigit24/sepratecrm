@@ -1,8 +1,9 @@
 // src/hooks/useUser.ts
 import { useState, useCallback } from 'react';
-import useSWR from 'swr';
+import useSWR, { mutate as globalMutate } from 'swr';
 import { userService } from '@/services/userService';
 import { MASTER_DATA_DEDUPE_MS } from '@/lib/swrConfig';
+import { USER_DIRECTORY_KEY } from '@/hooks/useUserDirectory';
 import {
   User,
   UserListParams,
@@ -68,6 +69,8 @@ export const useUser = () => {
 
     try {
       const newUser = await userService.createUser(userData);
+      // Names are rendered app-wide from the shared directory — refresh it.
+      void globalMutate(USER_DIRECTORY_KEY);
       return newUser;
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to create user';
@@ -85,6 +88,7 @@ export const useUser = () => {
 
     try {
       const updatedUser = await userService.updateUser(id, userData);
+      void globalMutate(USER_DIRECTORY_KEY);
       return updatedUser;
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to update user';
@@ -102,6 +106,7 @@ export const useUser = () => {
 
     try {
       const updatedUser = await userService.patchUser(id, userData);
+      void globalMutate(USER_DIRECTORY_KEY);
       return updatedUser;
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to update user';
@@ -119,6 +124,7 @@ export const useUser = () => {
 
     try {
       await userService.deleteUser(id);
+      void globalMutate(USER_DIRECTORY_KEY);
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to delete user';
       setError(errorMessage);
@@ -137,6 +143,7 @@ export const useUser = () => {
 
     try {
       const updatedUser = await userService.assignRoles(id, rolesData);
+      void globalMutate(USER_DIRECTORY_KEY);
       return updatedUser;
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to assign roles';
@@ -154,6 +161,7 @@ export const useUser = () => {
 
     try {
       const updatedUser = await userService.removeRole(id, roleData);
+      void globalMutate(USER_DIRECTORY_KEY);
       return updatedUser;
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to remove role';
@@ -192,6 +200,7 @@ export const useUser = () => {
 
     try {
       const updatedUser = await userService.updateCurrentUser(userData);
+      void globalMutate(USER_DIRECTORY_KEY);
       return updatedUser;
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to update current user';
@@ -209,6 +218,7 @@ export const useUser = () => {
 
     try {
       const updatedUser = await userService.patchCurrentUser(userData);
+      void globalMutate(USER_DIRECTORY_KEY);
       return updatedUser;
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to update current user';

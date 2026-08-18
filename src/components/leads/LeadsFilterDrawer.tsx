@@ -13,8 +13,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Separator } from '@/components/ui/separator';
 import { X, ChevronDown, Save, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { userService } from '@/services/userService';
 import { MASTER_DATA_DEDUPE_MS } from '@/lib/swrConfig';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
 import type { LeadStatus } from '@/types/crmTypes';
 import { crmService } from '@/services/crmService';
 import type {
@@ -90,15 +90,11 @@ export const LeadsFilterDrawer: React.FC<LeadsFilterDrawerProps> = ({
     setLocalConfig(config);
   }, [config]);
 
-  // Fetch users for owner filter.
-  // Uses the SAME SWR key as useUsersList({ page_size: 100 }) callers
-  // (CRMLeads, CallLogs, SMSLogs, LeadTelephonyHistory) so the request is
-  // shared with the host page instead of duplicating the exact same URL.
-  const { data: usersData } = useSWR(
-    open ? ['users', { page_size: 100 }] : null,
-    () => userService.getUsers({ page_size: 100 }),
-    { revalidateOnFocus: false, dedupingInterval: MASTER_DATA_DEDUPE_MS }
-  );
+  // Users for the owner filter. Shares the ONE canonical 'user-directory' SWR
+  // key with the host page (and every other screen), so opening this drawer
+  // costs no extra request. Replaces the private useSWR(['users', ...]) that
+  // used to fork the cache and was capped at 20 rows by the auth service.
+  const { users: directoryUsers } = useUserDirectory();
 
   // Lead groups for the group_select filter — TOP-LEVEL hook (this useSWR
   // previously lived inside renderFilterInput()'s `case 'group_select'`,
@@ -117,8 +113,7 @@ export const LeadsFilterDrawer: React.FC<LeadsFilterDrawerProps> = ({
     { revalidateOnFocus: false, dedupingInterval: MASTER_DATA_DEDUPE_MS }
   );
 
-  const users: Array<{ id: string; full_name?: string; email: string }> =
-    usersData?.results || [];
+  const users = directoryUsers;
 
   // Non-hidden filter defs ordered by config
   const orderedFilterDefs = useMemo(() => {
@@ -276,7 +271,7 @@ export const LeadsFilterDrawer: React.FC<LeadsFilterDrawerProps> = ({
               <SelectItem value="__any__">Any owner</SelectItem>
               {users.map(u => (
                 <SelectItem key={u.id} value={u.id}>
-                  {u.full_name || u.email}
+                  {u.name}
                 </SelectItem>
               ))}
             </SelectContent>

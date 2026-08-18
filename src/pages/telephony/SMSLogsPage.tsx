@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select';
 import { RefreshCw, Loader2, ExternalLink, MessageSquare, Send } from 'lucide-react';
 import { useTelephony } from '@/hooks/useTelephony';
-import { useUsers } from '@/hooks/useUsers';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
 import { Pager } from '@/components/telephony/Pager';
 import { SendSMSDialog } from '@/components/telephony/SendSMSDialog';
 import { safeRelative, safeExact } from '@/lib/telephonyFormat';
@@ -34,7 +34,6 @@ const PAGE_SIZE = 25;
 export const SMSLogsPage: React.FC = () => {
   const openLead = useLeadDrawerStore((s) => s.openLead);
   const { useSMS } = useTelephony();
-  const { useUsersList } = useUsers();
 
   const [status, setStatus] = useState<'all' | SmsStatus>('all');
   const [leadIdInput, setLeadIdInput] = useState('');
@@ -55,15 +54,8 @@ export const SMSLogsPage: React.FC = () => {
   }, [status, leadIdInput, senderId, page]);
 
   const { data, error, isLoading, isValidating, mutate } = useSMS(params);
-  const { data: usersData } = useUsersList({ page_size: 100 });
-
-  const nameById = useMemo(() => {
-    const map = new Map<string, string>();
-    (usersData?.results || []).forEach((u) =>
-      map.set(u.id, u.full_name || `${u.first_name} ${u.last_name}`.trim() || u.email),
-    );
-    return map;
-  }, [usersData]);
+  // Shared directory — replaces the duplicated nameById Map.
+  const { users: directoryUsers, getName: getUserName } = useUserDirectory();
 
   const rows = data?.results || [];
   const count = data?.count ?? 0;
@@ -106,10 +98,8 @@ export const SMSLogsPage: React.FC = () => {
           <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue placeholder="Sender" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All senders</SelectItem>
-            {(usersData?.results || []).map((u) => (
-              <SelectItem key={u.id} value={u.id}>
-                {u.full_name || `${u.first_name} ${u.last_name}`.trim() || u.email}
-              </SelectItem>
+            {directoryUsers.map((u) => (
+              <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -165,7 +155,7 @@ export const SMSLogsPage: React.FC = () => {
                       )}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                      {(sms.sent_by_user_id && nameById.get(sms.sent_by_user_id)) || '—'}
+                      {getUserName(sms.sent_by_user_id, '—')}
                     </TableCell>
                     <TableCell className="text-right">
                       <Tooltip>

@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { useTelephony, revalidateLeadCalls } from '@/hooks/useTelephony';
 import { useTelephonyLiveEvents } from '@/hooks/useTelephonyLiveEvents';
-import { useUsers } from '@/hooks/useUsers';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
 import { placeCall, normalizePhoneForDial } from '@/lib/telephonyController';
 import { telephonyService } from '@/services/telephonyService';
 import { SendSMSDialog } from '@/components/telephony/SendSMSDialog';
@@ -309,7 +309,6 @@ export const LeadTelephonyHistory: React.FC<LeadTelephonyHistoryProps> = ({
   onRequireSetup,
 }) => {
   const { useLeadCalls, useLeadSMS } = useTelephony();
-  const { useUsersList } = useUsers();
 
   const [callsPage, setCallsPage] = useState(1);
   const [smsPage, setSmsPage] = useState(1);
@@ -338,15 +337,9 @@ export const LeadTelephonyHistory: React.FC<LeadTelephonyHistoryProps> = ({
     },
   });
 
-  // Resolve SMS sender UUIDs -> names (cheap: single cached users list).
-  const { data: usersData } = useUsersList({ page_size: 100 });
-  const nameById = useMemo(() => {
-    const map = new Map<string, string>();
-    (usersData?.results || []).forEach((u) => {
-      map.set(u.id, u.full_name || `${u.first_name} ${u.last_name}`.trim() || u.email);
-    });
-    return map;
-  }, [usersData]);
+  // Resolve SMS sender UUIDs -> names via the shared directory (was a third
+  // copy of the same hand-rolled nameById Map).
+  const { getName: getUserName } = useUserDirectory();
 
   const callRows = calls.data?.results || [];
   const smsRows = sms.data?.results || [];
@@ -450,7 +443,7 @@ export const LeadTelephonyHistory: React.FC<LeadTelephonyHistoryProps> = ({
           ) : (
             <>
               {smsRows.map((s) => (
-                <SmsRow key={s.id} sms={s} senderName={(s.sent_by_user_id && nameById.get(s.sent_by_user_id)) || '—'} />
+                <SmsRow key={s.id} sms={s} senderName={getUserName(s.sent_by_user_id, '—')} />
               ))}
               <Pager
                 page={smsPage}

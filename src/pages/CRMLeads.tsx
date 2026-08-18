@@ -35,13 +35,14 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { useUsers } from '@/hooks/useUsers';
 import { toast } from 'sonner';
 import { formatDistanceToNow, isValid } from 'date-fns';
 import type { FollowUpSchedulePayload, Lead, LeadsQueryParams, PriorityEnum, LeadStatus, UpdateLeadPayload } from '@/types/crmTypes';
 import { FieldTypeEnum } from '@/types/crmTypes';
 import { crmService } from '@/services/crmService';
 import { exportLeadsToExcel } from '@/utils/excelUtils';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
+import { UserAvatar } from '@/components/user';
 import type { RowActions } from '@/components/DataTable';
 import { leadStatusCache } from '@/lib/leadStatusCache';
 import { STANDARD_FILTER_DEFS } from '@/types/filterTypes';
@@ -123,8 +124,11 @@ export const CRMLeads: React.FC = () => {
 
   const { config: filterConfig, saveForMe, saveForEveryone, isSaving: isSavingFilter } = useLeadsFilterConfig();
 
-  const { useUsersList } = useUsers();
-  const { data: usersData } = useUsersList({ page_size: 100 });
+  // Owner/assignee UUID -> name. Single canonical SWR key, shared with every
+  // other screen; replaces the old useUsersList({ page_size: 100 }) call that
+  // the auth service silently capped at 20 rows.
+  const userDirectory = useUserDirectory();
+  const { getName: getUserName, users: directoryUsers } = userDirectory;
 
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [selectedLeadForTemplate, setSelectedLeadForTemplate] = useState<Lead | null>(null);
@@ -792,13 +796,13 @@ export const CRMLeads: React.FC = () => {
 
       const customFields = (configurationsData?.results || []).filter((f) => !f.is_standard && f.is_active);
       const timestamp = new Date().toISOString().split('T')[0];
-      exportLeadsToExcel(leads, customFields, `leads_export_${timestamp}.xlsx`);
+      exportLeadsToExcel(leads, customFields, `leads_export_${timestamp}.xlsx`, userDirectory.byId);
 
       toast.success(`Exported ${leads.length} leads successfully`);
     } catch (error: any) {
       toast.error(error.message || 'Failed to export leads');
     }
-  }, [canExportLeads, leadsData, queryParams, activeFilters, configurationsData]);
+  }, [canExportLeads, leadsData, queryParams, activeFilters, configurationsData, userDirectory.byId]);
 
   const handleImportClick = useCallback(() => {
     if (!canCreateLead) {
@@ -1308,6 +1312,30 @@ export const CRMLeads: React.FC = () => {
         filterable: false,
         accessor: (lead) => lead.next_follow_up_at || '',
       },
+      // Owner / Assigned-To used to have NO column definition, so they fell
+      // through to the generic branch below and rendered String(uuid).
+      // `accessor` returns the resolved NAME so DataTable's sort and text
+      // filter operate on names rather than UUIDs.
+      owner_user_id: {
+        header: 'Owner',
+        key: 'owner_user_id',
+        cell: (lead) => (
+          <UserAvatar id={lead.owner_user_id} size="xs" showName className="text-sm" />
+        ),
+        sortable: true,
+        filterable: true,
+        accessor: (lead) => getUserName(lead.owner_user_id, ''),
+      },
+      assigned_to: {
+        header: 'Assigned To',
+        key: 'assigned_to',
+        cell: (lead) => (
+          <UserAvatar id={lead.assigned_to} size="xs" showName className="text-sm" />
+        ),
+        sortable: true,
+        filterable: true,
+        accessor: (lead) => getUserName(lead.assigned_to, ''),
+      },
       lead_score: {
         header: 'Score',
         key: 'lead_score',
@@ -1406,7 +1434,7 @@ export const CRMLeads: React.FC = () => {
           },
         };
       });
-  }, [configurationsData, statusesData?.results, formatCurrency, handleCallLead, handleUpdateNotes, handleUpdateDateField, handleUpdateFollowUpSchedule, handleUpdateLeadScore, handleUpdateLeadStatus, handleUpdateLeadPriority]);
+  }, [configurationsData, statusesData?.results, formatCurrency, getUserName, handleCallLead, handleUpdateNotes, handleUpdateDateField, handleUpdateFollowUpSchedule, handleUpdateLeadScore, handleUpdateLeadStatus, handleUpdateLeadPriority]);
 
   const columns: DataTableColumn<Lead>[] = dynamicColumns;
 
@@ -1511,6 +1539,23 @@ export const CRMLeads: React.FC = () => {
         <div className="flex items-center gap-1.5 text-sm font-medium">
           <IndianRupee className="h-4 w-4 text-muted-foreground" />
           <span>{formatCurrency(lead.value_amount, lead.value_currency)}</span>
+        </div>
+      )}
+
+      {(isFieldVisible('owner_user_id') || isFieldVisible('assigned_to')) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          {isFieldVisible('owner_user_id') && (
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Owner</span>
+              <UserAvatar id={lead.owner_user_id} size="xs" showName />
+            </div>
+          )}
+          {isFieldVisible('assigned_to') && (
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Assigned</span>
+              <UserAvatar id={lead.assigned_to} size="xs" showName />
+            </div>
+          )}
         </div>
       )}
 
@@ -1911,7 +1956,7 @@ export const CRMLeads: React.FC = () => {
             }
 
             if (def.filterType === 'user_select') {
-              const users = usersData?.results || [];
+              const users = directoryUsers;
               const isActive = !!activeFilters[filterKey];
               return (
                 <Select key={def.key} value={activeFilters[filterKey] || '__all__'} onValueChange={v => setActiveFilters(prev => ({ ...prev, [filterKey]: v === '__all__' ? undefined : v }))}>
@@ -1921,7 +1966,7 @@ export const CRMLeads: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="__all__">Any {def.label}</SelectItem>
                     {users.map(u => (
-                      <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

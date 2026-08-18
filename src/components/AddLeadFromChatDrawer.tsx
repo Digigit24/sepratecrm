@@ -29,7 +29,8 @@ import { SideDrawer } from '@/components/SideDrawer';
 
 import { useChatContext } from '@/hooks/whatsapp/useChat';
 import { useCRM } from '@/hooks/useCRM';
-import { useUsers } from '@/hooks/useUsers';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
+import { UserAvatar } from '@/components/user';
 import { useAuth } from '@/hooks/useAuth';
 import { crmService } from '@/services/crmService';
 import { PRIORITY_OPTIONS, FieldTypeEnum } from '@/types/crmTypes';
@@ -108,7 +109,6 @@ export function AddLeadFromChatDrawer({
 }: AddLeadFromChatDrawerProps) {
   const { user } = useAuth();
   const { useLeadStatuses, useFieldSchema } = useCRM();
-  const { useUsersList } = useUsers();
 
   // ALL queries gated on `open`: this drawer previously fetched contact,
   // statuses, users, and field schema even while closed. A closed drawer now
@@ -123,11 +123,13 @@ export function AddLeadFromChatDrawer({
   const { data: statusesData, isLoading: statusesLoading } = useLeadStatuses({
     page_size: 100, ordering: 'order_index', is_active: true,
   }, { enabled: open });
-  const { data: usersData, isLoading: usersLoading } = useUsersList({
-    page: 1,
-    page_size: 1000,
-    is_active: true,
-  }, { enabled: open });
+  // Not gated on `open`: the user directory is ONE canonical, deduped,
+  // localStorage-persisted key shared by every screen.
+  const { users: directoryUsers, isLoading: usersLoading } = useUserDirectory();
+  const assignableUsers = useMemo(
+    () => directoryUsers.filter((u) => u.isActive),
+    [directoryUsers]
+  );
   const { data: fieldSchema, isLoading: schemaLoading } = useFieldSchema({ enabled: open });
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -330,10 +332,9 @@ export function AddLeadFromChatDrawer({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="unassigned">No assignment</SelectItem>
-            {usersData?.results?.map((u) => (
+            {assignableUsers.map((u) => (
               <SelectItem key={u.id} value={u.id}>
-                <span>{u.first_name} {u.last_name}</span>
-                <span className="ml-1.5 text-xs text-muted-foreground">({u.email})</span>
+                <UserAvatar id={u.id} size="xs" showName />
               </SelectItem>
             ))}
           </SelectContent>

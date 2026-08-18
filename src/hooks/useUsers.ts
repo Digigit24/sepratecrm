@@ -9,8 +9,14 @@ export const useUsers = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Get users with SWR caching
-  // Pass { enabled: false } to skip fetching (e.g. drawer not yet opened).
+  /**
+   * @deprecated For DISPLAY / LOOKUP use `useUserDirectory()` — it owns the
+   * single canonical 'user-directory' SWR key, handles pagination, 403 and
+   * unknown ids, and is persisted to localStorage. This hook remains only for
+   * paged admin listing in src/pages/Users.tsx. It currently has no callers.
+   *
+   * Pass { enabled: false } to skip fetching (e.g. drawer not yet opened).
+   */
   const useUsersList = (params?: UserListParams, options?: { enabled?: boolean }) => {
     const key = options?.enabled === false ? null : ['users', params];
 

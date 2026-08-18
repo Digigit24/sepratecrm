@@ -29,6 +29,7 @@ import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
 import { placeCall } from '@/lib/telephonyController';
 import { hexBadgeStyle } from '@/lib/hexBadge';
+import { UserAvatar } from '@/components/user';
 import { SendSMSDialog } from '@/components/telephony/SendSMSDialog';
 import { LeadTelephonyHistory } from '@/components/telephony/LeadTelephonyHistory';
 import { useRealEstate } from '@/hooks/useRealEstate';
@@ -763,6 +764,19 @@ export const LeadDetailsPage = ({
                     {(lead as any).company}
                   </span>
                 )}
+              </div>
+
+              {/* Ownership meta row — owner/assignee were not surfaced in the
+                  lead header at all before. */}
+              <div className="flex items-center gap-4 mt-1 flex-wrap text-xs">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <span className="text-muted-foreground">Owner</span>
+                  <UserAvatar id={lead.owner_user_id} size="xs" showName nameClassName="text-xs" />
+                </span>
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <span className="text-muted-foreground">Assigned</span>
+                  <UserAvatar id={lead.assigned_to} size="xs" showName nameClassName="text-xs" />
+                </span>
               </div>
 
               {/* Groups row */}
