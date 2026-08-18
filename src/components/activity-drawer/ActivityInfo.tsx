@@ -39,6 +39,7 @@ import type { ActivityFormHandle } from '../ActivitiesFormDrawer';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { ACTIVITY_TYPE_OPTIONS } from '@/types/crmTypes';
+import { UserName } from '@/components/user';
 
 const activitySchema = z.object({
   lead: z.number().min(1, 'Lead is required'),
@@ -399,7 +400,7 @@ const ActivityInfo = forwardRef<ActivityFormHandle, ActivityInfoProps>(
               {activity.by_user_id && (
                 <div className="flex justify-between py-1">
                   <span>Created By:</span>
-                  <span className="font-mono">{activity.by_user_id}</span>
+                  <UserName id={activity.by_user_id} className="text-right" />
                 </div>
               )}
               <div className="flex justify-between py-1">

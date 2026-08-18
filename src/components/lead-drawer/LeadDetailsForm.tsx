@@ -48,7 +48,8 @@ import type { Lead, CreateLeadPayload, PriorityEnum } from '@/types/crmTypes';
 import type { LeadFormHandle } from '../LeadsFormDrawer';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
-import { useUsers } from '@/hooks/useUsers';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
+import { UserAvatar } from '@/components/user';
 import { useCurrency } from '@/hooks/useCurrency';
 import { PRIORITY_OPTIONS } from '@/types/crmTypes';
 
@@ -198,15 +199,20 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
     const { user } = useAuth();
     const { useLeadStatuses, useFieldConfigurations } = useCRM();
     const { getCurrencyCode } = useCurrency();
-    const { useUsersList } = useUsers();
 
     // Same key as Dashboard/CRMLeads/LeadDetailsPage so the request is shared
     const { data: statusesData, isLoading: statusesLoading } = useLeadStatuses({
       page_size: 100, ordering: 'order_index', is_active: true,
     });
-    const { data: usersData, isLoading: usersLoading } = useUsersList({
-      page: 1, page_size: 1000, is_active: true,
-    });
+    // ONE canonical directory key shared app-wide (was a second, competing
+    // ['users', {page:1,page_size:1000,is_active:true}] key). Deactivated users
+    // are still fetched so historical owners resolve; they are filtered out of
+    // the ASSIGNMENT picker below, not out of display.
+    const { users: directoryUsers, isLoading: usersLoading } = useUserDirectory();
+    const assignableUsers = useMemo(
+      () => directoryUsers.filter(u => u.isActive),
+      [directoryUsers]
+    );
     const { data: configurationsData } = useFieldConfigurations({
       is_active: true, ordering: 'display_order', page_size: 200,
     });
@@ -527,11 +533,24 @@ const LeadDetailsForm = forwardRef<LeadFormHandle, LeadDetailsFormProps>(
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="unassigned">Unassigned</SelectItem>
-              {usersData?.results?.map(u => (
-                <SelectItem key={u.id} value={u.id}>{u.first_name} {u.last_name}</SelectItem>
+              {assignableUsers.map(u => (
+                <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+        )} />
+      </PropRow>
+    ));
+
+    // Owner is written on create (owner_user_id defaults to the current user)
+    // but had NO row here, so it was never displayed. Read-only: ownership
+    // transfer is not part of this form.
+    if (isFieldVisible('owner_user_id')) add('owner_user_id', 'ownership', () => (
+      <PropRow label="Owner">
+        <Controller name="owner_user_id" control={control} render={({ field }) => (
+          <div className="flex min-w-0 items-center px-3 py-1.5 text-sm">
+            <UserAvatar id={field.value || null} size="xs" showName />
+          </div>
         )} />
       </PropRow>
     ));

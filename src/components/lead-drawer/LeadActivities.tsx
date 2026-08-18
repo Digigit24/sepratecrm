@@ -20,6 +20,7 @@ import {
 import { formatDistanceToNow, format } from 'date-fns';
 import type { LeadActivity, ActivityTypeEnum } from '@/types/crmTypes';
 import ActivityFormDrawer from '@/components/ActivityFormDrawer';
+import { UserName } from '@/components/user';
 
 interface LeadActivitiesProps {
   leadId: number;
@@ -200,7 +201,9 @@ export default function LeadActivities({ leadId }: LeadActivitiesProps) {
                           })}
                         </span>
                         {activity.by_user_id && (
-                          <span>by {activity.by_user_id}</span>
+                          <span className="inline-flex items-center gap-1">
+                            by <UserName id={activity.by_user_id} className="inline" />
+                          </span>
                         )}
                       </div>
                     </div>

@@ -1,5 +1,5 @@
 // src/components/lead-drawer/LeadBasicInfo.tsx
-import { forwardRef, useImperativeHandle, useEffect } from 'react';
+import { forwardRef, useImperativeHandle, useEffect, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -29,7 +29,8 @@ import type { Lead, CreateLeadPayload, PriorityEnum } from '@/types/crmTypes';
 import type { LeadFormHandle } from '../LeadsFormDrawer';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
-import { useUsers } from '@/hooks/useUsers';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
+import { UserAvatar } from '@/components/user';
 import { useCurrency } from '@/hooks/useCurrency';
 import { PRIORITY_OPTIONS } from '@/types/crmTypes';
 
@@ -63,7 +64,6 @@ const LeadBasicInfo = forwardRef<LeadFormHandle, LeadBasicInfoProps>(
   ({ lead, mode, onSuccess }, ref) => {
     const { user } = useAuth();
     const { useLeadStatuses } = useCRM();
-    const { useUsersList } = useUsers();
     const { getCurrencyCode } = useCurrency();
 
     // Fetch lead statuses — same key as Dashboard/CRMLeads so the request is shared
@@ -71,12 +71,15 @@ const LeadBasicInfo = forwardRef<LeadFormHandle, LeadBasicInfoProps>(
       page_size: 100, ordering: 'order_index', is_active: true,
     });
 
-    // Fetch users for assigned_to dropdown
-    const { data: usersData, isLoading: usersLoading } = useUsersList({
-      page: 1,
-      page_size: 1000,
-      is_active: true,
-    });
+    // Users for the assigned_to dropdown, from the ONE canonical directory key
+    // (was a second, competing ['users', {page:1,page_size:1000,is_active:true}]
+    // key). Inactive users are filtered out of the picker but remain resolvable
+    // for display elsewhere.
+    const { users: directoryUsers, isLoading: usersLoading } = useUserDirectory();
+    const assignableUsers = useMemo(
+      () => directoryUsers.filter((u) => u.isActive),
+      [directoryUsers]
+    );
 
     const isReadOnly = mode === 'view';
 
@@ -415,16 +418,30 @@ const LeadBasicInfo = forwardRef<LeadFormHandle, LeadBasicInfoProps>(
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unassigned">No assignment</SelectItem>
-                  {usersData?.results?.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
+                  {assignableUsers.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
                       <div className="flex items-center gap-2">
-                        <span>{user.first_name} {user.last_name}</span>
-                        <span className="text-xs text-muted-foreground">({user.email})</span>
+                        <UserAvatar id={u.id} size="xs" showName />
                       </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            )}
+          />
+        </div>
+
+        {/* Owner — read-only. owner_user_id is submitted but previously had no
+            UI, so the lead's owner was invisible in this drawer. */}
+        <div className="space-y-2">
+          <Label>Owner</Label>
+          <Controller
+            name="owner_user_id"
+            control={control}
+            render={({ field }) => (
+              <div className="flex min-w-0 items-center gap-2 rounded-md border border-input bg-muted/30 px-3 py-2 text-sm">
+                <UserAvatar id={field.value || null} size="xs" showName />
+              </div>
             )}
           />
         </div>
