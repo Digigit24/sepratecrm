@@ -25,6 +25,7 @@ const routeTitles: Record<string, string> = {
   "/crm/activities": "Activities",
   "/crm/statuses": "Lead Statuses",
   "/crm/tasks": "Tasks",
+  "/crm/calendar": "Calendar",
   "/crm/meetings": "Meetings",
   "/crm/settings": "CRM Settings",
   "/whatsapp/onboarding": "Onboarding",

@@ -28,6 +28,7 @@ const CRMLeadStatuses = lazy(() => import("./pages/CRMLeadStatuses").then(m => (
 const CRMFieldConfigurations = lazy(() => import("./pages/CRMFieldConfigurations").then(m => ({ default: m.CRMFieldConfigurations })));
 const CRMTasks = lazy(() => import("./pages/CRMTasks").then(m => ({ default: m.CRMTasks })));
 const Meetings = lazy(() => import("./pages/Meetings").then(m => ({ default: m.Meetings })));
+const Calendar = lazy(() => import("./pages/Calendar").then(m => ({ default: m.Calendar })));
 const LeadDetailsPage = lazy(() => import("./pages/LeadDetailsPage").then(m => ({ default: m.LeadDetailsPage })));
 const Contacts = lazy(() => import("./pages/Contacts"));
 const Chats = lazy(() => import("./pages/Chats"));
@@ -69,6 +70,7 @@ import { TelephonyProvider } from "./context/TelephonyProvider";
 import { ChatProvider } from "./context/ChatProvider";
 import { CopilotPanel } from "@/components/copilot/CopilotPanel";
 import { GlobalLeadDrawer } from "@/components/GlobalLeadDrawer";
+import { GlobalEventDrawer } from "@/components/GlobalEventDrawer";
 import { Softphone } from "./components/telephony/Softphone";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -134,6 +136,7 @@ const AppLayout = () => {
               <Route path="/crm/statuses" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.settings.view"><CRMLeadStatuses /></ModuleProtectedRoute>} />
               <Route path="/crm/settings" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.settings.view"><CRMFieldConfigurations /></ModuleProtectedRoute>} />
               <Route path="/crm/tasks" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.tasks.view"><CRMTasks /></ModuleProtectedRoute>} />
+              <Route path="/crm/calendar" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.meetings.view"><Calendar /></ModuleProtectedRoute>} />
               <Route path="/crm/meetings" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.meetings.view"><Meetings /></ModuleProtectedRoute>} />
               <Route path="/crm/pipeline" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.leads.view"><Navigate to="/crm/leads" replace /></ModuleProtectedRoute>} />
               <Route path="/crm/campaigns" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.campaigns.view"><CRMCampaigns /></ModuleProtectedRoute>} />
@@ -194,6 +197,7 @@ const AppLayout = () => {
       </div>
       {/* App-wide Lead Details drawer — openable from any page via useLeadDrawerStore */}
       <GlobalLeadDrawer />
+      <GlobalEventDrawer />
       </ChatProvider>
     </TelephonyShell>
   );
