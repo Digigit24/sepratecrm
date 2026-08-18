@@ -499,7 +499,23 @@ export const API_CONFIG = {
     MEETING_CREATE: '/meetings/',
     MEETING_UPDATE: '/meetings/:id/',
     MEETING_DELETE: '/meetings/:id/',
-    MEETING_CALENDAR: '/meetings/calendar/',
+    MEETING_CANCEL: '/meetings/:id/cancel/',
+    MEETING_COMPLETE: '/meetings/:id/complete/',
+    MEETING_RSVP: '/meetings/:id/rsvp/',
+    MEETING_ATTENDEES: '/meetings/:id/attendees/',
+    MEETING_ATTENDEE_DETAIL: '/meetings/:id/attendees/:attendeeId/',
+    MEETING_OCCURRENCES: '/meetings/:id/occurrences/',
+    // NOTE: the legacy `/meetings/calendar/` action is intentionally NOT listed
+    // here. It buckets by UTC date and returns meetings only; the calendar UI
+    // runs on `/calendar/events/` below. See _plans/06-calendar-meetings.md §B.2.
+
+    // Unified calendar endpoints (app `scheduling`, mounted at /api/calendar/)
+    CALENDAR_EVENTS: '/calendar/events/',
+    CALENDAR_MEMBERS: '/calendar/members/',
+    CALENDAR_AVAILABILITY: '/calendar/availability/',
+    CALENDAR_CONFLICTS: '/calendar/conflicts/',
+    CALENDAR_PREFERENCES: '/calendar/preferences/',
+    CALENDAR_LAYERS: '/calendar/layers/',
 
     // Lead Group endpoints
     LEAD_GROUPS: '/crm/lead-groups/',
