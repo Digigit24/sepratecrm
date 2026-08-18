@@ -10,10 +10,45 @@ import {
   MeetingListParams,
   MeetingCreateData,
   MeetingUpdateData,
+  MeetingAttendee,
+  MeetingEditOptions,
+  MeetingSplitResponse,
   PaginatedMeetingResponse,
-  MeetingCalendarData,
-  MeetingCalendarParams,
 } from '@/types/meeting.types';
+
+/**
+ * Recurrence edit semantics (§B.3): every mutating call on a recurring meeting
+ * carries `edit_scope` and, unless the scope is `all`, the UTC
+ * `occurrence_start` of the occurrence the user actually clicked.
+ */
+const editScopeQuery = (options?: MeetingEditOptions): string => {
+  if (!options?.editScope) return '';
+  const params: Record<string, string> = { edit_scope: options.editScope };
+  if (options.editScope !== 'all' && options.occurrenceStart) {
+    params.occurrence_start = options.occurrenceStart;
+  }
+  return buildQueryString(params);
+};
+
+/**
+ * Pull a message off an axios error without widening to `any`. The older
+ * methods in this file predate this helper and still use `catch (error: any)`;
+ * new code uses this instead.
+ */
+const errorMessage = (error: unknown, fallback: string): string => {
+  const response = (error as { response?: { data?: { detail?: string; message?: string } } })
+    ?.response;
+  return response?.data?.detail || response?.data?.message || (error as Error)?.message || fallback;
+};
+
+const editScopeBody = (options?: MeetingEditOptions): Record<string, unknown> => {
+  if (!options?.editScope) return {};
+  const body: Record<string, unknown> = { edit_scope: options.editScope };
+  if (options.editScope !== 'all' && options.occurrenceStart) {
+    body.occurrence_start = options.occurrenceStart;
+  }
+  return body;
+};
 
 class MeetingService {
   /**
@@ -123,10 +158,14 @@ class MeetingService {
    * Partially update a meeting
    * PATCH /crm/meetings/:id/
    */
-  async patchMeeting(id: number, meetingData: Partial<MeetingUpdateData>): Promise<Meeting> {
+  async patchMeeting(
+    id: number,
+    meetingData: Partial<MeetingUpdateData>,
+    options?: MeetingEditOptions
+  ): Promise<Meeting | MeetingSplitResponse> {
     try {
       const response = await crmClient.patch(
-        API_CONFIG.CRM.MEETING_UPDATE.replace(':id', id.toString()),
+        `${API_CONFIG.CRM.MEETING_UPDATE.replace(':id', id.toString())}${editScopeQuery(options)}`,
         meetingData
       );
       return response.data?.data || response.data;
@@ -144,10 +183,10 @@ class MeetingService {
    * Delete a meeting
    * DELETE /crm/meetings/:id/
    */
-  async deleteMeeting(id: number): Promise<void> {
+  async deleteMeeting(id: number, options?: MeetingEditOptions): Promise<void> {
     try {
       await crmClient.delete(
-        API_CONFIG.CRM.MEETING_DELETE.replace(':id', id.toString())
+        `${API_CONFIG.CRM.MEETING_DELETE.replace(':id', id.toString())}${editScopeQuery(options)}`
       );
     } catch (error: any) {
       console.error(`Error deleting meeting ${id}:`, error);
@@ -156,20 +195,116 @@ class MeetingService {
   }
 
   /**
-   * Get meetings organized by date for calendar view
-   * GET /crm/meetings/calendar/
-   * Supports filtering by date range or specific month
+   * Cancel a meeting (soft, keeps the row) — POST /meetings/:id/cancel/
    */
-  async getCalendarData(params?: MeetingCalendarParams): Promise<MeetingCalendarData> {
+  async cancelMeeting(
+    id: number,
+    reason?: string,
+    options?: MeetingEditOptions
+  ): Promise<Meeting> {
     try {
-      const queryString = buildQueryString(params);
+      const response = await crmClient.post(
+        API_CONFIG.CRM.MEETING_CANCEL.replace(':id', id.toString()),
+        { reason, ...editScopeBody(options) }
+      );
+      return response.data?.data || response.data;
+    } catch (error: unknown) {
+      console.error(`Error cancelling meeting ${id}:`, error);
+      throw new Error(errorMessage(error, 'Failed to cancel meeting'));
+    }
+  }
+
+  /**
+   * Mark a meeting complete — POST /meetings/:id/complete/
+   */
+  async completeMeeting(
+    id: number,
+    notes?: string,
+    occurrenceStart?: string | null
+  ): Promise<Meeting> {
+    try {
+      const response = await crmClient.post(
+        API_CONFIG.CRM.MEETING_COMPLETE.replace(':id', id.toString()),
+        { notes, occurrence_start: occurrenceStart || undefined }
+      );
+      return response.data?.data || response.data;
+    } catch (error: unknown) {
+      console.error(`Error completing meeting ${id}:`, error);
+      throw new Error(errorMessage(error, 'Failed to complete meeting'));
+    }
+  }
+
+  /**
+   * Respond to an invitation — POST /meetings/:id/rsvp/
+   * Allowed for attendees who do NOT hold meetings.edit on the row.
+   */
+  async rsvp(
+    id: number,
+    responseStatus: 'ACCEPTED' | 'DECLINED' | 'TENTATIVE',
+    comment?: string,
+    occurrenceStart?: string | null
+  ): Promise<MeetingAttendee> {
+    try {
+      const response = await crmClient.post(
+        API_CONFIG.CRM.MEETING_RSVP.replace(':id', id.toString()),
+        { response_status: responseStatus, comment, occurrence_start: occurrenceStart || undefined }
+      );
+      return response.data?.data || response.data;
+    } catch (error: unknown) {
+      console.error(`Error responding to meeting ${id}:`, error);
+      throw new Error(errorMessage(error, 'Failed to send response'));
+    }
+  }
+
+  /**
+   * Add attendees — POST /meetings/:id/attendees/
+   */
+  async addAttendees(id: number, attendees: MeetingAttendee[]): Promise<MeetingAttendee[]> {
+    try {
+      const response = await crmClient.post(
+        API_CONFIG.CRM.MEETING_ATTENDEES.replace(':id', id.toString()),
+        { attendees }
+      );
+      return response.data?.data || response.data;
+    } catch (error: unknown) {
+      console.error(`Error adding attendees to meeting ${id}:`, error);
+      throw new Error(errorMessage(error, 'Failed to add attendees'));
+    }
+  }
+
+  /**
+   * Remove an attendee — DELETE /meetings/:id/attendees/:attendeeId/
+   */
+  async removeAttendee(id: number, attendeeId: number): Promise<void> {
+    try {
+      await crmClient.delete(
+        API_CONFIG.CRM.MEETING_ATTENDEE_DETAIL
+          .replace(':id', id.toString())
+          .replace(':attendeeId', attendeeId.toString())
+      );
+    } catch (error: unknown) {
+      console.error(`Error removing attendee ${attendeeId}:`, error);
+      throw new Error(errorMessage(error, 'Failed to remove attendee'));
+    }
+  }
+
+  /**
+   * Expanded occurrences of one series — GET /meetings/:id/occurrences/
+   * Drives the recurrence preview in the editor.
+   */
+  async getOccurrences(
+    id: number,
+    start: string,
+    end: string
+  ): Promise<{ occurrences: Array<{ start_at: string; end_at: string; is_override?: boolean }> }> {
+    try {
       const response = await crmClient.get(
-        `${API_CONFIG.CRM.MEETING_CALENDAR}${queryString}`
+        `${API_CONFIG.CRM.MEETING_OCCURRENCES.replace(':id', id.toString())}${buildQueryString({ start, end })}`
       );
       return response.data;
-    } catch (error: any) {
-      console.error('Error fetching calendar data:', error);
-      throw new Error(error?.response?.data?.detail || 'Failed to fetch calendar data');
+    } catch (error: unknown) {
+      console.error(`Error fetching occurrences for meeting ${id}:`, error);
+      throw new Error(errorMessage(error, 'Failed to fetch occurrences'));
     }
   }
 

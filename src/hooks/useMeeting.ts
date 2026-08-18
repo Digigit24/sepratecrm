@@ -12,9 +12,9 @@ import {
   MeetingListParams,
   MeetingCreateData,
   MeetingUpdateData,
+  MeetingEditOptions,
+  MeetingSplitResponse,
   PaginatedMeetingResponse,
-  MeetingCalendarData,
-  MeetingCalendarParams,
 } from '@/types/meeting.types';
 
 export const useMeeting = () => {
@@ -55,20 +55,12 @@ export const useMeeting = () => {
     );
   };
 
-  /**
-   * Hook to fetch calendar data
-   * Returns SWR response with calendar data organized by date
+  /*
+   * `useMeetingCalendar` used to live here. It was dead code with zero call
+   * sites that fetched the UTC-bucketed `/meetings/calendar/` action. The
+   * calendar now runs on the unified feed — see `useCalendarEvents` in
+   * `@/hooks/useCalendar`.
    */
-  const useMeetingCalendar = (params?: MeetingCalendarParams) => {
-    return useSWR<MeetingCalendarData>(
-      hasCRMAccess ? ['meetings-calendar', params] : null,
-      () => meetingService.getCalendarData(params),
-      {
-        revalidateOnFocus: false,
-        shouldRetryOnError: false,
-      }
-    );
-  };
 
   /**
    * Hook to fetch meetings for a specific lead
@@ -154,7 +146,11 @@ export const useMeeting = () => {
    * Partially update a meeting
    */
   const patchMeeting = useCallback(
-    async (id: number, data: Partial<MeetingUpdateData>): Promise<Meeting> => {
+    async (
+      id: number,
+      data: Partial<MeetingUpdateData>,
+      options?: MeetingEditOptions
+    ): Promise<Meeting | MeetingSplitResponse> => {
       if (!hasCRMAccess) {
         throw new Error('CRM module is not enabled for your account');
       }
@@ -163,7 +159,7 @@ export const useMeeting = () => {
       setError(null);
 
       try {
-        const result = await meetingService.patchMeeting(id, data);
+        const result = await meetingService.patchMeeting(id, data, options);
         return result;
       } catch (err: any) {
         const errorMessage = err?.message || 'Failed to update meeting';
@@ -180,7 +176,7 @@ export const useMeeting = () => {
    * Delete a meeting
    */
   const deleteMeeting = useCallback(
-    async (id: number): Promise<void> => {
+    async (id: number, options?: MeetingEditOptions): Promise<void> => {
       if (!hasCRMAccess) {
         throw new Error('CRM module is not enabled for your account');
       }
@@ -189,7 +185,7 @@ export const useMeeting = () => {
       setError(null);
 
       try {
-        await meetingService.deleteMeeting(id);
+        await meetingService.deleteMeeting(id, options);
       } catch (err: any) {
         const errorMessage = err?.message || 'Failed to delete meeting';
         setError(errorMessage);
@@ -212,7 +208,6 @@ export const useMeeting = () => {
     // SWR hooks for data fetching
     useMeetings,
     useMeeting,
-    useMeetingCalendar,
     useMeetingsByLead,
     useUpcomingMeetings,
 
