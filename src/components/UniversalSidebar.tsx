@@ -74,6 +74,14 @@ const menuSections: MenuSection[] = [
         icon: LayoutDashboard,
         path: "/",
       },
+      {
+        id: "work",
+        label: "Work",
+        icon: Bot,
+        path: "/work",
+        module: "crm",
+        permission: "crm.leads.view",
+      },
     ],
   },
   {

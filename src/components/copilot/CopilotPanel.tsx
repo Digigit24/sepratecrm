@@ -2,40 +2,22 @@
 //
 // Right-side slide-out AI copilot. Mirrors the app's SideDrawer pattern
 // (fixed overlay + right panel + slide transition) and hosts the assistant-ui
-// runtime. The runtime uses a useLocalRuntime + custom SSE ChatModelAdapter
-// that POSTs to the backend and streams text deltas.
+// runtime. The runtime itself lives in useCopilotRuntime() (useLocalRuntime +
+// custom SSE ChatModelAdapter posting to the backend), shared with /work.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { AssistantRuntimeProvider, useLocalRuntime } from '@assistant-ui/react';
+import { useEffect, useState } from 'react';
+import { AssistantRuntimeProvider } from '@assistant-ui/react';
 import { Check, Loader2, Pencil, X, Bot } from 'lucide-react';
 import { useChat } from '@/context/ChatProvider';
-import { authService } from '@/services/authService';
-import { createChatModelAdapter } from '@/lib/aiChatAdapter';
+import { useCopilotRuntime } from '@/hooks/useCopilotRuntime';
 import { CopilotThread } from './CopilotThread';
 import { resolveToolSpec } from './toolRegistry';
 import { cn } from '@/lib/utils';
 
 function CopilotRuntime() {
-  const { selectedTool, context } = useChat();
-
-  // Keep refs current so the adapter (created once) always reads the latest
-  // tool/context/token at request time without recreating the runtime.
-  const toolRef = useRef<string | null>(selectedTool);
-  const contextRef = useRef<Record<string, unknown> | null>(context);
-  toolRef.current = selectedTool;
-  contextRef.current = context;
-
-  const adapter = useMemo(
-    () =>
-      createChatModelAdapter({
-        getToken: () => authService.getAccessToken(),
-        getTool: () => toolRef.current,
-        getContext: () => contextRef.current,
-      }),
-    []
-  );
-
-  const runtime = useLocalRuntime(adapter);
+  // Shared with the full-page /work route via src/hooks/useCopilotRuntime.ts —
+  // one adapter/runtime factory, two surfaces (separate runtime instances).
+  const runtime = useCopilotRuntime();
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
