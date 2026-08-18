@@ -11,6 +11,8 @@ import {
   MeetingCreateData,
   MeetingUpdateData,
   MeetingAttendee,
+  MeetingDeleteResult,
+  MeetingEditScope,
   MeetingEditOptions,
   MeetingSplitResponse,
   PaginatedMeetingResponse,
@@ -21,11 +23,30 @@ import {
  * carries `edit_scope` and, unless the scope is `all`, the UTC
  * `occurrence_start` of the occurrence the user actually clicked.
  */
+/**
+ * Canonicalise `occurrence_start` for transport.
+ *
+ * As a QUERY param this value must be `Z`-suffixed or percent-encoded: the
+ * classic failure is the `+` of an ISO offset (`...T09:30:00+05:30`) being
+ * decoded server-side as a space. `buildQueryString` already runs every value
+ * through `encodeURIComponent`, which turns `+` into `%2B`, so that failure
+ * cannot happen on this path — but we do not lean on that alone.
+ *
+ * A string the server itself gave us is returned UNCHANGED when it is already
+ * `Z`-suffixed, so the backend matches the exact instant string it emitted.
+ * Only an offset-bearing string is rewritten to UTC `Z` form.
+ */
+export const canonicalOccurrenceStart = (value: string): string => {
+  if (value.endsWith('Z')) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+};
+
 const editScopeQuery = (options?: MeetingEditOptions): string => {
   if (!options?.editScope) return '';
   const params: Record<string, string> = { edit_scope: options.editScope };
   if (options.editScope !== 'all' && options.occurrenceStart) {
-    params.occurrence_start = options.occurrenceStart;
+    params.occurrence_start = canonicalOccurrenceStart(options.occurrenceStart);
   }
   return buildQueryString(params);
 };
@@ -45,9 +66,55 @@ const editScopeBody = (options?: MeetingEditOptions): Record<string, unknown> =>
   if (!options?.editScope) return {};
   const body: Record<string, unknown> = { edit_scope: options.editScope };
   if (options.editScope !== 'all' && options.occurrenceStart) {
-    body.occurrence_start = options.occurrenceStart;
+    body.occurrence_start = canonicalOccurrenceStart(options.occurrenceStart);
   }
   return body;
+};
+
+/**
+ * Turn a DELETE response into something worth showing the user.
+ *
+ * `DELETE /api/meetings/{id}/` answers 200 with a body whose SHAPE depends on
+ * the recurrence scope, and which carries no occurrence count:
+ *
+ *   non-recurring / `all` -> { deleted, edit_scope }
+ *   `this`                -> { deleted_occurrence, series_id, edit_scope }
+ *   `this_and_following`  -> { series_id, truncated_at, edit_scope }
+ *
+ * On a series the user genuinely needs to know whether they removed one
+ * occurrence or the whole thing, so the shape is discriminated, not guessed at.
+ */
+export const describeDeleteResult = (
+  result: MeetingDeleteResult | undefined,
+  scope?: MeetingEditScope,
+  isRecurring = false
+): string => {
+  if (result?.detail) return result.detail;
+
+  // `this` -> the instant was appended to the series' EXDATEs.
+  if (result?.deleted_occurrence) return 'Deleted this occurrence';
+  // `this_and_following` -> the master's RRULE was clipped at that instant.
+  if (result?.truncated_at) return 'Deleted this and all following occurrences';
+  /*
+   * `all`, or any delete of a non-recurring meeting -> the row itself was
+   * soft-deleted. The body is identical in both cases (`{deleted, edit_scope}`
+   * with no series_id), so only the caller knows whether a series just went away
+   * or a single meeting did.
+   */
+  if (result?.deleted !== undefined) {
+    return isRecurring ? 'Deleted the whole series' : 'Event deleted';
+  }
+
+  switch (result?.edit_scope ?? scope) {
+    case 'all':
+      return 'Deleted the whole series';
+    case 'this_and_following':
+      return 'Deleted this and all following occurrences';
+    case 'this':
+      return 'Deleted this occurrence';
+    default:
+      return 'Event deleted';
+  }
 };
 
 class MeetingService {
@@ -183,11 +250,23 @@ class MeetingService {
    * Delete a meeting
    * DELETE /crm/meetings/:id/
    */
-  async deleteMeeting(id: number, options?: MeetingEditOptions): Promise<void> {
+  /**
+   * Soft-delete a meeting.
+   *
+   * NOTE: this endpoint answers **200 with a JSON body**, not 204. The body
+   * says what the recurrence scope did, so it is returned rather than
+   * discarded — the caller surfaces it to the user.
+   */
+  async deleteMeeting(
+    id: number,
+    options?: MeetingEditOptions
+  ): Promise<MeetingDeleteResult> {
     try {
-      await crmClient.delete(
+      const response = await crmClient.delete(
         `${API_CONFIG.CRM.MEETING_DELETE.replace(':id', id.toString())}${editScopeQuery(options)}`
       );
+      // A 204 (empty body) stays valid; just report nothing extra.
+      return (response.data as MeetingDeleteResult) ?? {};
     } catch (error: any) {
       console.error(`Error deleting meeting ${id}:`, error);
       throw new Error(error?.response?.data?.detail || 'Failed to delete meeting');

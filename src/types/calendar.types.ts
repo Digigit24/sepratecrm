@@ -25,7 +25,13 @@ export type RecurrenceEditScope = 'this' | 'this_and_following' | 'all';
 
 export type AttendeeResponse = 'NEEDS_ACTION' | 'ACCEPTED' | 'DECLINED' | 'TENTATIVE';
 
-export type MeetingStatus = 'SCHEDULED' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
+export type MeetingStatus =
+  | 'SCHEDULED'
+  | 'CONFIRMED'
+  | 'TENTATIVE'
+  | 'CANCELLED'
+  | 'COMPLETED'
+  | 'NO_SHOW';
 
 export type MeetingVisibility = 'DEFAULT' | 'PRIVATE' | 'PUBLIC';
 
@@ -36,6 +42,7 @@ export type MeetingType =
   | 'DEMO'
   | 'CALL'
   | 'SITE_VISIT'
+  | 'FOLLOW_UP'
   | 'INTERNAL'
   | 'OTHER';
 
@@ -49,10 +56,19 @@ export type CalendarColorKey =
   | 'task'
   | 'follow_up'
   | 'activity'
-  | 'cancelled';
+  | 'cancelled'
+  /** Stamped by the server on a redacted PRIVATE event. */
+  | 'busy';
 
+/**
+ * NOTE: the two APIs disagree on one key. `/api/calendar/events/` emits
+ * `lead_id`, while `/api/meetings/` emits `lead` — so both are declared here
+ * and neither is relied on alone.
+ */
 export interface CalendarEventAttendee {
+  id?: number;
   user_id?: string | null;
+  lead_id?: number | null;
   lead?: number | null;
   email?: string | null;
   display_name?: string | null;
@@ -121,6 +137,10 @@ export interface CalendarEvent {
   owner_user_id?: string | null;
   owner_name?: string | null;
   assignee_user_id?: string | null;
+  /** `task` events only. */
+  due_at?: string | null;
+  /** `follow_up` events only. */
+  assigned_to?: string | null;
 
   attendees?: CalendarEventAttendee[];
   attendee_summary?: CalendarAttendeeSummary | null;
@@ -153,7 +173,13 @@ export interface CalendarRangeParams {
 
 export interface CalendarRangeResponse {
   range: { start: string; end: string; timezone: string };
+  /** Shorthand for `layer_scopes.meetings`; null when meetings were not requested. */
   scope?: 'all' | 'team' | 'own' | null;
+  /** Per-layer permission scope, only for the layers actually requested. */
+  layer_scopes?: Partial<Record<CalendarLayer, 'all' | 'team' | 'own' | null>>;
+  /** Server-side cap (5000); `truncated` says whether it was hit. */
+  max_events?: number;
+  count?: number;
   requested_user_ids?: string[];
   denied_user_ids?: string[];
   truncated?: boolean;
@@ -242,28 +268,50 @@ export interface ConflictResponse {
  * exists; once `GET /api/calendar/preferences/` answers, the server value wins.
  */
 export interface CalendarPreference {
+  id?: number;
   timezone: string;
-  week_starts_on?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
-  working_hours_start?: string; // 'HH:mm'
-  working_hours_end?: string; // 'HH:mm'
-  working_days?: number[]; // 0=Sun … 6=Sat
-  default_view?: CalendarView;
+  /** Backend accepts only 0 (Sunday) or 1 (Monday). */
+  week_starts_on?: 0 | 1;
+  /** Django TimeField: serialised `HH:MM:SS`, accepted as `HH:MM` on write. */
+  working_hours_start?: string;
+  working_hours_end?: string;
+  /** Ints 0-6, **0 = Sunday** (matches JS `Date.getDay()`). Default [1..5]. */
+  working_days?: number[];
+  /** Uppercase on the wire: MONTH | WEEK | DAY | AGENDA. */
+  default_view?: 'MONTH' | 'WEEK' | 'DAY' | 'AGENDA';
   default_meeting_duration_minutes?: number;
   visible_layers?: CalendarLayer[];
   visible_user_ids?: string[];
-  show_declined_events?: boolean;
-  time_format?: '12h' | '24h';
+  /** Seeds the `include_declined` default on /events/. */
+  show_declined?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
+
+/*
+ * NOTE: there is deliberately no `time_format` here. The backend
+ * CalendarPreference has no such field, so 12h/24h is a purely client-side
+ * preference held in `calendarStore`.
+ */
 
 export interface CalendarLayerMeta {
   key: CalendarLayer;
   label: string;
+  /** The CRM permission that gates this layer, e.g. `crm.tasks.view`. */
+  permission?: string;
   color_key: CalendarColorKey;
-  allowed: boolean;
+  default_on?: boolean;
+  scope?: 'all' | 'team' | 'own' | null;
+  /** `scope !== null` — whether the caller may see this layer at all. */
+  visible?: boolean;
 }
 
 export interface CalendarLayersResponse {
   layers: CalendarLayerMeta[];
+  /** color_key -> colour-name token map. */
+  color_tokens?: Record<string, string>;
+  max_range_days?: number;
+  max_events?: number;
   unavailable?: boolean;
 }
 

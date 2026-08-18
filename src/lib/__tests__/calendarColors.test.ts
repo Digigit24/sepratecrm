@@ -125,3 +125,29 @@ describe('colour resolution', () => {
     expect(getEventColor(event, 'person', { 'user-a': 4 }).chip).toBe(byPerson.chip);
   });
 });
+
+describe('redacted events use the anonymous `busy` token', () => {
+  it('resolves a redacted event to `busy`, not to its type colour', () => {
+    // The server stamps color_key 'busy' on redacted rows.
+    const event = baseEvent({ redacted: true, color_key: 'busy', meeting_type: 'DEMO' });
+    expect(resolveColorKey(event)).toBe('busy');
+  });
+
+  it('does not let a stale type/status colour survive redaction', () => {
+    const event = baseEvent({ redacted: true, color_key: 'demo', status: 'CANCELLED' });
+    expect(resolveColorKey(event)).toBe('busy');
+  });
+
+  it('keeps a redacted row anonymous even in person-colour team mode', () => {
+    const event = baseEvent({ redacted: true, owner_user_id: 'user-a' });
+    const color = getEventColor(event, 'person', { 'user-a': 4 });
+    // Muted, not that person's palette colour.
+    expect(color.chip).toContain('bg-muted');
+    expect(color.chip).not.toContain('emerald');
+  });
+
+  it('stamps color_key `busy` when redacting locally, matching the server', () => {
+    const stripped = redactEvent(baseEvent({ visibility: 'PRIVATE', color_key: 'demo' }));
+    expect(stripped.color_key).toBe('busy');
+  });
+});

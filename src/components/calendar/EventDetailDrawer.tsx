@@ -16,7 +16,7 @@ import {
   type DrawerHeaderAction,
 } from '@/components/SideDrawer';
 import { useMeeting } from '@/hooks/useMeeting';
-import { meetingService } from '@/services/meeting.service';
+import { describeDeleteResult, meetingService } from '@/services/meeting.service';
 import { CALENDAR_EVENTS_KEY } from '@/hooks/useCalendar';
 import { emitCrmDataChanged } from '@/lib/crmEvents';
 import { formatEventTimeRange } from '@/utils/calendarTime';
@@ -144,11 +144,11 @@ export function EventDetailDrawer({
       if (!meetingId) return;
       setIsSaving(true);
       try {
-        await deleteMeeting(
+        const result = await deleteMeeting(
           meetingId,
           scope ? { editScope: scope, occurrenceStart: occurrenceStart ?? meeting?.start_at } : undefined
         );
-        toast.success('Event deleted');
+        toast.success(describeDeleteResult(result, scope, isRecurring));
         refreshCalendar();
         close();
       } catch (error) {
@@ -157,7 +157,7 @@ export function EventDetailDrawer({
         setIsSaving(false);
       }
     },
-    [meetingId, occurrenceStart, meeting?.start_at, deleteMeeting, refreshCalendar, close]
+    [meetingId, occurrenceStart, meeting?.start_at, isRecurring, deleteMeeting, refreshCalendar, close]
   );
 
   const performCancel = useCallback(

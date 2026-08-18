@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRangeForView,
+  isWorkingHour,
+  parseClock,
   dayKeyInZone,
   formatEventTimeRange,
   getEventDayKeys,
@@ -171,5 +173,41 @@ describe('15-minute snapping', () => {
     // 48px per hour -> 12px per 15 minutes.
     expect(pxToSnappedMinutes(13, 48)).toBe(15);
     expect(pxToSnappedMinutes(48, 48)).toBe(60);
+  });
+});
+
+describe('working hours from CalendarPreference', () => {
+  /*
+   * `working_hours_start` / `_end` are Django TimeFields, so DRF serialises them
+   * as `HH:MM:SS`. Rejecting that form would silently fall back to 09:00-18:00
+   * and quietly ignore the user's real configured hours.
+   */
+  it('accepts the HH:MM:SS form the backend actually sends', () => {
+    expect(parseClock('09:00:00', 0)).toBe(540);
+    expect(parseClock('18:30:00', 0)).toBe(1110);
+  });
+
+  it('still accepts the plain HH:MM form', () => {
+    expect(parseClock('09:00', 0)).toBe(540);
+    expect(parseClock('23:59', 0)).toBe(1439);
+  });
+
+  it('falls back on genuinely invalid input', () => {
+    expect(parseClock('nonsense', 42)).toBe(42);
+    expect(parseClock('25:00', 42)).toBe(42);
+    expect(parseClock('', 42)).toBe(42);
+    expect(parseClock(null, 42)).toBe(42);
+  });
+
+  it('treats working_days as 0=Sunday, matching Date.getDay()', () => {
+    // 2026-09-07 is a Monday, 2026-09-06 a Sunday.
+    const monday = new Date(2026, 8, 7, 10, 0);
+    const sunday = new Date(2026, 8, 6, 10, 0);
+    const opts = { workingHoursStart: '09:00:00', workingHoursEnd: '18:00:00', workingDays: [1, 2, 3, 4, 5] };
+
+    expect(isWorkingHour(monday, opts)).toBe(true);
+    expect(isWorkingHour(sunday, opts)).toBe(false);
+    // Outside the configured window on a working day.
+    expect(isWorkingHour(new Date(2026, 8, 7, 20, 0), opts)).toBe(false);
   });
 });

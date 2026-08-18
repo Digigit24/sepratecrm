@@ -75,6 +75,7 @@ interface CalendarStore {
   visibleUserIds: string[];
   teamMode: TeamMode;
   includeCancelled: boolean;
+  includeDeclined: boolean;
 
   // --- working hours (from CalendarPreference) ----------------------------
   workingHoursStart: string;
@@ -102,6 +103,7 @@ interface CalendarStore {
   toggleUser: (userId: string) => void;
   setTeamMode: (mode: TeamMode) => void;
   setIncludeCancelled: (value: boolean) => void;
+  setIncludeDeclined: (value: boolean) => void;
   applyPreferences: (prefs: CalendarPreference) => void;
 
   openEvent: (
@@ -151,6 +153,7 @@ export const useCalendarStore = create<CalendarStore>((set, get) => {
     visibleUserIds: persisted.visibleUserIds ?? [],
     teamMode: persisted.teamMode ?? 'off',
     includeCancelled: false,
+    includeDeclined: false,
 
     workingHoursStart: '09:00',
     workingHoursEnd: '18:00',
@@ -204,13 +207,19 @@ export const useCalendarStore = create<CalendarStore>((set, get) => {
     },
 
     setIncludeCancelled: (includeCancelled) => set({ includeCancelled }),
+    setIncludeDeclined: (includeDeclined) => set({ includeDeclined }),
 
-    /** Server preferences win over the browser-seeded defaults. */
+    /**
+     * Server preferences win over the browser-seeded defaults.
+     *
+     * `timeFormat` is deliberately absent: the backend CalendarPreference has
+     * no such field, so 12h/24h stays a purely client-side choice.
+     */
     applyPreferences: (prefs) =>
       set((s) => ({
         timezone: prefs.timezone || s.timezone,
         weekStartsOn: (prefs.week_starts_on ?? s.weekStartsOn) as WeekStartsOn,
-        timeFormat: prefs.time_format ?? s.timeFormat,
+        includeDeclined: prefs.show_declined ?? s.includeDeclined,
         workingHoursStart: prefs.working_hours_start ?? s.workingHoursStart,
         workingHoursEnd: prefs.working_hours_end ?? s.workingHoursEnd,
         workingDays: prefs.working_days ?? s.workingDays,

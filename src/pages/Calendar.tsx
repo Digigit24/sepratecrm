@@ -30,6 +30,7 @@ export function Calendar() {
     visibleUserIds,
     teamMode,
     includeCancelled,
+    includeDeclined,
     applyPreferences,
   } = useCalendarStore();
 
@@ -66,9 +67,19 @@ export function Calendar() {
       tz: timezone,
       layers: visibleLayers,
       include_cancelled: includeCancelled,
+      include_declined: includeDeclined,
       user_ids: teamMode !== 'off' && visibleUserIds.length ? visibleUserIds : undefined,
     }),
-    [range.start, range.end, timezone, visibleLayers, includeCancelled, teamMode, visibleUserIds]
+    [
+      range.start,
+      range.end,
+      timezone,
+      visibleLayers,
+      includeCancelled,
+      includeDeclined,
+      teamMode,
+      visibleUserIds,
+    ]
   );
 
   const { data, error, isLoading, mutate } = useCalendarEvents(params);

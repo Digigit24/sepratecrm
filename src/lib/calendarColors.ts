@@ -79,6 +79,16 @@ export const CALENDAR_COLORS: Record<CalendarColorKey, CalendarColorToken> = {
     border: 'border-l-muted-foreground/40',
     label: 'Cancelled',
   },
+  /**
+   * The server stamps `color_key: 'busy'` on a redacted PRIVATE event. It must
+   * read as deliberately anonymous — never as a normal blue meeting chip.
+   */
+  busy: {
+    chip: 'bg-muted text-muted-foreground',
+    bar: 'bg-muted-foreground/40',
+    border: 'border-l-muted-foreground/40',
+    label: 'Busy',
+  },
 };
 
 /** Legend order — mirrors the left rail and the Dashboard legend. */
@@ -142,6 +152,8 @@ const SOURCE_TO_COLOR: Record<string, CalendarColorKey> = {
 
 /** Resolve an event to a colour key, tolerating an unknown `color_key`. */
 export const resolveColorKey = (event: CalendarEvent): CalendarColorKey => {
+  // A redacted row is anonymous first and cancelled/typed second.
+  if (event.redacted) return 'busy';
   if (event.status === 'CANCELLED') return 'cancelled';
   const raw = event.color_key;
   if (raw && raw in CALENDAR_COLORS) return raw as CalendarColorKey;
@@ -161,6 +173,7 @@ export const getEventColor = (
   mode: 'type' | 'person' = 'type',
   colorIndexByUser?: Record<string, number>
 ): CalendarColorToken => {
+  if (event.redacted) return CALENDAR_COLORS.busy;
   if (event.status === 'CANCELLED') return CALENDAR_COLORS.cancelled;
   if (mode === 'person') {
     const ownerId = event.owner_user_id || '';
@@ -219,6 +232,7 @@ export const redactEvent = (event: CalendarEvent): CalendarEvent => ({
   visibility: 'PRIVATE',
   status: event.status,
   title: REDACTED_TITLE,
+  color_key: 'busy',
   redacted: true,
   can_edit: false,
   can_delete: false,

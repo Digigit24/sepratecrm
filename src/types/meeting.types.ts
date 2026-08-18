@@ -104,6 +104,32 @@ export interface MeetingEditOptions {
   occurrenceStart?: string | null;
 }
 
+/**
+ * `DELETE /api/meetings/{id}/` answers **200 with a JSON body**, not 204.
+ *
+ * The body reports what the recurrence scope actually did, and its keys DIFFER
+ * per scope — there is no occurrence count anywhere:
+ *
+ *   non-recurring, or `all`  -> `{ deleted: <pk>, edit_scope }`
+ *   `this`                   -> `{ deleted_occurrence: <ISO>, series_id, edit_scope }`
+ *   `this_and_following`     -> `{ series_id, truncated_at: <ISO>, edit_scope }`
+ *
+ * `deleted` is the soft-deleted PK; `deleted_occurrence` is the instant appended
+ * to the master's EXDATEs; `truncated_at` is where the master's RRULE was clipped.
+ */
+export interface MeetingDeleteResult {
+  /** PK that was soft-deleted (non-recurring, or `edit_scope: 'all'`). */
+  deleted?: number;
+  /** UTC instant added to the series' EXDATEs (`edit_scope: 'this'`). */
+  deleted_occurrence?: string;
+  /** UTC instant the series' RRULE was clipped at (`this_and_following`). */
+  truncated_at?: string;
+  series_id?: number;
+  edit_scope?: MeetingEditScope;
+  detail?: string;
+  [key: string]: unknown;
+}
+
 /** Response shape of a `this_and_following` split (§B.3). */
 export interface MeetingSplitResponse {
   updated: Meeting;

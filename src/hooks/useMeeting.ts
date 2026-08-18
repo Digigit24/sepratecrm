@@ -12,6 +12,7 @@ import {
   MeetingListParams,
   MeetingCreateData,
   MeetingUpdateData,
+  MeetingDeleteResult,
   MeetingEditOptions,
   MeetingSplitResponse,
   PaginatedMeetingResponse,
@@ -176,7 +177,7 @@ export const useMeeting = () => {
    * Delete a meeting
    */
   const deleteMeeting = useCallback(
-    async (id: number, options?: MeetingEditOptions): Promise<void> => {
+    async (id: number, options?: MeetingEditOptions): Promise<MeetingDeleteResult> => {
       if (!hasCRMAccess) {
         throw new Error('CRM module is not enabled for your account');
       }
@@ -185,7 +186,7 @@ export const useMeeting = () => {
       setError(null);
 
       try {
-        await meetingService.deleteMeeting(id, options);
+        return await meetingService.deleteMeeting(id, options);
       } catch (err: any) {
         const errorMessage = err?.message || 'Failed to delete meeting';
         setError(errorMessage);

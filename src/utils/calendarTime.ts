@@ -247,9 +247,17 @@ export const buildRangeForView = (
  * ------------------------------------------------------------------ */
 
 /** Parse `'09:00'` → minutes from midnight. Returns `fallback` when invalid. */
+/**
+ * Parse a wall-clock string into minutes from midnight.
+ *
+ * Accepts both `'09:00'` and `'09:00:00'`: `CalendarPreference.working_hours_start`
+ * / `_end` are Django `TimeField`s, so DRF serialises them as `HH:MM:SS` even
+ * though it accepts `HH:MM` on write. Rejecting the seconds form would silently
+ * fall back to the 09:00-18:00 defaults and ignore the user's real working hours.
+ */
 export const parseClock = (value: string | undefined | null, fallback: number): number => {
   if (!value) return fallback;
-  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
   if (!m) return fallback;
   const hours = Number(m[1]);
   const minutes = Number(m[2]);
