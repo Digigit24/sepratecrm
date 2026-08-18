@@ -61,6 +61,7 @@ const CampaignsPage = lazy(() => import("./pages/telephony/CampaignsPage").then(
 const RealEstateProjectsPage = lazy(() => import("./pages/real-estate/ProjectsPage").then(m => ({ default: m.ProjectsPage })));
 const RealEstateProjectDetailPage = lazy(() => import("./pages/real-estate/ProjectDetailPage").then(m => ({ default: m.ProjectDetailPage })));
 const OAuthCallback = lazy(() => import("./pages/OAuthCallback").then(m => ({ default: m.OAuthCallback })));
+const Work = lazy(() => import("./pages/Work"));
 
 import { ThemeSync } from "@/components/ThemeSync";
 import { WebSocketProvider } from "./context/WebSocketProvider";
@@ -125,6 +126,9 @@ const AppLayout = () => {
             <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
+
+              {/* AI Workspace */}
+              <Route path="/work" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.leads.view"><Work /></ModuleProtectedRoute>} />
 
               {/* CRM Routes */}
               <Route path="/crm/leads" element={<ModuleProtectedRoute requiredModule="crm" requiredPermission="crm.leads.view"><CRMLeads /></ModuleProtectedRoute>} />
