@@ -96,8 +96,8 @@ class UserService {
             })
             .then((r) => r.data)
       );
-    } catch (crmError: any) {
-      const status = crmError?.response?.status;
+    } catch (crmError: unknown) {
+      const status = (crmError as { response?: { status?: number } })?.response?.status;
       // 401 means the session is dead — the interceptor already handles it;
       // don't double up with a fallback request.
       if (status === 401) throw crmError;
@@ -112,8 +112,9 @@ class UserService {
               })
               .then((r) => r.data)
         );
-      } catch (authError: any) {
-        if (status === 403 || authError?.response?.status === 403) {
+      } catch (authError: unknown) {
+        const authStatus = (authError as { response?: { status?: number } })?.response?.status;
+        if (status === 403 || authStatus === 403) {
           throw new UserDirectoryForbiddenError();
         }
         throw authError;

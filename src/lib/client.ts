@@ -26,7 +26,6 @@ const USER_KEY = 'celiyo_user';
 //
 // Set `suppressErrorToast: true` on the axios request config to opt out.
 declare module 'axios' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-interface
   export interface AxiosRequestConfig {
     /** Skip the global permission-denied toast for this request. */
     suppressErrorToast?: boolean;

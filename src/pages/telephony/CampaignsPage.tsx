@@ -1,7 +1,7 @@
 // src/pages/telephony/CampaignsPage.tsx
 // Auto-dialler campaign manager — create, edit, toggle, delete, push leads.
 // RBAC-gated via ModuleProtectedRoute (requiredPermission="telephony.campaigns.view") in App.tsx.
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import useSWR from 'swr';
 import {
   Table,
@@ -70,7 +70,7 @@ import {
   type TeleCMICampaign,
   type TeleCMICampaignCreateData,
 } from '@/types/telephony.types';
-import { useUsers } from '@/hooks/useUsers';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
 import { useCRM } from '@/hooks/useCRM';
 import { telephonyBadgeClass, telephonyDotClass, campaignActiveTone, campaignActiveLabel } from '@/lib/telephonyBadge';
 import { cn } from '@/lib/utils';
@@ -713,13 +713,12 @@ const CampaignRow: React.FC<CampaignRowProps> = ({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export const CampaignsPage: React.FC = () => {
-  const { useUsersList } = useUsers();
-  const { data: usersData } = useUsersList({ page_size: 100 });
-
-  const agentOptions = (usersData?.results || []).map((u) => ({
-    id: String(u.id),
-    label: u.full_name || `${u.first_name} ${u.last_name}`.trim() || u.email,
-  }));
+  // Shared directory — replaces the duplicated option-label logic.
+  const { users: directoryUsers } = useUserDirectory();
+  const agentOptions = useMemo(
+    () => directoryUsers.map((u) => ({ id: String(u.id), label: u.name })),
+    [directoryUsers]
+  );
 
   const { data, isLoading, error, mutate } = useSWR(
     'telephony-campaigns',

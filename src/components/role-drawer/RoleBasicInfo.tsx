@@ -9,6 +9,7 @@ import { PermissionsEditor } from '@/components/PermissionsEditor';
 import { useRoles } from '@/hooks/useRoles';
 import type { Role, RoleCreateData, RoleUpdateData } from '@/types/user.types';
 import { Loader2 } from 'lucide-react';
+import { UserName } from '@/components/user';
 
 export interface RoleBasicInfoHandle {
   getFormValues: () => Promise<RoleCreateData | RoleUpdateData | null>;
@@ -133,7 +134,9 @@ const RoleBasicInfo = forwardRef<RoleBasicInfoHandle, RoleBasicInfoProps>(
               <div className="divide-y divide-border/40">
                 <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
                   <span className="text-[13px] text-muted-foreground">Created By</span>
-                  <span className="text-sm">{role.created_by_email || role.created_by}</span>
+                  <span className="text-sm">
+                    {role.created_by_email || <UserName id={role.created_by} />}
+                  </span>
                 </div>
                 <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
                   <span className="text-[13px] text-muted-foreground">Members</span>

@@ -18,7 +18,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { X } from 'lucide-react';
-import { useUsers } from '@/hooks/useUsers';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
+import { UserAvatar, UserName } from '@/components/user';
 import { useLabels, useContactGroups } from '@/hooks/whatsapp/useContacts';
 
 import type { Contact, CreateContactPayload } from '@/types/whatsappTypes';
@@ -50,14 +51,13 @@ interface ContactBasicInfoProps {
 const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProps>(
   ({ contact, fallbackPhone, mode }, ref) => {
     const isReadOnly = mode === 'view';
-    const { useUsersList } = useUsers();
     const { labels: allLabels } = useLabels();
     const { groups: allGroups } = useContactGroups();
-    const { data: usersData, isLoading: usersLoading } = useUsersList({
-      page: 1,
-      page_size: 1000,
-      is_active: true,
-    });
+    const { users: directoryUsers, isLoading: usersLoading } = useUserDirectory();
+    const assignableUsers = useMemo(
+      () => directoryUsers.filter((u) => u.isActive),
+      [directoryUsers]
+    );
 
     const normalizedDefaults = useMemo(
       () => ({
@@ -95,16 +95,6 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
     useEffect(() => {
       reset(normalizedDefaults);
     }, [normalizedDefaults, mode, reset]);
-
-    const assignedUserDisplayName = useMemo(() => {
-      if (!contact?.assigned_to) return null;
-      const match = usersData?.results?.find((user) => user.id === contact.assigned_to);
-      if (match) {
-        const fullName = `${match.first_name || ''} ${match.last_name || ''}`.trim();
-        return fullName || match.email || match.id;
-      }
-      return contact.assigned_to;
-    }, [contact?.assigned_to, usersData]);
 
     // Expose form validation and data collection to parent
     useImperativeHandle(ref, () => ({
@@ -189,17 +179,11 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
                   <SelectTrigger id="assigned_to" className="h-9"><SelectValue placeholder={usersLoading ? 'Loading...' : 'Select user'} /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {usersData?.results?.map((user) => {
-                      const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || user.id;
-                      return (
-                        <SelectItem key={user.id} value={user.id}>
-                          <div className="flex items-center gap-2">
-                            <span>{displayName}</span>
-                            {user.email && <span className="text-xs text-muted-foreground">({user.email})</span>}
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
+                    {assignableUsers.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        <UserAvatar id={u.id} size="xs" showName />
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               )} />
@@ -355,7 +339,7 @@ const ContactBasicInfo = forwardRef<ContactBasicInfoHandle, ContactBasicInfoProp
                 </div>
                 <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
                   <span className="text-[13px] text-muted-foreground">Assigned To</span>
-                  <span className="text-sm">{assignedUserDisplayName || contact.assigned_to || 'Unassigned'}</span>
+                  <span className="text-sm"><UserName id={contact.assigned_to} /></span>
                 </div>
                 <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2">
                   <span className="text-[13px] text-muted-foreground">Last Seen</span>

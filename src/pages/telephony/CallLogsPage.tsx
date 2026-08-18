@@ -46,7 +46,7 @@ import {
 import { toast } from 'sonner';
 import { useTelephony } from '@/hooks/useTelephony';
 import { useTelephonyLiveEvents } from '@/hooks/useTelephonyLiveEvents';
-import { useUsers } from '@/hooks/useUsers';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Pager } from '@/components/telephony/Pager';
 import { formatDuration, safeRelative, safeExact, msToExact } from '@/lib/telephonyFormat';
@@ -72,7 +72,6 @@ const DirectionIcon: React.FC<{ call: CallLog; className?: string }> = ({ call, 
 export const CallLogsPage: React.FC = () => {
   const openLead = useLeadDrawerStore((s) => s.openLead);
   const { useCalls, syncCalls } = useTelephony();
-  const { useUsersList } = useUsers();
 
   // ── filters ──
   const [direction, setDirection] = useState<'all' | Direction>('all');
@@ -105,15 +104,10 @@ export const CallLogsPage: React.FC = () => {
       if (event.event === 'ended') void mutate();
     },
   });
-  const { data: usersData } = useUsersList({ page_size: 100 });
-
-  const nameById = useMemo(() => {
-    const map = new Map<string, string>();
-    (usersData?.results || []).forEach((u) =>
-      map.set(u.id, u.full_name || `${u.first_name} ${u.last_name}`.trim() || u.email),
-    );
-    return map;
-  }, [usersData]);
+  // Was a private useUsersList({page_size:100}) + a hand-rolled nameById Map
+  // duplicated here, in SMSLogsPage and in LeadTelephonyHistory. All three now
+  // share the one canonical directory.
+  const { users: directoryUsers, getName: getUserName } = useUserDirectory();
 
   const rows = data?.results || [];
   const count = data?.count ?? 0;
@@ -223,10 +217,8 @@ export const CallLogsPage: React.FC = () => {
           <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue placeholder="Agent" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All agents</SelectItem>
-            {(usersData?.results || []).map((u) => (
-              <SelectItem key={u.id} value={u.id}>
-                {u.full_name || `${u.first_name} ${u.last_name}`.trim() || u.email}
-              </SelectItem>
+            {directoryUsers.map((u) => (
+              <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -311,7 +303,7 @@ export const CallLogsPage: React.FC = () => {
                       {formatDuration(call.duration, call.call_type)}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                      {(call.agent_user_id && nameById.get(call.agent_user_id)) || '—'}
+                      {getUserName(call.agent_user_id, '—')}
                     </TableCell>
                     <TableCell className="text-right">
                       <Tooltip>

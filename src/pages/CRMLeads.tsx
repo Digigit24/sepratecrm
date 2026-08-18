@@ -802,7 +802,7 @@ export const CRMLeads: React.FC = () => {
     } catch (error: any) {
       toast.error(error.message || 'Failed to export leads');
     }
-  }, [canExportLeads, leadsData, queryParams, activeFilters, configurationsData]);
+  }, [canExportLeads, leadsData, queryParams, activeFilters, configurationsData, userDirectory.byId]);
 
   const handleImportClick = useCallback(() => {
     if (!canCreateLead) {

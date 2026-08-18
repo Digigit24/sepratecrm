@@ -1,5 +1,5 @@
 // src/components/task-drawer/TaskBasicInfo.tsx
-import { forwardRef, useImperativeHandle, useEffect } from 'react';
+import { forwardRef, useImperativeHandle, useEffect, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -21,7 +21,8 @@ import {
 import type { Task, CreateTaskPayload, UpdateTaskPayload, Lead, TaskStatusEnum, PriorityEnum } from '@/types/crmTypes';
 import { TASK_STATUS_OPTIONS, PRIORITY_OPTIONS } from '@/types/crmTypes';
 import { formatDistanceToNow, format } from 'date-fns';
-import { useUsers } from '@/hooks/useUsers';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
+import { UserAvatar } from '@/components/user';
 
 // Validation schemas
 const createTaskSchema = z.object({
@@ -66,13 +67,14 @@ const TaskBasicInfo = forwardRef<TaskBasicInfoHandle, TaskBasicInfoProps>(
 
     const schema = isCreateMode ? createTaskSchema : updateTaskSchema;
 
-    // Fetch users for assignee and reporter dropdowns
-    const { useUsersList } = useUsers();
-    const { data: usersData, isLoading: usersLoading } = useUsersList({
-      page: 1,
-      page_size: 1000,
-      is_active: true,
-    });
+    // Users for the assignee/reporter dropdowns, from the shared directory.
+    // Read views used to fall back to the raw UUID whenever the user was past
+    // the server's page cap; <UserAvatar>/<UserName> never do that.
+    const { users: directoryUsers, isLoading: usersLoading } = useUserDirectory();
+    const assignableUsers = useMemo(
+      () => directoryUsers.filter((u) => u.isActive),
+      [directoryUsers]
+    );
 
     const defaultValues = isCreateMode
       ? {
@@ -406,13 +408,7 @@ const TaskBasicInfo = forwardRef<TaskBasicInfoHandle, TaskBasicInfoProps>(
               {isReadOnly ? (
                 <div className="pt-2">
                   <p className="font-medium">
-                    {task?.assignee_user_id ? (
-                      usersData?.results?.find(u => u.id === task.assignee_user_id)
-                        ? `${usersData.results.find(u => u.id === task.assignee_user_id)?.first_name} ${usersData.results.find(u => u.id === task.assignee_user_id)?.last_name}`
-                        : task.assignee_user_id
-                    ) : (
-                      'Not assigned'
-                    )}
+                    <UserAvatar id={task?.assignee_user_id || null} size="xs" showName fallback="Not assigned" />
                   </p>
                 </div>
               ) : (
@@ -430,9 +426,9 @@ const TaskBasicInfo = forwardRef<TaskBasicInfoHandle, TaskBasicInfoProps>(
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="unassigned">No assignment</SelectItem>
-                        {usersData?.results?.map((user) => (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.first_name} {user.last_name}
+                        {assignableUsers.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            <UserAvatar id={u.id} size="xs" showName />
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -448,13 +444,7 @@ const TaskBasicInfo = forwardRef<TaskBasicInfoHandle, TaskBasicInfoProps>(
               {isReadOnly ? (
                 <div className="pt-2">
                   <p className="font-medium">
-                    {task?.reporter_user_id ? (
-                      usersData?.results?.find(u => u.id === task.reporter_user_id)
-                        ? `${usersData.results.find(u => u.id === task.reporter_user_id)?.first_name} ${usersData.results.find(u => u.id === task.reporter_user_id)?.last_name}`
-                        : task.reporter_user_id
-                    ) : (
-                      'Not set'
-                    )}
+                    <UserAvatar id={task?.reporter_user_id || null} size="xs" showName fallback="Not set" />
                   </p>
                 </div>
               ) : (
@@ -472,9 +462,9 @@ const TaskBasicInfo = forwardRef<TaskBasicInfoHandle, TaskBasicInfoProps>(
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="unassigned">Not set</SelectItem>
-                        {usersData?.results?.map((user) => (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.first_name} {user.last_name}
+                        {assignableUsers.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            <UserAvatar id={u.id} size="xs" showName />
                           </SelectItem>
                         ))}
                       </SelectContent>

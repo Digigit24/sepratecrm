@@ -1,8 +1,9 @@
 // src/components/TaskFormDrawer.tsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
-import { useUsers } from '@/hooks/useUsers';
+import { useUserDirectory } from '@/hooks/useUserDirectory';
+import { UserAvatar } from '@/components/user';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -43,14 +44,15 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
 }) => {
   const { user } = useAuth();
   const { useTask, createTask, updateTask, deleteTask } = useCRM();
-  const { useUsersList } = useUsers();
 
-  // Fetch users for the assigned-to dropdown (from admin.celiyo)
-  const { data: usersData, isLoading: usersLoading } = useUsersList({
-    page: 1,
-    page_size: 1000,
-    is_active: true,
-  });
+  // Users for the assigned-to dropdown, from the shared directory (one
+  // canonical SWR key, O(1) lookups instead of the results.find() scans that
+  // used to run three times per render).
+  const { users: directoryUsers, isLoading: usersLoading } = useUserDirectory();
+  const assignableUsers = useMemo(
+    () => directoryUsers.filter((u) => u.isActive),
+    [directoryUsers]
+  );
 
   // Form state
   const [title, setTitle] = useState('');
@@ -335,11 +337,7 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
               <Label htmlFor="assigneeUserId" className="text-[13px] text-muted-foreground font-normal">Assigned To</Label>
               {isViewMode ? (
                 <span className="text-sm font-medium">
-                  {assigneeUserId
-                    ? usersData?.results?.find((u) => u.id === assigneeUserId)
-                        ? `${usersData.results.find((u) => u.id === assigneeUserId)!.first_name} ${usersData.results.find((u) => u.id === assigneeUserId)!.last_name}`.trim()
-                        : assigneeUserId
-                    : 'Unassigned'}
+                  <UserAvatar id={assigneeUserId || null} size="xs" showName />
                 </span>
               ) : (
                 <Select
@@ -352,14 +350,9 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {usersData?.results?.map((u) => (
+                    {assignableUsers.map((u) => (
                       <SelectItem key={u.id} value={u.id}>
-                        <div className="flex items-center gap-2">
-                          <span>{u.first_name} {u.last_name}</span>
-                          {u.email && (
-                            <span className="text-xs text-muted-foreground">({u.email})</span>
-                          )}
-                        </div>
+                        <UserAvatar id={u.id} size="xs" showName />
                       </SelectItem>
                     ))}
                   </SelectContent>
