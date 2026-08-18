@@ -37,6 +37,7 @@ import {
   Layers,
   Megaphone,
   BarChart3,
+  Blocks,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -166,6 +167,7 @@ const menuSections: MenuSection[] = [
         module: "integrations",
         children: [
           { id: "integrations-overview", label: "Overview", icon: LayoutDashboard, path: "/integrations", permission: "integrations.connections.view" },
+          { id: "integrations-apps", label: "Apps", icon: Blocks, path: "/integrations?tab=apps", permission: "integrations.providers.view" },
           { id: "integrations-workflows", label: "Workflows", icon: Zap, path: "/integrations", permission: "integrations.workflows.view" },
         ],
       },
