@@ -538,6 +538,30 @@ export const API_CONFIG = {
       SHEETS: '/integrations/connections/:id/sheets/',
       SHEET_COLUMNS: '/integrations/connections/:id/sheet-columns/',
     },
+    // Composio — third-party tool connections (Gmail, Notion, Drive, Calendar…)
+    // brokered by Composio's hosted auth. The Composio API key lives ONLY on the
+    // Django side; the browser talks exclusively to these first-party endpoints.
+    COMPOSIO: {
+      TOOLKITS: '/integrations/composio/toolkits/',
+      TOOLKIT_DETAIL: '/integrations/composio/toolkits/:slug/',
+      TOOLKITS_SYNC: '/integrations/composio/toolkits/sync/',
+
+      CONNECTIONS: '/integrations/composio/connections/',
+      CONNECTION_DETAIL: '/integrations/composio/connections/:public_id/',
+      INITIATE: '/integrations/composio/connections/initiate/',
+      STATUS: '/integrations/composio/connections/:public_id/status/',
+      REFRESH: '/integrations/composio/connections/:public_id/refresh/',
+      ENABLE: '/integrations/composio/connections/:public_id/enable/',
+      DISABLE: '/integrations/composio/connections/:public_id/disable/',
+      DISCONNECT: '/integrations/composio/connections/:public_id/disconnect/',
+      EVENTS: '/integrations/composio/connections/:public_id/events/',
+
+      AUTH_CONFIGS: '/integrations/composio/auth-configs/',
+      AUTH_CONFIG_DETAIL: '/integrations/composio/auth-configs/:public_id/',
+
+      ADMIN_CONNECTIONS: '/integrations/composio/admin/connections/',
+      ADMIN_REVOKE: '/integrations/composio/admin/connections/:public_id/revoke/',
+    },
     WORKFLOWS: {
       LIST: '/integrations/workflows/',
       DETAIL: '/integrations/workflows/:id/',
