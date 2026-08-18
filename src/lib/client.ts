@@ -2,6 +2,7 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { API_CONFIG } from './apiConfig';
 import { toast } from 'sonner';
+import { clearPersistentSWRCache } from './swrPersist';
 
 // Dev-only logger — request/response logging is skipped entirely in production
 // builds so every API call doesn't pay console-serialization overhead.
@@ -14,7 +15,26 @@ const ACCESS_TOKEN_KEY = 'celiyo_access_token';
 const REFRESH_TOKEN_KEY = 'celiyo_refresh_token';
 const USER_KEY = 'celiyo_user';
 
-const showPermissionDeniedToast = () => {
+// Opt-out flag for the global 403 "Permission not granted" toast.
+//
+// Some requests are EXPECTED to 403 for perfectly ordinary users and must
+// degrade silently instead of firing a red toast. The canonical case is the
+// user-directory fetch (`GET /crm/users/` -> auth-service `/users/`), which
+// historically required tenant-admin: every non-admin opening the Leads page
+// would otherwise get a toast storm while the owner/assignee columns simply
+// fall back to a muted placeholder.
+//
+// Set `suppressErrorToast: true` on the axios request config to opt out.
+declare module 'axios' {
+  // eslint-disable-next-line @typescript-eslint/no-empty-interface
+  export interface AxiosRequestConfig {
+    /** Skip the global permission-denied toast for this request. */
+    suppressErrorToast?: boolean;
+  }
+}
+
+const showPermissionDeniedToast = (config?: { suppressErrorToast?: boolean }) => {
+  if (config?.suppressErrorToast) return;
   toast.error('Permission not granted for this module');
 };
 
@@ -40,6 +60,10 @@ export const tokenManager = {
   removeTokens: (): void => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
+    // The persisted SWR snapshot holds the tenant user directory (names +
+    // emails). Wipe it with the tokens so a different user signing in on the
+    // same browser can never see the previous tenant's directory.
+    clearPersistentSWRCache();
     devLog('🗑️ Tokens removed from localStorage');
   },
   
@@ -234,7 +258,7 @@ authClient.interceptors.response.use(
     // Handle 403 Forbidden
     if (error.response?.status === 403) {
       console.error('🚫 Access forbidden:', error.response.data);
-      showPermissionDeniedToast();
+      showPermissionDeniedToast(error.config);
     }
     
     // Handle network errors
@@ -337,7 +361,7 @@ crmClient.interceptors.response.use(
     // Handle 403 Forbidden - CRM module not enabled
     if (error.response?.status === 403) {
       console.error('🚫 CRM access forbidden:', error.response.data);
-      showPermissionDeniedToast();
+      showPermissionDeniedToast(error.config);
     }
     
     // Handle network errors

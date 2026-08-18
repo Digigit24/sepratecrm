@@ -2,6 +2,7 @@
 import { SWRConfiguration } from 'swr';
 import { crmClient } from './client';
 import { AxiosError } from 'axios';
+import { createPersistentSWRCache } from './swrPersist';
 
 // Generic fetcher for SWR using CRM client
 export const fetcher = async <T = any>(url: string): Promise<T> => {
@@ -70,9 +71,35 @@ export const deleteFetcher = async <T = any>(url: string): Promise<T> => {
 // instead of re-hitting the API.
 export const MASTER_DATA_DEDUPE_MS = 60_000;
 
+// SWR options for the ONE canonical user-directory key
+// (`useUserDirectory` / USER_DIRECTORY_KEY). Exported from here — rather than
+// inlined in the hook — so that any raw useSWR caller cannot drift from the
+// hook's policy.
+//
+//  - dedupingInterval 60s: a table full of <UserName> cells triggers at most
+//    ONE network request.
+//  - keepPreviousData + revalidateIfStale: the localStorage snapshot
+//    (src/lib/swrPersist.ts) paints names on first frame, then one background
+//    refresh per mount once the dedupe window has elapsed.
+//  - shouldRetryOnError false: a 403 here is an expected, terminal state for
+//    accounts without directory access; retrying just burns requests.
+export const USER_DIRECTORY_SWR_OPTIONS: SWRConfiguration = {
+  revalidateOnFocus: false,
+  revalidateOnReconnect: false,
+  shouldRetryOnError: false,
+  revalidateIfStale: true,
+  keepPreviousData: true,
+  dedupingInterval: MASTER_DATA_DEDUPE_MS,
+};
+
 // Default SWR configuration
 export const swrConfig: SWRConfiguration = {
   fetcher,
+  // localStorage-backed cache. Only allowlisted, PII-light keys (currently
+  // just 'user-directory') are written to disk — see src/lib/swrPersist.ts.
+  // Gives an instant cold-start paint of owner/assignee names instead of a
+  // skeleton flash, then revalidates in the background.
+  provider: createPersistentSWRCache,
   revalidateOnFocus: false,
   // RECONNECT POLICY: no global refetch burst when the network comes back.
   // Every SWR hook keeps its cached data on reconnect; only useLeads (the

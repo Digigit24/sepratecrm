@@ -1,5 +1,5 @@
 // src/services/userService.ts
-import { authClient } from '@/lib/client';
+import { authClient, crmClient } from '@/lib/client';
 import { API_CONFIG, buildQueryString } from '@/lib/apiConfig';
 import {
   User,
@@ -24,7 +24,126 @@ import {
  * The tenant filtering is handled automatically by the backend based on the
  * authenticated user's role and tenant association.
  */
+/**
+ * Raw shape of one entry in the tenant user directory.
+ *
+ * Two backends can answer this call and their payloads differ slightly, so
+ * every field beyond `id` is optional and normalised by `useUserDirectory`:
+ *
+ *  - DigiCRM  GET /crm/users/  (preferred) — { id, email, first_name,
+ *    last_name, full_name, is_active, avatar }
+ *  - Auth svc GET /users/      (fallback)  — full `UserSerializer`, i.e.
+ *    `profile_picture` instead of `avatar` and (on older deploys) no
+ *    `full_name` at all.
+ */
+export interface DirectoryApiUser {
+  id: string;
+  email?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
+  is_active?: boolean;
+  avatar?: string | null;
+  profile_picture?: string | null;
+  roles?: Array<{ name?: string } | string> | null;
+}
+
+interface DirectoryPage {
+  count?: number;
+  next?: string | null;
+  results?: DirectoryApiUser[];
+}
+
+/** Thrown when BOTH directory endpoints answer 403. Never toasted. */
+export class UserDirectoryForbiddenError extends Error {
+  readonly isForbidden = true;
+  constructor(message = 'User directory is not accessible for this account') {
+    super(message);
+    this.name = 'UserDirectoryForbiddenError';
+  }
+}
+
+// Page through defensively: the auth service historically ignored `page_size`
+// and hard-capped responses at 20 rows, which is the single biggest cause of
+// "name not found -> shows UUID". Bounded so a misbehaving backend can never
+// spin us forever.
+const DIRECTORY_PAGE_SIZE = 500;
+const DIRECTORY_MAX_PAGES = 20;
+const DIRECTORY_MAX_USERS = 2500;
+
 class UserService {
+  // ==================== USER DIRECTORY ====================
+
+  /**
+   * Fetch the full tenant user directory for display/lookup purposes.
+   *
+   * Deliberately does NOT filter by `is_active`: a deactivated user still has
+   * to be resolvable for DISPLAY (they may own historical leads). Filtering
+   * for *assignment* pickers happens client-side.
+   *
+   * Tries the DigiCRM tenant-scoped proxy first and falls back to the auth
+   * service so the app keeps working against a backend that has not shipped
+   * `/crm/users/` yet. Toasts are suppressed on both calls.
+   */
+  async getUserDirectory(): Promise<DirectoryApiUser[]> {
+    try {
+      return await this.fetchDirectoryPages(
+        (page) =>
+          crmClient
+            .get<DirectoryPage>(API_CONFIG.CRM.TENANT_USERS, {
+              params: { page, page_size: DIRECTORY_PAGE_SIZE },
+              suppressErrorToast: true,
+            })
+            .then((r) => r.data)
+      );
+    } catch (crmError: any) {
+      const status = crmError?.response?.status;
+      // 401 means the session is dead — the interceptor already handles it;
+      // don't double up with a fallback request.
+      if (status === 401) throw crmError;
+
+      try {
+        return await this.fetchDirectoryPages(
+          (page) =>
+            authClient
+              .get<DirectoryPage>(API_CONFIG.AUTH.USERS.LIST, {
+                params: { page, page_size: DIRECTORY_PAGE_SIZE },
+                suppressErrorToast: true,
+              })
+              .then((r) => r.data)
+        );
+      } catch (authError: any) {
+        if (status === 403 || authError?.response?.status === 403) {
+          throw new UserDirectoryForbiddenError();
+        }
+        throw authError;
+      }
+    }
+  }
+
+  private async fetchDirectoryPages(
+    load: (page: number) => Promise<DirectoryPage>
+  ): Promise<DirectoryApiUser[]> {
+    const all: DirectoryApiUser[] = [];
+
+    for (let page = 1; page <= DIRECTORY_MAX_PAGES; page += 1) {
+      const data = await load(page);
+      const results = Array.isArray(data?.results)
+        ? data.results
+        : // Some deployments return a bare array.
+          (Array.isArray(data) ? (data as DirectoryApiUser[]) : []);
+
+      all.push(...results);
+
+      if (results.length === 0) break;
+      if (!data?.next) break;
+      if (typeof data?.count === 'number' && all.length >= data.count) break;
+      if (all.length >= DIRECTORY_MAX_USERS) break;
+    }
+
+    return all;
+  }
+
   // ==================== USERS ====================
 
   // Get users with optional query parameters

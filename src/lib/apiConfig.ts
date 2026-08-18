@@ -436,6 +436,11 @@ export const API_CONFIG = {
 
   // ==================== CRM ====================
   CRM: {
+    // Tenant user directory (DigiCRM proxy to the auth service).
+    // Returns { count, results: [{ id, email, first_name, last_name,
+    // full_name, is_active, avatar }] } scoped to the caller's tenant.
+    // Consumed exclusively by useUserDirectory().
+    TENANT_USERS: '/crm/users/',
     // Lead endpoints (note: no /crm/ prefix since base URL already includes it)
     LEADS: '/crm/leads/',
     LEAD_DETAIL: '/crm/leads/:id/',
