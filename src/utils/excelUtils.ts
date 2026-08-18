@@ -55,11 +55,25 @@ const parseExcelDate = (value: any): string | undefined => {
 /**
  * Export leads to Excel file, including any active custom field configurations.
  */
+/**
+ * @param userNameById  Optional UUID -> display-name map (pass
+ *   `useUserDirectory().byId`). Without it the export still writes the raw
+ *   UUID columns, but the human-readable Owner / Assigned To Name columns
+ *   come out blank. excelUtils is not a React module, hence the parameter.
+ */
 export const exportLeadsToExcel = (
   leads: Lead[],
   customFieldConfigs: LeadFieldConfiguration[] = [],
-  filename: string = `leads_export_${format(new Date(), 'yyyy-MM-dd_HHmmss')}.xlsx`
+  filename: string = `leads_export_${format(new Date(), 'yyyy-MM-dd_HHmmss')}.xlsx`,
+  userNameById?: Map<string, { name: string }> | Map<string, string>
 ) => {
+  const nameOf = (id?: string | null): string => {
+    if (!id || !userNameById) return '';
+    const hit = userNameById.get(id) as { name?: string } | string | undefined;
+    if (!hit) return '';
+    return typeof hit === 'string' ? hit : hit.name || '';
+  };
+
   // Prepare data for Excel
   const excelData = leads.map((lead) => {
     const row: Record<string, any> = {
@@ -76,7 +90,9 @@ export const exportLeadsToExcel = (
       'Value Currency': lead.value_currency || '',
       'Source': lead.source || '',
       'Owner User ID': lead.owner_user_id || '',
+      'Owner': nameOf(lead.owner_user_id),
       'Assigned To': lead.assigned_to || '',
+      'Assigned To Name': nameOf(lead.assigned_to),
       'Notes': lead.notes || '',
       'Address Line 1': lead.address_line1 || '',
       'Address Line 2': lead.address_line2 || '',
@@ -127,7 +143,9 @@ export const exportLeadsToExcel = (
     { wch: 10 }, // Value Currency
     { wch: 15 }, // Source
     { wch: 30 }, // Owner User ID
+    { wch: 22 }, // Owner
     { wch: 30 }, // Assigned To
+    { wch: 22 }, // Assigned To Name
     { wch: 30 }, // Notes
     { wch: 20 }, // Address Line 1
     { wch: 20 }, // Address Line 2
