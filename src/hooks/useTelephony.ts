@@ -1,7 +1,11 @@
 // src/hooks/useTelephony.ts
 import useSWR, { mutate as swrMutate } from 'swr';
 import { toast } from 'sonner';
-import { telephonyService, TelephonyApiError } from '@/services/telephonyService';
+import {
+  telephonyService,
+  TelephonyApiError,
+  isTelephonyEndpointUnavailable,
+} from '@/services/telephonyService';
 import {
   Direction,
   CallType,
@@ -30,6 +34,11 @@ import type {
   BreakQueryParams,
   CallbacksQueryParams,
   WebRTCConfig,
+  CallingProfile,
+  CallingProfileCreateData,
+  CallingProfileUpdateData,
+  CallingProfileVerifyResponse,
+  CallingProfileAssignment,
   PaginatedResponse,
 } from '@/types/telephony.types';
 import {
@@ -46,6 +55,8 @@ const CALLER_IDS_KEY = 'telephony:caller-ids';
 const BREAK_KEY = 'telephony:break';
 const CALLBACKS_KEY = 'telephony:callbacks';
 const WEBRTC_CONFIG_KEY = 'telephony:webrtc-config';
+export const CALLING_PROFILES_KEY = 'telephony:calling-profiles';
+export const CALLING_PROFILE_ASSIGNMENTS_KEY = 'telephony:calling-profile-assignments';
 
 /** Matches the SWR key useLeadCalls builds — page 1 only (see below for why). */
 export const leadCallsKey = (leadId: number, pageSize = 10) =>
@@ -181,6 +192,31 @@ const READ_OPTIONS = {
   shouldRetryOnError: (err: unknown) =>
     !(err instanceof TelephonyApiError && err.isNotConfigured),
 } as const;
+
+/**
+ * Calling-profile reads additionally must not retry a backend that has not
+ * shipped the endpoints (404/501/502/503) — that is a stable state for the
+ * whole session, not a transient failure.
+ */
+const CALLING_PROFILE_READ_OPTIONS = {
+  ...READ_OPTIONS,
+  shouldRetryOnError: (err: unknown) =>
+    !(err instanceof TelephonyApiError && err.isNotConfigured) &&
+    !isTelephonyEndpointUnavailable(err),
+} as const;
+
+/**
+ * Same as `toastTelephonyError`, except "the backend does not have this yet"
+ * is an informational state rather than a failure. Keeps the admin's first
+ * visit to the tab calm while the Django side is still being built.
+ */
+export const toastCallingProfileError = (error: unknown, fallback: string) => {
+  if (isTelephonyEndpointUnavailable(error)) {
+    toast.info('Calling profiles are not available on this server yet.');
+    return;
+  }
+  toastTelephonyError(error, fallback);
+};
 
 // ==================== "NOT CONFIGURED" SESSION FLAG ====================
 // A 424 from /telephony/webrtc-config/ means TeleCMI isn't configured for the
@@ -349,6 +385,117 @@ export const useTelephony = () => {
       toast.success(res.detail || 'Token refreshed successfully.');
     } catch (e) {
       toastTelephonyError(e, 'Failed to refresh token');
+      throw e;
+    }
+  };
+
+  // ---------- CALLING PROFILES (admin) ----------
+  //
+  // The endpoints may not exist on this backend yet. Reads therefore never
+  // retry a 404/501/502/503 (the component renders a calm "not available yet"
+  // panel from the error) and writes downgrade the same statuses to an info
+  // toast instead of a red failure.
+
+  const useCallingProfiles = (enabled = true) =>
+    useSWR<CallingProfile[]>(
+      enabled ? CALLING_PROFILES_KEY : null,
+      () => telephonyService.getCallingProfiles(),
+      CALLING_PROFILE_READ_OPTIONS,
+    );
+
+  const useCallingProfileAssignments = (enabled = true) =>
+    useSWR<CallingProfileAssignment[]>(
+      enabled ? CALLING_PROFILE_ASSIGNMENTS_KEY : null,
+      () => telephonyService.getCallingProfileAssignments(),
+      CALLING_PROFILE_READ_OPTIONS,
+    );
+
+  const createCallingProfile = async (
+    data: CallingProfileCreateData,
+  ): Promise<CallingProfile> => {
+    try {
+      const result = await telephonyService.createCallingProfile(data);
+      clearTelephonyNotConfigured();
+      void swrMutate(WEBRTC_CONFIG_KEY);
+      toast.success(`Calling profile “${result.label || data.label}” saved`);
+      return result;
+    } catch (e) {
+      toastCallingProfileError(e, 'Failed to save the calling profile');
+      throw e;
+    }
+  };
+
+  const updateCallingProfile = async (
+    id: number,
+    data: CallingProfileUpdateData,
+  ): Promise<CallingProfile> => {
+    try {
+      const result = await telephonyService.updateCallingProfile(id, data);
+      clearTelephonyNotConfigured();
+      void swrMutate(WEBRTC_CONFIG_KEY);
+      toast.success('Calling profile updated');
+      return result;
+    } catch (e) {
+      toastCallingProfileError(e, 'Failed to update the calling profile');
+      throw e;
+    }
+  };
+
+  const deleteCallingProfile = async (id: number): Promise<void> => {
+    try {
+      await telephonyService.deleteCallingProfile(id);
+      void swrMutate(CALLING_PROFILE_ASSIGNMENTS_KEY);
+      toast.success('Calling profile deleted');
+    } catch (e) {
+      toastCallingProfileError(e, 'Failed to delete the calling profile');
+      throw e;
+    }
+  };
+
+  /**
+   * Verify never throws for a bad credential — a rejected extension is a normal
+   * `{ok:false, error}` result the caller renders inline. It only throws when
+   * the request itself failed, and even then the caller keeps the saved profile.
+   */
+  const verifyCallingProfile = async (id: number): Promise<CallingProfileVerifyResponse> => {
+    try {
+      return await telephonyService.verifyCallingProfile(id);
+    } catch (e) {
+      if (isTelephonyEndpointUnavailable(e)) {
+        return { ok: false, error: 'Verification is not available on this server yet.' };
+      }
+      return {
+        ok: false,
+        error:
+          e instanceof TelephonyApiError
+            ? e.backendError || e.message
+            : 'Could not reach TeleCMI to verify this extension.',
+      };
+    }
+  };
+
+  const assignCallingProfile = async (id: number, userId: string): Promise<void> => {
+    try {
+      await telephonyService.assignCallingProfile(id, userId);
+      clearTelephonyNotConfigured();
+      void swrMutate(CALLING_PROFILE_ASSIGNMENTS_KEY);
+      void swrMutate(WEBRTC_CONFIG_KEY);
+      toast.success('Calling profile assigned');
+    } catch (e) {
+      toastCallingProfileError(e, 'Failed to assign the calling profile');
+      throw e;
+    }
+  };
+
+  const unassignCallingProfile = async (id: number, userId: string): Promise<void> => {
+    try {
+      await telephonyService.unassignCallingProfile(id, userId);
+      clearTelephonyNotConfigured();
+      void swrMutate(CALLING_PROFILE_ASSIGNMENTS_KEY);
+      void swrMutate(WEBRTC_CONFIG_KEY);
+      toast.success('Calling profile removed from user');
+    } catch (e) {
+      toastCallingProfileError(e, 'Failed to remove the calling profile');
       throw e;
     }
   };
@@ -527,7 +674,15 @@ export const useTelephony = () => {
     useBreaks,
     useCallbacks,
     useWebRTCConfig,
+    useCallingProfiles,
+    useCallingProfileAssignments,
     // mutations
+    createCallingProfile,
+    updateCallingProfile,
+    deleteCallingProfile,
+    verifyCallingProfile,
+    assignCallingProfile,
+    unassignCallingProfile,
     createCredential,
     updateCredential,
     deleteCredential,
