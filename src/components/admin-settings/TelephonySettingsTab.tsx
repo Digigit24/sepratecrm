@@ -42,6 +42,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useTelephony } from '@/hooks/useTelephony';
+import { CallingProfilesSection } from '@/components/admin-settings/CallingProfilesCard';
 import { API_CONFIG } from '@/lib/apiConfig';
 import {
   SbcRegion,
@@ -333,6 +334,11 @@ export const TelephonySettingsTab: React.FC<TelephonySettingsTabProps> = ({ tena
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Calling profiles: softphone status + shared extensions + who
+          calls on what. Self-gating (module + admin permission), so non-admins
+          who can still reach this tab see nothing extra. ─────────────────── */}
+      <CallingProfilesSection />
 
       {/* ── Webhook URLs card ───────────────────────────────────── */}
       <WebhookUrlsCard tenantId={tenantId} />
