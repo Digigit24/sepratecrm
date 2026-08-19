@@ -4,8 +4,10 @@
 // (API doc §15), and the call-control actions. Registers a dispatcher with the
 // telephony controller so placeCall() can prefer in-browser calls.
 //
-// SBC password is kept in memory only (never localStorage, never sent to our
-// backend). On reload the user re-enters it via the softphone login form.
+// The SBC credential is kept in memory ONLY — never localStorage/sessionStorage,
+// never logged, never in a URL. When the backend supplies it (webrtc-config
+// `auth`) we log in automatically; when it does not, the user types it into the
+// softphone login form and it still only ever lives in the piopiy.login() call.
 
 import React, {
   createContext,
@@ -28,6 +30,11 @@ import {
 import { useTelephonyLiveEvents, type TelephonyLiveEvent } from '@/hooks/useTelephonyLiveEvents';
 import { TelephonyApiError } from '@/services/telephonyService';
 import { setTelephonyDispatcher } from '@/lib/telephonyController';
+import { telephonyNotConfiguredMessage } from '@/types/telephony.types';
+import type {
+  TelephonyNotConfiguredReason,
+  WebRTCConfigSource,
+} from '@/types/telephony.types';
 
 export type PhoneStatus =
   | 'loading' // resolving webrtc-config
@@ -61,6 +68,19 @@ export interface TelephonyPhoneContextValue {
    * calling controls with "Telephony not configured".
    */
   telephonyConfigurationError: string | null;
+  /**
+   * Which of the two expected 424 states we are in, when status is
+   * 'not-configured'. `null` means "not configured, reason unknown" (older
+   * backend) or a non-424 failure — see `telephonyConfigurationError`.
+   */
+  notConfiguredReason: TelephonyNotConfiguredReason | null;
+  /**
+   * 'tenant' => connected as the workspace's shared extension rather than a
+   * per-user one. Surface this quietly so the user knows who they call as.
+   */
+  configSource: WebRTCConfigSource | null;
+  /** True when the server supplies the SBC credential (no password prompt). */
+  hasServerAuth: boolean;
   telecmiUserId: string | null;
   sbcHost: string | null;
   defaultCallerId: string | null;
@@ -76,6 +96,15 @@ export interface TelephonyPhoneContextValue {
   // actions
   login: (password: string) => void;
   logout: () => void;
+  /**
+   * Explicit, event-driven refresh: tear down any live SDK session, re-fetch
+   * webrtc-config, and re-login with the new values. Call it after telephony
+   * settings are saved — no page reload, no re-login required.
+   *
+   * This is deliberately imperative: the provider still fires at most one
+   * webrtc-config request per mount on its own. It never polls.
+   */
+  reconnect: () => Promise<void>;
   dial: (params: { toNumber: string; leadId?: number }) => void;
   answer: () => void;
   reject: () => void;
@@ -92,6 +121,12 @@ export interface TelephonyPhoneContextValue {
 const TelephonyPhoneContext = createContext<TelephonyPhoneContextValue | undefined>(undefined);
 
 const MAX_NOT_CONFIGURED_AUTO_RECHECKS = 4;
+
+/**
+ * If the SBC never answers our login, drop back to a usable state instead of
+ * spinning forever. A failed reconnect must always leave a retry path.
+ */
+const LOGIN_TIMEOUT_MS = 20_000;
 
 export const useTelephonyPhone = (): TelephonyPhoneContextValue => {
   const ctx = useContext(TelephonyPhoneContext);
@@ -128,6 +163,14 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
   } =
     useWebRTCConfig(!skipConfigFetch);
 
+  // True only while an explicit reconnect() is re-fetching. It freezes the
+  // "config -> status" effect so a stale `config` (SWR keeps the previous value
+  // during revalidation) cannot trigger a login with the OLD credential.
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  // Armed once per mount and once per reconnect(). Guarantees exactly one
+  // automatic login attempt per config resolution — never a retry loop.
+  const [autoLoginArmed, setAutoLoginArmed] = useState(true);
+
   const piopiyRef = useRef<PIOPIY | null>(null);
   const [status, setStatus] = useState<PhoneStatus>('loading');
   const [currentCall, setCurrentCall] = useState<CallMeta | null>(null);
@@ -143,6 +186,11 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
   const pendingDialRef = useRef<CallMeta | null>(null);
   const currentCallRef = useRef<CallMeta | null>(null);
   const notConfiguredRetriesRef = useRef(0);
+  const reconnectSeqRef = useRef(0);
+  // Kept in a ref so reconnect() never has to be re-created when SWR swaps its
+  // bound mutate identity (which would churn every consumer of the context).
+  const recheckConfigRef = useRef(recheckConfig);
+  recheckConfigRef.current = recheckConfig;
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
@@ -162,6 +210,11 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   // ── resolve config -> initial status ──
   useEffect(() => {
+    // While an explicit reconnect is in flight, `config` may still be the
+    // pre-save value. Don't act on it — reconnect() re-runs this effect by
+    // clearing isReconnecting once the fresh value has landed.
+    if (isReconnecting) return;
+
     if (skipConfigFetch) {
       // Known not-configured from a recent 424 — zero requests this mount.
       setStatus('not-configured');
@@ -177,16 +230,22 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
       // Expected 424: handled silently (no toast, no retry — see READ_OPTIONS
       // and the 424-aware axios logging in lib/client.ts). Remember it so
       // remounts/navigation don't re-request for the rest of the session.
+      // `notConfiguredReason` below decides which of the two states we render.
       markTelephonyNotConfigured();
       setStatus('not-configured');
+    } else if (configError) {
+      // Any other failure (500, network, CORS…). Never leave the widget on a
+      // permanent spinner — land somewhere the user can retry from.
+      setStatus((s) => (s === 'loading' ? 'not-configured' : s));
     }
-  }, [skipConfigFetch, config, configError]);
+  }, [isReconnecting, skipConfigFetch, config, configError]);
 
   // A 424 can be transient immediately after login. Re-enable a skipped fetch,
   // or revalidate a fetch that returned 424, after a short quiet period. Stop
   // after a small number of consecutive 424s for tenants that genuinely do not
   // have TeleCMI configured.
   useEffect(() => {
+    if (isReconnecting) return;
     const isNotConfiguredError =
       configError instanceof TelephonyApiError && configError.isNotConfigured;
     if (!skipConfigFetch && !isNotConfiguredError) return;
@@ -204,7 +263,7 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
     }, TELEPHONY_NOT_CONFIGURED_RECHECK_MS);
 
     return () => window.clearTimeout(timer);
-  }, [skipConfigFetch, configError, recheckConfig]);
+  }, [isReconnecting, skipConfigFetch, configError, recheckConfig]);
 
   // ── create the PIOPIY instance + bind events once config is available ──
   useEffect(() => {
@@ -225,7 +284,9 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
       toast.error(`Softphone login failed (code ${code ?? '?'})`);
     });
     piopiy.on('logout', () => {
-      setStatus('needs-password');
+      // Don't stomp on a reconnect that has already moved us to 'loading' —
+      // teardown calls logout() on purpose before re-logging-in.
+      setStatus((s) => (s === 'loading' || s === 'not-configured' ? s : 'needs-password'));
       resetCall();
     });
 
@@ -300,21 +361,68 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
   const live = useTelephonyLiveEvents({ onEvent: handleLiveEvent });
 
   // ── actions ──
+  //
+  // `secret` is either the server-supplied auth.value (kind 'token' or
+  // 'password' — piopiy.login() takes both in the same slot) or something the
+  // user typed. Either way it lives in this call only: never stored, never
+  // logged, never sent anywhere else.
   const login = useCallback(
-    (password: string) => {
+    (secret: string) => {
       const piopiy = piopiyRef.current;
-      if (!piopiy || !config) return;
+      if (!piopiy || !config || !secret) return;
       setStatus('connecting');
-      piopiy.login(config.telecmi_user_id, password, config.sbc_host); // password stays in this call only
+      piopiy.login(config.telecmi_user_id, secret, config.sbc_host); // secret stays in this call only
     },
     [config],
   );
 
-  const logout = useCallback(() => {
-    piopiyRef.current?.logout();
-    setStatus('needs-password');
+  /**
+   * Drop any live SDK session so we never stack two registrations on the SBC.
+   * Safe to call when we were never logged in — the SDK may throw in that case.
+   */
+  const teardownSession = useCallback(() => {
+    try {
+      piopiyRef.current?.logout();
+    } catch {
+      /* not logged in — nothing to tear down */
+    }
     resetCall();
   }, [resetCall]);
+
+  const logout = useCallback(() => {
+    setAutoLoginArmed(false); // an explicit logout must not be undone by auto-login
+    teardownSession();
+    setStatus('needs-password');
+  }, [teardownSession]);
+
+  /**
+   * Explicit refresh (see the context docs). Tears the session down, re-fetches
+   * webrtc-config, then re-arms exactly one automatic login with the new
+   * values. Never throws — a failed reconnect resolves into a retryable state.
+   */
+  const reconnect = useCallback(async () => {
+    const seq = ++reconnectSeqRef.current;
+
+    teardownSession();
+    clearTelephonyNotConfigured();
+    notConfiguredRetriesRef.current = 0;
+    setIsReconnecting(true);
+    setAutoLoginArmed(true);
+    setStatus('loading');
+    // If a previous 424 had unbound the SWR key, re-bind it; SWR then fetches
+    // on the next render. If it is already bound, the mutate() below refetches.
+    setSkipConfigFetch(false);
+
+    try {
+      await recheckConfigRef.current?.();
+    } catch {
+      // The error is surfaced through SWR's `error` (configError) — the
+      // config effect turns it into a rendered state with a retry path.
+    } finally {
+      // Ignore stale reconnects: only the newest one may release the freeze.
+      if (reconnectSeqRef.current === seq) setIsReconnecting(false);
+    }
+  }, [teardownSession]);
 
   const dial = useCallback(({ toNumber, leadId }: { toNumber: string; leadId?: number }) => {
     const piopiy = piopiyRef.current;
@@ -364,6 +472,32 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
   }, []);
   const merge = useCallback(() => piopiyRef.current?.merge(), []);
 
+  // ── automatic login when the server supplies the credential ──
+  // Both auth kinds ('token' and 'password') go into the same piopiy.login()
+  // slot; the SDK does not care which it is. Armed exactly once per mount and
+  // once per reconnect(), so a rejected credential never becomes a retry loop —
+  // the user gets an explicit Retry instead.
+  useEffect(() => {
+    if (!autoLoginArmed || isReconnecting) return;
+    if (status !== 'needs-password') return;
+    const secret = config?.auth?.value;
+    if (!secret) return; // backend has not shipped `auth` — fall back to the login form
+    setAutoLoginArmed(false);
+    login(secret);
+  }, [autoLoginArmed, isReconnecting, status, config, login]);
+
+  // ── login watchdog ──
+  // The SBC can silently never answer (bad host, blocked WSS). Without this the
+  // widget sits on 'connecting' forever with no way back.
+  useEffect(() => {
+    if (status !== 'connecting') return;
+    const timer = window.setTimeout(() => {
+      setStatus((s) => (s === 'connecting' ? 'needs-password' : s));
+      toast.error('Softphone could not reach the SBC — try connecting again.');
+    }, LOGIN_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [status]);
+
   // ── register dispatcher for placeCall() (non-React callers) ──
   useEffect(() => {
     setTelephonyDispatcher({
@@ -378,12 +512,19 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
   }, [dial]);
 
   // ── derived configuration state (exposed for widgets/pages) ──
-  const isTelephonyConfigured = !!config;
-  const isTelephonyLoading = !skipConfigFetch && configIsLoading;
+  const notConfiguredError =
+    configError instanceof TelephonyApiError && configError.isNotConfigured ? configError : null;
+  // A 424 without a recognised `reason` (older backend) stays null so the UI
+  // renders the generic — still non-alarming — copy.
+  const notConfiguredReason: TelephonyNotConfiguredReason | null =
+    notConfiguredError?.notConfiguredReason ?? null;
+
+  const isTelephonyConfigured = !!config && status !== 'not-configured';
+  const isTelephonyLoading = (!skipConfigFetch && configIsLoading) || isReconnecting;
   const telephonyConfigurationError = skipConfigFetch
     ? 'Telephony not configured'
-    : configError instanceof TelephonyApiError && configError.isNotConfigured
-      ? 'Telephony not configured'
+    : notConfiguredError
+      ? telephonyNotConfiguredMessage(notConfiguredReason)
       : configError instanceof Error
         ? configError.message
         : null;
@@ -393,6 +534,9 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
     isTelephonyConfigured,
     isTelephonyLoading,
     telephonyConfigurationError,
+    notConfiguredReason,
+    configSource: config?.source ?? null,
+    hasServerAuth: !!config?.auth?.value,
     telecmiUserId: config?.telecmi_user_id ?? null,
     sbcHost: config?.sbc_host ?? null,
     defaultCallerId: config?.default_caller_id ?? null,
@@ -406,6 +550,7 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
     liveConnected: live.connected,
     login,
     logout,
+    reconnect,
     dial,
     answer,
     reject,
