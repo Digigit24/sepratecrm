@@ -30,6 +30,11 @@ import type {
   WebRTCAuth,
   WebRTCConfigSource,
   TelephonyNotConfiguredReason,
+  CallingProfile,
+  CallingProfileCreateData,
+  CallingProfileUpdateData,
+  CallingProfileVerifyResponse,
+  CallingProfileAssignment,
   PaginatedResponse,
   TelephonyAnalyticsDashboard,
   AgentDailyStatsResponse,
@@ -42,7 +47,10 @@ import type {
   ZataStorageCredentialInput,
   RecordingAccessResponse,
 } from '@/types/telephony.types';
-import { TELEPHONY_NOT_CONFIGURED_REASONS } from '@/types/telephony.types';
+import {
+  TELEPHONY_NOT_CONFIGURED_REASONS,
+  WEBRTC_CONFIG_SOURCES,
+} from '@/types/telephony.types';
 
 const T = API_CONFIG.CRM.TELEPHONY;
 
@@ -124,6 +132,32 @@ export class TelephonyApiError extends Error {
 }
 
 /**
+ * "This endpoint is not deployed on this backend yet."
+ *
+ * Calling profiles are being built on the Django side in parallel with this UI,
+ * so every read/write against them has to survive a backend that simply does not
+ * route the URL. Mirrors `isComposioUnavailable` in composioService.ts — a 404 /
+ * 501 / 502 / 503 must render as a calm "not available yet" panel, never a white
+ * screen and never a red crash toast.
+ *
+ * Deliberately NOT used for `verify/`: there a 502 is a real upstream TeleCMI
+ * rejection and the caller wants to show the reason.
+ */
+export const isTelephonyEndpointUnavailable = (error: unknown): boolean => {
+  const status = error instanceof TelephonyApiError ? error.status : undefined;
+  return status === 404 || status === 501 || status === 502 || status === 503;
+};
+
+/**
+ * Calling-profile lists come back either as a bare array (early backend builds)
+ * or as a DRF page. Normalise so callers only ever handle one shape.
+ */
+const asArray = <T>(data: T[] | PaginatedResponse<T> | null | undefined): T[] => {
+  if (Array.isArray(data)) return data;
+  return Array.isArray(data?.results) ? data.results : [];
+};
+
+/**
  * Defensively shape the webrtc-config payload.
  *
  * `auth` and `source` are newer fields; a backend that has not shipped them yet
@@ -145,7 +179,10 @@ const normalizeWebRTCConfig = (raw: unknown): WebRTCConfig => {
 
   const rawSource = src.source;
   const source: WebRTCConfigSource | undefined =
-    rawSource === 'user' || rawSource === 'tenant' ? rawSource : undefined;
+    typeof rawSource === 'string' &&
+    (WEBRTC_CONFIG_SOURCES as readonly string[]).includes(rawSource)
+      ? (rawSource as WebRTCConfigSource)
+      : undefined;
 
   return {
     telecmi_user_id: typeof src.telecmi_user_id === 'string' ? src.telecmi_user_id : '',
@@ -313,6 +350,107 @@ class TelephonyService {
       return res.data;
     } catch (e) {
       return wrap(e);
+    }
+  }
+
+  // ==================== CALLING PROFILES (admin) ====================
+  //
+  // `password` is write-only end to end: it goes out on create/update and is
+  // never present on any response, so nothing here can leak it back to the UI.
+
+  async getCallingProfiles(): Promise<CallingProfile[]> {
+    try {
+      const res = await crmClient.get<CallingProfile[] | PaginatedResponse<CallingProfile>>(
+        T.CALLING_PROFILES,
+      );
+      return asArray(res.data);
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  async createCallingProfile(data: CallingProfileCreateData): Promise<CallingProfile> {
+    try {
+      const res = await crmClient.post<CallingProfile>(T.CALLING_PROFILES, data);
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  async updateCallingProfile(
+    id: number,
+    data: CallingProfileUpdateData,
+  ): Promise<CallingProfile> {
+    try {
+      const res = await crmClient.patch<CallingProfile>(
+        T.CALLING_PROFILE_DETAIL.replace(':id', String(id)),
+        data,
+      );
+      return res.data;
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  async deleteCallingProfile(id: number): Promise<void> {
+    try {
+      await crmClient.delete(T.CALLING_PROFILE_DETAIL.replace(':id', String(id)));
+    } catch (e) {
+      wrap(e);
+    }
+  }
+
+  /**
+   * Ask the backend to log the stored credential into the SBC.
+   * A rejected credential is a 200 with `{ok: false, error}` — NOT an exception —
+   * so saving is never blocked on a failing extension.
+   */
+  async verifyCallingProfile(id: number): Promise<CallingProfileVerifyResponse> {
+    try {
+      const res = await crmClient.post<CallingProfileVerifyResponse>(
+        T.CALLING_PROFILE_VERIFY.replace(':id', String(id)),
+        {},
+      );
+      const body = (res.data ?? {}) as Partial<CallingProfileVerifyResponse>;
+      return {
+        ok: body.ok === true,
+        error: typeof body.error === 'string' && body.error ? body.error : null,
+      };
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  async getCallingProfileAssignments(): Promise<CallingProfileAssignment[]> {
+    try {
+      const res = await crmClient.get<
+        CallingProfileAssignment[] | PaginatedResponse<CallingProfileAssignment>
+      >(T.CALLING_PROFILE_ASSIGNMENTS);
+      return asArray(res.data);
+    } catch (e) {
+      return wrap(e);
+    }
+  }
+
+  async assignCallingProfile(id: number, userId: string): Promise<void> {
+    try {
+      await crmClient.post(T.CALLING_PROFILE_ASSIGN.replace(':id', String(id)), {
+        user_id: userId,
+      });
+    } catch (e) {
+      wrap(e);
+    }
+  }
+
+  /** DELETE with a body — axios needs it under `data`, not as a second arg. */
+  async unassignCallingProfile(id: number, userId: string): Promise<void> {
+    try {
+      await crmClient.delete(T.CALLING_PROFILE_ASSIGN.replace(':id', String(id)), {
+        data: { user_id: userId },
+      });
+    } catch (e) {
+      wrap(e);
     }
   }
 
