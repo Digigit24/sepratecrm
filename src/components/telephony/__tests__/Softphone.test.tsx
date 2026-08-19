@@ -169,8 +169,35 @@ describe('Softphone — tenant-default identity', () => {
     expect(note).toHaveTextContent('103_1111112');
   });
 
+  // The backend split the old single 'tenant' value into 'tenant_profile' and
+  // 'tenant_default'. A `!== 'tenant'` comparison would silently stop warning
+  // people that they are sharing an extension — the failure mode is invisible.
+  it.each(['tenant_profile', 'tenant_default', 'tenant'] as const)(
+    'notes the shared extension for source %s',
+    (configSource) => {
+      h.phone = basePhone({
+        status: 'ready',
+        isTelephonyConfigured: true,
+        configSource,
+        telecmiUserId: '103_1111112',
+      });
+      render(<Softphone />);
+      expect(screen.getByTestId('softphone-tenant-identity-note')).toBeInTheDocument();
+    },
+  );
+
   it('says nothing for a per-user extension', () => {
     h.phone = basePhone({ status: 'ready', isTelephonyConfigured: true, configSource: 'user' });
+    render(<Softphone />);
+    expect(screen.queryByTestId('softphone-tenant-identity-note')).toBeNull();
+  });
+
+  it('says nothing when an admin assigned this user their own profile', () => {
+    h.phone = basePhone({
+      status: 'ready',
+      isTelephonyConfigured: true,
+      configSource: 'assigned_profile',
+    });
     render(<Softphone />);
     expect(screen.queryByTestId('softphone-tenant-identity-note')).toBeNull();
   });

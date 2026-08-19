@@ -26,7 +26,10 @@ import {
 import { cn } from '@/lib/utils';
 import { useTelephonyPhone, type PhoneStatus } from '@/context/TelephonyProvider';
 import { useAuth } from '@/hooks/useAuth';
-import { TELEPHONY_NOT_CONFIGURED_COPY } from '@/types/telephony.types';
+import {
+  TELEPHONY_NOT_CONFIGURED_COPY,
+  isSharedTelephonyIdentity,
+} from '@/types/telephony.types';
 import { SoftphoneLeadContext } from './SoftphoneLeadContext';
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -201,10 +204,17 @@ const NotConfigured: React.FC<{ navigate: (to: string) => void }> = ({ navigate 
   );
 };
 
-/** Quiet note: this session is on the workspace's shared extension. */
+/**
+ * Quiet note: this session is on the workspace's shared extension.
+ *
+ * Covers every shared source — 'tenant_profile', 'tenant_default' and the
+ * deprecated 'tenant' alias. Comparing against a single literal here silently
+ * stopped firing the moment the backend split the value, which is exactly the
+ * kind of drift `isSharedTelephonyIdentity` exists to prevent.
+ */
 const TenantIdentityNote: React.FC = () => {
   const phone = useTelephonyPhone();
-  if (phone.configSource !== 'tenant') return null;
+  if (!isSharedTelephonyIdentity(phone.configSource)) return null;
   return (
     <p
       data-testid="softphone-tenant-identity-note"
