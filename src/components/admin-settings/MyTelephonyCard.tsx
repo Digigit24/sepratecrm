@@ -21,9 +21,11 @@ import {
   Pencil,
   CheckCircle2,
   AlertTriangle,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useTelephony } from '@/hooks/useTelephony';
+import { TELEPHONY_NOT_CONFIGURED_COPY } from '@/types/telephony.types';
 import { useTelephonyPhone } from '@/context/TelephonyProvider';
 import type {
   TeleCMIAgentCreateData,
@@ -33,13 +35,29 @@ import type {
 const TELEPHONY_MODULE = 'telephony';
 const PASSWORD_PLACEHOLDER = '•••• set';
 
+/**
+ * Module gate. TelephonyProvider is only mounted when the telephony module is
+ * enabled (TelephonyShell in App.tsx), so useTelephonyPhone() would throw here
+ * otherwise — the guard has to sit in front of every telephony hook, which
+ * means in front of the component that calls them.
+ */
 export const MyTelephonyCard: React.FC = () => {
+  const { hasModuleAccess } = useAuth();
+  if (!hasModuleAccess(TELEPHONY_MODULE)) return null;
+  return <MyTelephonyCardBody />;
+};
+
+const MyTelephonyCardBody: React.FC = () => {
   const { user, hasModuleAccess } = useAuth();
   const userId = user?.id ?? undefined;
 
   const { useMyAgent, createAgent, updateAgent, refreshToken } = useTelephony();
   const { agent, isLoading, mutate } = useMyAgent(userId);
   const hasAgent = !!agent;
+
+  // The provider owns webrtc-config + the SDK session. Saving here must push it
+  // to re-resolve and re-login immediately — no page reload, no re-login.
+  const { reconnect } = useTelephonyPhone();
 
   // ---------- form state ----------
   const [telecmiUserId, setTelecmiUserId] = useState('');
@@ -58,9 +76,6 @@ export const MyTelephonyCard: React.FC = () => {
       setIsEditing(true); // no record yet → start in entry mode
     }
   }, [agent]);
-
-  // Hide the card entirely when the telephony module is not enabled.
-  if (!hasModuleAccess(TELEPHONY_MODULE)) return null;
 
   // ---------- save (create or update) ----------
   const handleSave = async () => {
@@ -95,6 +110,9 @@ export const MyTelephonyCard: React.FC = () => {
       setPassword('');
       setIsEditing(false);
       await mutate();
+      // Re-resolve webrtc-config and re-run piopiy.login() with the new values.
+      // reconnect() never throws — it resolves into a retryable state.
+      await reconnect();
     } catch {
       // toast already shown by the hook.
     } finally {
@@ -108,6 +126,7 @@ export const MyTelephonyCard: React.FC = () => {
     try {
       await refreshToken();
       await mutate(); // refresh token_is_fresh
+      await reconnect(); // new token => re-login the softphone in place
     } catch {
       // toast already shown (424 => "Set up telephony in Settings").
     } finally {
@@ -247,8 +266,14 @@ const WebRTCReadinessRow: React.FC<WebRTCReadinessRowProps> = ({ enabled }) => {
   // WebRTC config is owned by TelephonyProvider (single webrtc-config
   // request app-wide) — read the resolved state from context instead of
   // firing a duplicate request from this card.
-  const { isTelephonyConfigured, isTelephonyLoading, sbcHost, defaultCallerId } =
-    useTelephonyPhone();
+  const {
+    isTelephonyConfigured,
+    isTelephonyLoading,
+    notConfiguredReason,
+    configSource,
+    sbcHost,
+    defaultCallerId,
+  } = useTelephonyPhone();
 
   if (enabled && isTelephonyLoading) {
     return (
@@ -263,18 +288,56 @@ const WebRTCReadinessRow: React.FC<WebRTCReadinessRowProps> = ({ enabled }) => {
   const notConfigured = !enabled || !isTelephonyConfigured || !sbcHost;
 
   if (notConfigured) {
+    // The two 424 reasons need different instructions: one is an admin's
+    // workspace-level job, the other is this user's own extension.
+    const copy = notConfiguredReason ? TELEPHONY_NOT_CONFIGURED_COPY[notConfiguredReason] : null;
     return (
-      <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300">
+      <div
+        data-testid="telephony-readiness-not-configured"
+        data-reason={notConfiguredReason ?? 'unknown'}
+        className="flex items-start gap-2 p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300"
+      >
         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-        <p className="text-sm">
-          Not configured — finish setup above (or ask an admin to connect TeleCMI in Telephony
-          settings).
-        </p>
+        <div className="text-sm">
+          <p className="font-medium">
+            {copy?.title ?? 'Not configured — finish setup above'}
+          </p>
+          <p className="text-xs mt-0.5">
+            {copy?.detail ??
+              'Finish setup above, or ask an admin to connect TeleCMI in Telephony settings.'}
+          </p>
+        </div>
       </div>
     );
   }
 
-  return <WebRTCReady sbcHost={sbcHost} defaultCallerId={defaultCallerId} />;
+  return (
+    <div className="space-y-2">
+      <WebRTCReady sbcHost={sbcHost} defaultCallerId={defaultCallerId} />
+      {configSource === 'tenant' && <TenantIdentityNote />}
+    </div>
+  );
+};
+
+/**
+ * `source: 'tenant'` — the workspace's shared extension is in use because this
+ * user has none of their own. Informational, never an error.
+ */
+const TenantIdentityNote: React.FC = () => {
+  const { telecmiUserId } = useTelephonyPhone();
+  return (
+    <div
+      data-testid="telephony-tenant-identity-note"
+      className="flex items-start gap-2 text-xs text-muted-foreground"
+    >
+      <Users className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+      <p>
+        Using the workspace's shared extension
+        {telecmiUserId ? <> (<span className="font-mono">{telecmiUserId}</span>)</> : null}. Register
+        your own TeleCMI User ID above to call from a personal extension.
+      </p>
+    </div>
+  );
 };
 
 // Rendered only when the module is enabled (parent card returns null otherwise),
