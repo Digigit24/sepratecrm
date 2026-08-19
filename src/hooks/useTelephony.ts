@@ -32,6 +32,10 @@ import type {
   WebRTCConfig,
   PaginatedResponse,
 } from '@/types/telephony.types';
+import {
+  TELEPHONY_NOT_CONFIGURED_COPY,
+  telephonyNotConfiguredMessage,
+} from '@/types/telephony.types';
 
 // ==================== SWR KEYS ====================
 const CREDENTIALS_KEY = 'telephony:credentials';
@@ -128,7 +132,10 @@ export const revalidateLeadCalls = (leadId: number, pageSize = 10): void => {
 
 // ==================== ERROR -> TOAST ====================
 
-const NOT_CONFIGURED_MSG = 'Set up telephony in Settings';
+// The 424 copy itself lives in telephony.types.ts (no service-layer imports)
+// so plain UI components can read it directly. Re-exported here because most
+// telephony consumers already import from this hook.
+export { TELEPHONY_NOT_CONFIGURED_COPY, telephonyNotConfiguredMessage };
 
 /**
  * Show a user-facing toast for a telephony error, picking the right message:
@@ -147,7 +154,8 @@ export const toastTelephonyError = (error: unknown, fallback = 'Something went w
       return;
     }
     if (error.isNotConfigured) {
-      toast.error(NOT_CONFIGURED_MSG);
+      // Expected state, not a failure — keep it quiet and specific.
+      toast.info(telephonyNotConfiguredMessage(error.notConfiguredReason));
       return;
     }
     if (error.isUpstreamError) {
