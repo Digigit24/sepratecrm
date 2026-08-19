@@ -19,7 +19,7 @@
 //     shipped yet" and must render as a calm panel — never a white screen and
 //     never a red crash toast. Mirrors the isComposioUnavailable precedent.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Card,
@@ -988,9 +988,16 @@ export const SoftphoneConnectionCard: React.FC<{ profiles?: CallingProfile[] }> 
   } = useTelephonyPhone();
 
   const [isReconnecting, setIsReconnecting] = useState(false);
-  // Guards a setState after unmount when the admin navigates mid-reconnect.
-  const [mounted, setMounted] = useState(true);
-  useEffect(() => () => setMounted(false), []);
+  // A ref, not state: reconnect() can outlive the tab if the admin navigates
+  // away mid-flight, and a setState on an unmounted component would be a bug
+  // report with no cause. Refs also survive the unmount cleanup cleanly.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const handleReconnect = async () => {
     setIsReconnecting(true);
@@ -999,7 +1006,7 @@ export const SoftphoneConnectionCard: React.FC<{ profiles?: CallingProfile[] }> 
       await reconnect();
       toast.info('Re-checking the softphone connection…');
     } finally {
-      if (mounted) setIsReconnecting(false);
+      if (mountedRef.current) setIsReconnecting(false);
     }
   };
 
