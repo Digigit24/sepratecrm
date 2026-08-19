@@ -25,7 +25,10 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useTelephony } from '@/hooks/useTelephony';
-import { TELEPHONY_NOT_CONFIGURED_COPY } from '@/types/telephony.types';
+import {
+  TELEPHONY_NOT_CONFIGURED_COPY,
+  isSharedTelephonyIdentity,
+} from '@/types/telephony.types';
 import { useTelephonyPhone } from '@/context/TelephonyProvider';
 import type {
   TeleCMIAgentCreateData,
@@ -314,7 +317,7 @@ const WebRTCReadinessRow: React.FC<WebRTCReadinessRowProps> = ({ enabled }) => {
   return (
     <div className="space-y-2">
       <WebRTCReady sbcHost={sbcHost} defaultCallerId={defaultCallerId} />
-      {configSource === 'tenant' && <TenantIdentityNote />}
+      {isSharedTelephonyIdentity(configSource) && <TenantIdentityNote />}
     </div>
   );
 };

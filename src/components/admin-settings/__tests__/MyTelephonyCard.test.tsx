@@ -185,8 +185,25 @@ describe('MyTelephonyCard — readiness row', () => {
     expect(note).toHaveTextContent('103_1111112');
   });
 
+  // 'tenant' was split into 'tenant_profile' / 'tenant_default' backend-side.
+  // All three must keep producing the same "you are sharing an extension" note.
+  it.each(['tenant_profile', 'tenant_default', 'tenant'] as const)(
+    'notes the shared workspace extension for source %s',
+    (configSource) => {
+      h.phone = basePhone({ configSource });
+      render(<MyTelephonyCard />);
+      expect(screen.getByTestId('telephony-tenant-identity-note')).toBeInTheDocument();
+    },
+  );
+
   it('says nothing about identity for a per-user extension', () => {
     h.phone = basePhone({ configSource: 'user' });
+    render(<MyTelephonyCard />);
+    expect(screen.queryByTestId('telephony-tenant-identity-note')).toBeNull();
+  });
+
+  it('says nothing when an admin assigned this user a calling profile', () => {
+    h.phone = basePhone({ configSource: 'assigned_profile' });
     render(<MyTelephonyCard />);
     expect(screen.queryByTestId('telephony-tenant-identity-note')).toBeNull();
   });

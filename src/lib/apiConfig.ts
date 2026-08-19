@@ -656,6 +656,13 @@ export const API_CONFIG = {
       // Callbacks
       CALLBACKS: '/telephony/callbacks/',
 
+      // Shared calling profiles (admin-managed extensions + passwords)
+      CALLING_PROFILES: '/telephony/calling-profiles/',
+      CALLING_PROFILE_DETAIL: '/telephony/calling-profiles/:id/',
+      CALLING_PROFILE_VERIFY: '/telephony/calling-profiles/:id/verify/',
+      CALLING_PROFILE_ASSIGN: '/telephony/calling-profiles/:id/assign/',
+      CALLING_PROFILE_ASSIGNMENTS: '/telephony/calling-profiles/assignments/',
+
       // WebRTC config for the in-browser PIOPIY SDK
       WEBRTC_CONFIG: '/telephony/webrtc-config/',
     },

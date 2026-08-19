@@ -13,7 +13,11 @@ vi.mock('@/lib/client', () => ({
 }));
 
 import { crmClient } from '@/lib/client';
-import { telephonyService, TelephonyApiError } from '@/services/telephonyService';
+import {
+  telephonyService,
+  TelephonyApiError,
+  isTelephonyEndpointUnavailable,
+} from '@/services/telephonyService';
 
 const get = crmClient.get as ReturnType<typeof vi.fn>;
 const post = crmClient.post as ReturnType<typeof vi.fn>;
@@ -51,6 +55,28 @@ describe('telephonyService', () => {
       default_caller_id: null,
       auth: { kind: 'token', value: 'tok' },
       source: 'tenant',
+    });
+  });
+
+  // The backend split the single 'tenant' source into four values. All of them
+  // (plus the deprecated alias) have to survive normalisation, because the two
+  // repos deploy independently.
+  it.each(['user', 'assigned_profile', 'tenant_profile', 'tenant_default', 'tenant'])(
+    'keeps the webrtc-config source %s',
+    async (source) => {
+      get.mockResolvedValueOnce({
+        data: { telecmi_user_id: '103_1', sbc_host: 'sbcind.telecmi.com', source },
+      });
+      await expect(telephonyService.getWebRTCConfig()).resolves.toMatchObject({ source });
+    },
+  );
+
+  it('drops a source value this build does not know rather than passing it through', async () => {
+    get.mockResolvedValueOnce({
+      data: { telecmi_user_id: '103_1', sbc_host: 'sbcind.telecmi.com', source: 'from_the_future' },
+    });
+    await expect(telephonyService.getWebRTCConfig()).resolves.toMatchObject({
+      source: undefined,
     });
   });
 
@@ -150,6 +176,105 @@ describe('telephonyService', () => {
     } catch (e) {
       const err = e as TelephonyApiError;
       expect(err.fieldErrors?.to_number?.[0]).toBe('This field is required.');
+    }
+  });
+});
+
+// ==================== CALLING PROFILES (admin) ====================
+// These endpoints are being built on the Django side in parallel with the UI,
+// so "the route does not exist" is a first-class, expected outcome here.
+
+describe('telephonyService — calling profiles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const patch = crmClient.patch as ReturnType<typeof vi.fn>;
+  const del = crmClient.delete as ReturnType<typeof vi.fn>;
+
+  it('accepts both a bare array and a DRF page for the profile list', async () => {
+    const rows = [{ id: 1, label: 'Sales line' }];
+    get.mockResolvedValueOnce({ data: rows });
+    await expect(telephonyService.getCallingProfiles()).resolves.toEqual(rows);
+
+    get.mockResolvedValueOnce({ data: { count: 1, next: null, previous: null, results: rows } });
+    await expect(telephonyService.getCallingProfiles()).resolves.toEqual(rows);
+  });
+
+  it('never invents a profile list out of a malformed body', async () => {
+    get.mockResolvedValueOnce({ data: null });
+    await expect(telephonyService.getCallingProfiles()).resolves.toEqual([]);
+  });
+
+  it('sends the write-only password straight through on create', async () => {
+    post.mockResolvedValueOnce({ data: { id: 3, has_password: true } });
+    await telephonyService.createCallingProfile({
+      label: 'Sales line',
+      telecmi_user_id: '103_1111112',
+      password: 'extension-pw',
+    });
+    const [, body] = post.mock.calls[0];
+    expect(body.password).toBe('extension-pw');
+  });
+
+  it('normalises a verify response, including a half-built body', async () => {
+    post.mockResolvedValueOnce({ data: { ok: true, error: null } });
+    await expect(telephonyService.verifyCallingProfile(1)).resolves.toEqual({
+      ok: true,
+      error: null,
+    });
+
+    post.mockResolvedValueOnce({ data: {} });
+    await expect(telephonyService.verifyCallingProfile(1)).resolves.toEqual({
+      ok: false,
+      error: null,
+    });
+
+    post.mockResolvedValueOnce({ data: { ok: false, error: 'SBC rejected password' } });
+    await expect(telephonyService.verifyCallingProfile(1)).resolves.toEqual({
+      ok: false,
+      error: 'SBC rejected password',
+    });
+  });
+
+  it('puts the user_id in the request BODY when unassigning (axios needs `data`)', async () => {
+    del.mockResolvedValueOnce({ data: {} });
+    await telephonyService.unassignCallingProfile(4, 'user-uuid');
+    expect(del).toHaveBeenCalledWith('/telephony/calling-profiles/4/assign/', {
+      data: { user_id: 'user-uuid' },
+    });
+  });
+
+  it('patches only the fields it is given', async () => {
+    patch.mockResolvedValueOnce({ data: { id: 4 } });
+    await telephonyService.updateCallingProfile(4, { label: 'Support line' });
+    expect(patch).toHaveBeenCalledWith('/telephony/calling-profiles/4/', {
+      label: 'Support line',
+    });
+  });
+
+  it.each([404, 501, 502, 503])(
+    'flags %i as "endpoint not deployed yet" so the UI can degrade calmly',
+    async (status) => {
+      get.mockRejectedValueOnce(axiosError(status, {}));
+      try {
+        await telephonyService.getCallingProfiles();
+        throw new Error('should have thrown');
+      } catch (e) {
+        expect(isTelephonyEndpointUnavailable(e)).toBe(true);
+      }
+    },
+  );
+
+  it('does NOT flag a 403 or a 424 as "not deployed"', async () => {
+    for (const status of [403, 424]) {
+      get.mockRejectedValueOnce(axiosError(status, {}));
+      try {
+        await telephonyService.getCallingProfiles();
+        throw new Error('should have thrown');
+      } catch (e) {
+        expect(isTelephonyEndpointUnavailable(e)).toBe(false);
+      }
     }
   });
 });

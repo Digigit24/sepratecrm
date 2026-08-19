@@ -477,6 +477,67 @@ export interface CallbacksQueryParams {
   limit?: number;
 }
 
+// ==================== CALLING PROFILES (admin) ====================
+//
+// A calling profile is ONE TeleCMI extension (username + password + caller ID)
+// configured centrally by an admin and then handed to one or more users. It is
+// the answer to "where does an admin type the extension password?" — the
+// per-user TeleCMIAgent record can only ever be written by that user.
+//
+// `password` is WRITE-ONLY, exactly like TeleCMICredential.secret: it is sent on
+// create/update and NEVER comes back. `has_password` is the only signal that one
+// is stored, and the UI must never attempt to render the value itself.
+
+export interface CallingProfile {
+  id: number;
+  /** Human label an admin picks, e.g. "Sales line" / "Support line". */
+  label: string;
+  /** TeleCMI extension username, format `<extension>_<appid>`. */
+  telecmi_user_id: string;
+  caller_id: string | null;
+  /** Used by any user in the tenant who has no personal assignment. */
+  is_default: boolean;
+  is_active: boolean;
+  /** True when an extension password is stored. The value is never returned. */
+  has_password: boolean;
+  /** ISO timestamp of the last SUCCESSFUL verify, or null. */
+  verified_at: string | null;
+  /** Upstream reason the last verify failed, or null/'' when it succeeded. */
+  verify_error: string | null;
+}
+
+export interface CallingProfileCreateData {
+  label: string;
+  telecmi_user_id: string;
+  /** Write-only. The TeleCMI EXTENSION password, not a CRM password. */
+  password: string;
+  caller_id?: string | null;
+  is_default?: boolean;
+  is_active?: boolean;
+}
+
+/** On update every field is optional — a blank password means "leave it alone". */
+export type CallingProfileUpdateData = Partial<CallingProfileCreateData>;
+
+/** POST /calling-profiles/{id}/verify/ — never throws for a bad credential. */
+export interface CallingProfileVerifyResponse {
+  ok: boolean;
+  error: string | null;
+}
+
+/** GET /calling-profiles/assignments/ — one row per assigned user. */
+export interface CallingProfileAssignment {
+  user_id: string;
+  profile_id: number;
+}
+
+/**
+ * Help text for the one field admins most often get wrong. Kept next to the
+ * type so the settings card and its tests quote the same words.
+ */
+export const CALLING_PROFILE_PASSWORD_HELP =
+  'This is the TeleCMI extension password from the TeleCMI dashboard (Users → the extension), not a Celiyo/CRM password.';
+
 // ==================== WEBRTC CONFIG (§12) ====================
 // What the frontend PIOPIY SDK needs for piopiy.login().
 //
@@ -497,10 +558,73 @@ export interface WebRTCAuth {
 
 /**
  * Which identity resolved the config:
- *  - 'user'   → the caller's own TeleCMI agent/extension
- *  - 'tenant' → the workspace's shared/default extension (no per-user agent)
+ *  - 'user'             → the caller's own TeleCMI agent/extension
+ *  - 'assigned_profile' → an admin-managed calling profile assigned to this user
+ *  - 'tenant_profile'   → the workspace's DEFAULT calling profile (no personal
+ *                         assignment) — shared caller ID + shared SIP identity
+ *  - 'tenant_default'   → the legacy tenant credential's default extension
+ *                         (backend: the old `TeleCMICredential.default_agent_id`)
+ *  - 'tenant'           → DEPRECATED alias for 'tenant_default'. The backend no
+ *                         longer emits it, but the two repos deploy
+ *                         independently, so an older server must not make the
+ *                         widget misreport who it is calling as. Treat it
+ *                         EXACTLY like 'tenant_default' everywhere.
+ *
+ * Anything not listed here is dropped by the service normaliser, so a backend
+ * that adds a sixth value later degrades to `null` + neutral copy rather than
+ * rendering garbage or blanking the row.
  */
-export type WebRTCConfigSource = 'user' | 'tenant';
+export type WebRTCConfigSource =
+  | 'user'
+  | 'assigned_profile'
+  | 'tenant_profile'
+  | 'tenant_default'
+  | 'tenant';
+
+export const WEBRTC_CONFIG_SOURCES: readonly WebRTCConfigSource[] = [
+  'user',
+  'assigned_profile',
+  'tenant_profile',
+  'tenant_default',
+  'tenant',
+];
+
+/**
+ * True when the resolved identity is a workspace-wide extension rather than one
+ * belonging to this user alone. Everyone on a shared identity calls out with the
+ * same caller ID and registers the same SIP user — worth saying out loud.
+ */
+export const isSharedTelephonyIdentity = (
+  source: WebRTCConfigSource | null | undefined,
+): boolean => source === 'tenant' || source === 'tenant_profile' || source === 'tenant_default';
+
+/** Short human label for a config source, for status rows. */
+export const WEBRTC_CONFIG_SOURCE_LABEL: Record<WebRTCConfigSource, string> = {
+  user: 'Your own extension',
+  assigned_profile: 'Calling profile assigned to you',
+  tenant_profile: 'Workspace default calling profile',
+  tenant_default: 'Legacy workspace extension',
+  // Deprecated alias — must read identically to 'tenant_default'.
+  tenant: 'Legacy workspace extension',
+};
+
+/** Shown when the backend sends a source value this build does not know. */
+export const WEBRTC_CONFIG_SOURCE_FALLBACK_LABEL = 'Workspace telephony identity';
+
+/**
+ * Safe label lookup. NEVER index the record directly at a call site: the value
+ * ultimately comes off the wire, and a future backend value must land on
+ * neutral copy rather than `undefined` (a blank cell) or a thrown narrowing.
+ */
+export const webrtcConfigSourceLabel = (
+  source: WebRTCConfigSource | string | null | undefined,
+): string => {
+  if (!source) return '—';
+  return (
+    WEBRTC_CONFIG_SOURCE_LABEL[source as WebRTCConfigSource] ??
+    WEBRTC_CONFIG_SOURCE_FALLBACK_LABEL
+  );
+};
 
 export interface WebRTCConfig {
   telecmi_user_id: string;
