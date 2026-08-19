@@ -20,9 +20,13 @@ import {
   Loader2,
   LogOut,
   Settings,
+  RefreshCw,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTelephonyPhone, type PhoneStatus } from '@/context/TelephonyProvider';
+import { useAuth } from '@/hooks/useAuth';
+import { TELEPHONY_NOT_CONFIGURED_COPY } from '@/types/telephony.types';
 import { SoftphoneLeadContext } from './SoftphoneLeadContext';
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -125,15 +129,7 @@ const SoftphoneBody: React.FC<{ navigate: (to: string) => void }> = ({ navigate 
   }
 
   if (status === 'not-configured') {
-    return (
-      <div className="text-center py-4 space-y-2">
-        <p className="text-sm text-muted-foreground">Telephony isn't set up for your account.</p>
-        <Button size="sm" onClick={() => navigate('/admin/settings')}>
-          <Settings className="h-3.5 w-3.5 mr-2" />
-          Open Settings
-        </Button>
-      </div>
-    );
+    return <NotConfigured navigate={navigate} />;
   }
 
   if (status === 'needs-password' || status === 'connecting') {
@@ -156,10 +152,106 @@ const SoftphoneBody: React.FC<{ navigate: (to: string) => void }> = ({ navigate 
   return <Dialpad />;
 };
 
+/**
+ * The expected "can't call yet" states. These are NOT crashes — no red toast,
+ * no raw 424. The two 424 reasons need different copy and different actions:
+ *  - tenant_not_configured => a workspace-level admin job
+ *  - no_agent              => this user needs their own extension
+ * Anything else (unknown reason, 500, network) falls back to neutral copy plus
+ * a Retry, so the widget is never a dead end.
+ */
+const NotConfigured: React.FC<{ navigate: (to: string) => void }> = ({ navigate }) => {
+  const phone = useTelephonyPhone();
+  const { hasPermission, isAdminLike } = useAuth();
+  const reason = phone.notConfiguredReason;
+  const copy = reason ? TELEPHONY_NOT_CONFIGURED_COPY[reason] : null;
+
+  // Only point at workspace telephony setup if the user could actually do it.
+  const canConfigureWorkspace = isAdminLike() || hasPermission('telephony.settings.edit');
+  // 'no_agent' is about the user's own record — always reachable in Settings.
+  const showSettingsLink = reason === 'no_agent' || canConfigureWorkspace;
+
+  return (
+    <div
+      data-testid="softphone-not-configured"
+      data-reason={reason ?? 'unknown'}
+      className="text-center py-4 space-y-2"
+    >
+      <p className="text-sm font-medium">
+        {copy?.title ?? "Telephony isn't available right now"}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {copy?.detail ??
+          phone.telephonyConfigurationError ??
+          'We could not load your calling settings. Try again in a moment.'}
+      </p>
+      <div className="flex gap-2 justify-center pt-1">
+        {showSettingsLink && (
+          <Button size="sm" onClick={() => navigate('/admin/settings')}>
+            <Settings className="h-3.5 w-3.5 mr-2" />
+            Open Settings
+          </Button>
+        )}
+        <Button size="sm" variant="outline" onClick={() => void phone.reconnect()}>
+          <RefreshCw className="h-3.5 w-3.5 mr-2" />
+          Retry
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+/** Quiet note: this session is on the workspace's shared extension. */
+const TenantIdentityNote: React.FC = () => {
+  const phone = useTelephonyPhone();
+  if (phone.configSource !== 'tenant') return null;
+  return (
+    <p
+      data-testid="softphone-tenant-identity-note"
+      className="flex items-start gap-1.5 text-[11px] text-muted-foreground"
+    >
+      <Users className="h-3 w-3 mt-0.5 shrink-0" />
+      <span>
+        Connected as the workspace's shared extension
+        {phone.telecmiUserId ? <> (<span className="font-mono">{phone.telecmiUserId}</span>)</> : null}.
+      </span>
+    </p>
+  );
+};
+
 const LoginForm: React.FC = () => {
   const phone = useTelephonyPhone();
   const [password, setPassword] = useState('');
   const connecting = phone.status === 'connecting';
+
+  // When the server supplies the credential the provider logs in on its own —
+  // showing a password box here would be both wrong and confusing. Landing on
+  // this branch with hasServerAuth means the attempt failed, so offer a retry.
+  if (phone.hasServerAuth) {
+    return (
+      <div data-testid="softphone-server-auth" className="space-y-3 py-2 text-center">
+        <p className="text-sm font-medium">
+          {connecting ? 'Connecting your softphone…' : 'Softphone is not connected'}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Signing in as <span className="font-mono">{phone.telecmiUserId ?? '—'}</span>
+        </p>
+        <Button
+          className="w-full"
+          disabled={connecting}
+          onClick={() => void phone.reconnect()}
+        >
+          {connecting ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-2" />
+          )}
+          {connecting ? 'Connecting…' : 'Try again'}
+        </Button>
+        <TenantIdentityNote />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -186,6 +278,7 @@ const LoginForm: React.FC = () => {
       <p className="text-[11px] text-muted-foreground text-center">
         Password is kept in memory only — re-enter after a reload.
       </p>
+      <TenantIdentityNote />
     </div>
   );
 };
@@ -219,6 +312,7 @@ const Dialpad: React.FC = () => {
           Call
         </Button>
       </div>
+      <TenantIdentityNote />
     </div>
   );
 };

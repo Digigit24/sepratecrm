@@ -27,6 +27,9 @@ import type {
   BreakQueryParams,
   CallbacksQueryParams,
   WebRTCConfig,
+  WebRTCAuth,
+  WebRTCConfigSource,
+  TelephonyNotConfiguredReason,
   PaginatedResponse,
   TelephonyAnalyticsDashboard,
   AgentDailyStatsResponse,
@@ -39,6 +42,7 @@ import type {
   ZataStorageCredentialInput,
   RecordingAccessResponse,
 } from '@/types/telephony.types';
+import { TELEPHONY_NOT_CONFIGURED_REASONS } from '@/types/telephony.types';
 
 const T = API_CONFIG.CRM.TELEPHONY;
 
@@ -52,9 +56,31 @@ const T = API_CONFIG.CRM.TELEPHONY;
  * `isNotConfigured` / `isUpstreamError` let hooks pick the right user-facing message
  * without re-inspecting the raw Axios error.
  */
+/**
+ * Pull the machine-readable `reason` out of a 424 body. Unknown/missing values
+ * collapse to null so the UI falls back to generic "not configured" copy rather
+ * than rendering a raw backend string.
+ */
+const readNotConfiguredReason = (
+  status: number | undefined,
+  data: unknown,
+): TelephonyNotConfiguredReason | null => {
+  if (status !== 424 || !data || typeof data !== 'object') return null;
+  const raw = (data as { reason?: unknown }).reason;
+  return typeof raw === 'string' &&
+    (TELEPHONY_NOT_CONFIGURED_REASONS as readonly string[]).includes(raw)
+    ? (raw as TelephonyNotConfiguredReason)
+    : null;
+};
+
 export class TelephonyApiError extends Error {
   readonly status?: number;
   readonly isNotConfigured: boolean;
+  /**
+   * On a 424, which of the two expected "not configured" states this is.
+   * `null` when the backend did not send a recognised `reason` (older builds).
+   */
+  readonly notConfiguredReason: TelephonyNotConfiguredReason | null;
   readonly isUpstreamError: boolean;
   /** The backend's `error` string (present on 502 and most failures). */
   readonly backendError?: string;
@@ -81,6 +107,7 @@ export class TelephonyApiError extends Error {
     this.name = 'TelephonyApiError';
     this.status = status;
     this.isNotConfigured = status === 424;
+    this.notConfiguredReason = readNotConfiguredReason(status, data);
     this.isUpstreamError = status === 502;
     this.backendError = backendError;
     this.data = data;
@@ -95,6 +122,39 @@ export class TelephonyApiError extends Error {
     }
   }
 }
+
+/**
+ * Defensively shape the webrtc-config payload.
+ *
+ * `auth` and `source` are newer fields; a backend that has not shipped them yet
+ * (or ships a half-built shape) must degrade to "user types the password"
+ * rather than white-screening the app. Anything unrecognised becomes undefined.
+ */
+const normalizeWebRTCConfig = (raw: unknown): WebRTCConfig => {
+  const src = (raw ?? {}) as Record<string, unknown>;
+
+  let auth: WebRTCAuth | undefined;
+  const rawAuth = src.auth;
+  if (rawAuth && typeof rawAuth === 'object') {
+    const kind = (rawAuth as { kind?: unknown }).kind;
+    const value = (rawAuth as { value?: unknown }).value;
+    if ((kind === 'token' || kind === 'password') && typeof value === 'string' && value !== '') {
+      auth = { kind, value };
+    }
+  }
+
+  const rawSource = src.source;
+  const source: WebRTCConfigSource | undefined =
+    rawSource === 'user' || rawSource === 'tenant' ? rawSource : undefined;
+
+  return {
+    telecmi_user_id: typeof src.telecmi_user_id === 'string' ? src.telecmi_user_id : '',
+    sbc_host: typeof src.sbc_host === 'string' ? src.sbc_host : '',
+    default_caller_id: typeof src.default_caller_id === 'string' ? src.default_caller_id : null,
+    auth,
+    source,
+  };
+};
 
 /** Wraps any thrown error into a TelephonyApiError so callers get a consistent shape. */
 const wrap = (error: unknown): never => {
@@ -452,11 +512,17 @@ class TelephonyService {
 
   // ==================== WEBRTC CONFIG (§12) ====================
 
-  /** Config for the in-browser PIOPIY SDK. 424 if telephony not configured. */
+  /**
+   * Config for the in-browser PIOPIY SDK. 424 if telephony not configured.
+   *
+   * The response is normalised so a partially-shipped backend can never crash
+   * the softphone: `auth` and `source` are dropped unless they are well-formed.
+   * The raw response is never logged — it carries the SBC secret.
+   */
   async getWebRTCConfig(): Promise<WebRTCConfig> {
     try {
       const res = await crmClient.get<WebRTCConfig>(T.WEBRTC_CONFIG);
-      return res.data;
+      return normalizeWebRTCConfig(res.data);
     } catch (e) {
       return wrap(e);
     }

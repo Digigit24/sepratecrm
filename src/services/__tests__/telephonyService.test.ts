@@ -35,6 +35,81 @@ describe('telephonyService', () => {
     await expect(telephonyService.getWebRTCConfig()).resolves.toEqual(config);
   });
 
+  it('normalises a webrtc-config that carries auth + source', async () => {
+    get.mockResolvedValueOnce({
+      data: {
+        telecmi_user_id: '103_1111112',
+        sbc_host: 'sbcind.telecmi.com',
+        default_caller_id: null,
+        auth: { kind: 'token', value: 'tok' },
+        source: 'tenant',
+      },
+    });
+    await expect(telephonyService.getWebRTCConfig()).resolves.toEqual({
+      telecmi_user_id: '103_1111112',
+      sbc_host: 'sbcind.telecmi.com',
+      default_caller_id: null,
+      auth: { kind: 'token', value: 'tok' },
+      source: 'tenant',
+    });
+  });
+
+  it('accepts auth.kind "password" the same way as "token"', async () => {
+    get.mockResolvedValueOnce({
+      data: {
+        telecmi_user_id: '103_1111112',
+        sbc_host: 'sbcind.telecmi.com',
+        default_caller_id: null,
+        auth: { kind: 'password', value: 'pw' },
+        source: 'user',
+      },
+    });
+    const cfg = await telephonyService.getWebRTCConfig();
+    expect(cfg.auth).toEqual({ kind: 'password', value: 'pw' });
+    expect(cfg.source).toBe('user');
+  });
+
+  it('drops a malformed auth/source instead of propagating it', async () => {
+    get.mockResolvedValueOnce({
+      data: {
+        telecmi_user_id: '103_1111112',
+        sbc_host: 'sbcind.telecmi.com',
+        default_caller_id: null,
+        auth: { kind: 'magic', value: 123 },
+        source: 'somewhere-else',
+      },
+    });
+    const cfg = await telephonyService.getWebRTCConfig();
+    expect(cfg.auth).toBeUndefined();
+    expect(cfg.source).toBeUndefined();
+    // the usable parts still survive — the UI must not white-screen
+    expect(cfg.telecmi_user_id).toBe('103_1111112');
+  });
+
+  it('parses the 424 reason so the UI can tell the two states apart', async () => {
+    get.mockRejectedValueOnce(axiosError(424, { error: 'x', reason: 'tenant_not_configured' }));
+    await expect(telephonyService.getWebRTCConfig()).rejects.toMatchObject({
+      notConfiguredReason: 'tenant_not_configured',
+    });
+
+    get.mockRejectedValueOnce(axiosError(424, { error: 'x', reason: 'no_agent' }));
+    await expect(telephonyService.getWebRTCConfig()).rejects.toMatchObject({
+      notConfiguredReason: 'no_agent',
+    });
+  });
+
+  it('nulls an unknown or missing 424 reason', async () => {
+    get.mockRejectedValueOnce(axiosError(424, { error: 'x', reason: 'who_knows' }));
+    await expect(telephonyService.getWebRTCConfig()).rejects.toMatchObject({
+      notConfiguredReason: null,
+    });
+
+    get.mockRejectedValueOnce(axiosError(424, { error: 'x' }));
+    await expect(telephonyService.getWebRTCConfig()).rejects.toMatchObject({
+      notConfiguredReason: null,
+    });
+  });
+
   it('flags 424 as isNotConfigured', async () => {
     get.mockRejectedValueOnce(axiosError(424, { detail: 'not configured' }));
     await expect(telephonyService.getWebRTCConfig()).rejects.toMatchObject({

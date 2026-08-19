@@ -478,13 +478,84 @@ export interface CallbacksQueryParams {
 }
 
 // ==================== WEBRTC CONFIG (§12) ====================
-// What the frontend PIOPIY SDK needs for piopiy.login(). Never exposes the password.
+// What the frontend PIOPIY SDK needs for piopiy.login().
+//
+// `auth` is the SBC credential the server hands us so the softphone can log in
+// without the user re-typing anything. It is a MEMORY-ONLY secret: never log it,
+// never persist it (localStorage/sessionStorage/cookies), never put it in a URL.
+// It is optional because older backends do not send it yet — in that case the
+// user types the password into the softphone login form as before.
+
+/** How to interpret `WebRTCAuth.value`. Both are passed to piopiy.login() as-is. */
+export type WebRTCAuthKind = 'token' | 'password';
+
+export interface WebRTCAuth {
+  kind: WebRTCAuthKind;
+  /** Secret. Memory only — never logged, never persisted, never in a URL. */
+  value: string;
+}
+
+/**
+ * Which identity resolved the config:
+ *  - 'user'   → the caller's own TeleCMI agent/extension
+ *  - 'tenant' → the workspace's shared/default extension (no per-user agent)
+ */
+export type WebRTCConfigSource = 'user' | 'tenant';
 
 export interface WebRTCConfig {
   telecmi_user_id: string;
   sbc_host: string;
   default_caller_id: string | null;
+  /** Absent on backends that have not shipped server-side auth yet. */
+  auth?: WebRTCAuth | null;
+  /** Absent on backends that have not shipped identity attribution yet. */
+  source?: WebRTCConfigSource | null;
 }
+
+// ==================== 424 "NOT CONFIGURED" REASONS ====================
+// GET /telephony/webrtc-config/ answers 424 with { error, reason }. The two
+// reasons need different copy and different calls to action — see
+// TelephonyProvider / Softphone.
+
+export type TelephonyNotConfiguredReason =
+  /** The workspace has never connected TeleCMI. An admin must do it once. */
+  | 'tenant_not_configured'
+  /** Workspace is connected, but this user has no TeleCMI extension. */
+  | 'no_agent';
+
+export const TELEPHONY_NOT_CONFIGURED_REASONS: readonly TelephonyNotConfiguredReason[] = [
+  'tenant_not_configured',
+  'no_agent',
+];
+
+/** Generic copy for a 424 whose `reason` we do not recognise. */
+export const TELEPHONY_NOT_CONFIGURED_FALLBACK = 'Set up telephony in Settings';
+
+/**
+ * User-facing copy per 424 reason. Lives here (a dependency-free module) so the
+ * softphone, the settings card and toasts all say the same thing without any of
+ * them pulling in the service layer. These are EXPECTED states — the UI must
+ * never render them as a crash.
+ */
+export const TELEPHONY_NOT_CONFIGURED_COPY: Record<
+  TelephonyNotConfiguredReason,
+  { title: string; detail: string }
+> = {
+  tenant_not_configured: {
+    title: "Telephony isn't set up for this workspace yet",
+    detail: 'An admin needs to connect TeleCMI once in Telephony settings.',
+  },
+  no_agent: {
+    title: 'Your account has no TeleCMI extension',
+    detail: 'Register your extension in Settings, or ask an admin to assign you one.',
+  },
+};
+
+/** One-line message for a 424, falling back to generic copy. */
+export const telephonyNotConfiguredMessage = (
+  reason: TelephonyNotConfiguredReason | null | undefined,
+): string =>
+  reason ? TELEPHONY_NOT_CONFIGURED_COPY[reason].title : TELEPHONY_NOT_CONFIGURED_FALLBACK;
 
 // ==================== SBC REGION REFERENCE ====================
 
