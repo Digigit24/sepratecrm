@@ -17,7 +17,7 @@ import type {
   TaskStatusEnum,
   PriorityEnum,
 } from '@/types/crmTypes';
-import TasksFormDrawer from '@/components/TasksFormDrawer';
+import TaskFormDrawer from '@/components/TaskFormDrawer';
 
 type ViewMode = 'list' | 'kanban';
 
@@ -402,7 +402,7 @@ export const CRMTasks: React.FC = () => {
       )}
 
       {/* Drawer */}
-      <TasksFormDrawer
+      <TaskFormDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         taskId={selectedTaskId}

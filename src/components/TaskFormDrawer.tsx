@@ -1,28 +1,42 @@
 // src/components/TaskFormDrawer.tsx
-import { useState, useEffect, useCallback, useMemo } from 'react';
+//
+// THE task drawer. There is exactly one.
+//
+// This used to be two components that did the same job and had drifted apart:
+//   - TaskFormDrawer  (lead-scoped, sent owner_user_id, no reporter field)
+//   - TasksFormDrawer (+ task-drawer/TaskBasicInfo: react-hook-form + zod,
+//                      required a lead, had a reporter field and a metadata
+//                      card, and a "Calendar" header button that only ever
+//                      toasted "coming soon")
+// Two forms meant two payload shapes for one endpoint. They are now one: this
+// drawer renders the shared <TaskFormFields>, which the persistent side panel
+// on /crm/tasks also renders, so the edit surface cannot fork again.
+//
+// Call sites: lead-drawer/LeadTasks, lead-drawer/LeadTasksBlock (both pass
+// `leadId`, which pins the link and hides the record picker) and the tasks page
+// (no `leadId` -- a CRM-wide task may link to a Lead, Project, Unit, Meeting,
+// or nothing at all).
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCRM } from '@/hooks/useCRM';
-import { useAuth } from '@/hooks/useAuth';
-import { useUserDirectory } from '@/hooks/useUserDirectory';
-import { UserAvatar } from '@/components/user';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Task, TaskStatusEnum, PriorityEnum } from '@/types/crmTypes';
 import { SideDrawer, type DrawerActionButton, type DrawerHeaderAction } from '@/components/SideDrawer';
+import { TaskFormFields } from '@/components/tasks/TaskFormFields';
+import {
+  draftFromTask,
+  draftToPayload,
+  emptyDraft,
+  validateDraft,
+  type TaskDraft,
+} from '@/components/tasks/taskDraft';
+import type { CreateTaskPayload, UpdateTaskPayload } from '@/types/crmTypes';
 
-interface TaskFormDrawerProps {
+export interface TaskFormDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   taskId?: number | null;
+  /** When set, the task is pinned to this lead and the link picker is hidden. */
   leadId?: number | null;
   mode: 'view' | 'edit' | 'create';
   onSuccess?: () => void;
@@ -42,209 +56,139 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
   onModeChange,
   defaultAssignedTo,
 }) => {
-  const { user } = useAuth();
   const { useTask, createTask, updateTask, deleteTask } = useCRM();
 
-  // Users for the assigned-to dropdown, from the shared directory (one
-  // canonical SWR key, O(1) lookups instead of the results.find() scans that
-  // used to run three times per render).
-  const { users: directoryUsers, isLoading: usersLoading } = useUserDirectory();
-  const assignableUsers = useMemo(
-    () => directoryUsers.filter((u) => u.isActive),
-    [directoryUsers]
-  );
-
-  // Form state
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<PriorityEnum>('MEDIUM');
-  const [status, setStatus] = useState<TaskStatusEnum>('TODO');
-  const [dueDate, setDueDate] = useState('');
-  const [assigneeUserId, setAssigneeUserId] = useState<string>('');
+  const [draft, setDraft] = useState<TaskDraft>(() => emptyDraft());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch task data if editing/viewing
-  const { data: task, isLoading: taskLoading } = useTask(
+  const { data: task, isLoading: taskLoading, mutate: revalidateTask } = useTask(
     mode !== 'create' && taskId ? taskId : null
   );
 
-  // Populate form when task data is loaded
-  useEffect(() => {
-    if (task && mode !== 'create') {
-      setTitle(task.title || '');
-      setDescription(task.description || '');
-      setPriority(task.priority || 'MEDIUM');
-      setStatus(task.status || 'TODO');
-      setDueDate(task.due_date ? task.due_date.split('T')[0] : '');
-      setAssigneeUserId(task.assignee_user_id || '');
-    } else if (mode === 'create') {
-      setTitle('');
-      setDescription('');
-      setPriority('MEDIUM');
-      setStatus('TODO');
-      setDueDate('');
-      setAssigneeUserId(defaultAssignedTo || '');
+  const baseDraft = useMemo<TaskDraft>(() => {
+    if (mode === 'create') {
+      return emptyDraft({
+        assigneeUserId: defaultAssignedTo || '',
+        relatedType: leadId ? 'LEAD' : 'NONE',
+        relatedId: leadId ?? null,
+      });
     }
-  }, [task, mode, defaultAssignedTo]);
+    return task ? draftFromTask(task) : emptyDraft();
+  }, [task, mode, defaultAssignedTo, leadId]);
 
-  const handleClose = useCallback(() => {
-    onOpenChange(false);
-  }, [onOpenChange]);
+  // Reset whenever the drawer opens on a different task, or the mode flips.
+  useEffect(() => {
+    setDraft(baseDraft);
+  }, [baseDraft, open]);
 
-  const handleSwitchToEdit = useCallback(() => {
-    onModeChange?.('edit');
-  }, [onModeChange]);
+  const patchDraft = useCallback((patch: Partial<TaskDraft>) => {
+    setDraft((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const handleClose = useCallback(() => onOpenChange(false), [onOpenChange]);
+
+  const handleSwitchToEdit = useCallback(() => onModeChange?.('edit'), [onModeChange]);
 
   const handleSwitchToView = useCallback(() => {
+    setDraft(baseDraft);
     onModeChange?.('view');
-    // Reset form to original values
-    if (task) {
-      setTitle(task.title || '');
-      setDescription(task.description || '');
-      setPriority(task.priority || 'MEDIUM');
-      setStatus(task.status || 'TODO');
-      setDueDate(task.due_date ? task.due_date.split('T')[0] : '');
-      setAssigneeUserId(task.assignee_user_id || '');
-    }
-  }, [onModeChange, task]);
+  }, [baseDraft, onModeChange]);
 
-  // Handle submit
   const handleSubmit = useCallback(async () => {
-    if (!title.trim()) {
-      toast.error('Task title is required');
+    const problem = validateDraft(draft);
+    if (problem) {
+      toast.error(problem);
       return;
     }
 
-    if (mode === 'create' && !leadId) {
-      toast.error('Lead ID is required to create a task');
-      return;
-    }
-
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
-
-      const taskData: any = {
-        title: title.trim(),
-        description: description.trim() || undefined,
-        priority,
-        status,
-        owner_user_id: user?.id,
-        assignee_user_id: assigneeUserId || undefined,
-      };
+      const payload = draftToPayload(draft);
+      // A lead-scoped drawer always writes the lead, whatever the draft says.
+      if (leadId) payload.lead = leadId;
 
       if (mode === 'create') {
-        taskData.lead = leadId;
-      }
-
-      if (dueDate) {
-        taskData.due_date = new Date(dueDate).toISOString();
-      }
-
-      if (mode === 'create') {
-        await createTask(taskData);
-        toast.success('Task created successfully');
-      } else if (mode === 'edit' && taskId) {
-        await updateTask(taskId, taskData);
-        toast.success('Task updated successfully');
+        await createTask(payload as CreateTaskPayload);
+        toast.success('Task created');
+      } else if (taskId) {
+        await updateTask(taskId, payload as UpdateTaskPayload);
+        toast.success('Task updated');
+        revalidateTask();
       }
 
       onSuccess?.();
-      onOpenChange(false);
-    } catch (error: any) {
-      toast.error(error.message || `Failed to ${mode} task`);
+      if (mode === 'create') onOpenChange(false);
+      else onModeChange?.('view');
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : `Failed to ${mode === 'create' ? 'create' : 'update'} task`
+      );
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, description, priority, status, dueDate, mode, leadId, taskId, user?.id, createTask, updateTask, onSuccess, onOpenChange]);
+  }, [
+    draft,
+    leadId,
+    mode,
+    taskId,
+    createTask,
+    updateTask,
+    revalidateTask,
+    onSuccess,
+    onOpenChange,
+    onModeChange,
+  ]);
 
-  // Handle delete
   const handleDelete = useCallback(async () => {
     if (!taskId) return;
-
     const confirmed = window.confirm(
-      'Are you sure you want to delete this task? This action cannot be undone.'
+      'Delete this task? This cannot be undone.'
     );
-
     if (!confirmed) return;
 
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
       await deleteTask(taskId);
-      toast.success('Task deleted successfully');
+      toast.success('Task deleted');
       onDelete?.(taskId);
       onOpenChange(false);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete task');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete task');
     } finally {
       setIsSubmitting(false);
     }
   }, [taskId, deleteTask, onDelete, onOpenChange]);
 
-  const isViewMode = mode === 'view';
-
   const drawerTitle =
-    mode === 'create'
-      ? 'Create New Task'
-      : mode === 'edit'
-      ? 'Edit Task'
-      : 'Task Details';
+    mode === 'create' ? 'New task' : mode === 'edit' ? 'Edit task' : task?.title || 'Task';
 
   const drawerDescription =
     mode !== 'create' && task
-      ? `${task.priority} priority • ${task.status}`
+      ? [task.priority, task.status, task.related_label || task.lead_name]
+          .filter(Boolean)
+          .join(' • ')
       : undefined;
 
   const headerActions: DrawerHeaderAction[] =
     mode === 'view' && task
       ? [
-          {
-            icon: Pencil,
-            onClick: handleSwitchToEdit,
-            label: 'Edit task',
-            variant: 'ghost',
-          },
-          {
-            icon: Trash2,
-            onClick: handleDelete,
-            label: 'Delete task',
-            variant: 'ghost',
-          },
+          { icon: Pencil, onClick: handleSwitchToEdit, label: 'Edit task', variant: 'ghost' },
+          { icon: Trash2, onClick: handleDelete, label: 'Delete task', variant: 'ghost' },
         ]
       : [];
 
   const footerButtons: DrawerActionButton[] =
     mode === 'view'
-      ? [
-          {
-            label: 'Close',
-            onClick: handleClose,
-            variant: 'outline',
-          },
-        ]
-      : mode === 'edit'
-      ? [
-          {
-            label: 'Cancel',
-            onClick: handleSwitchToView,
-            variant: 'outline',
-            disabled: isSubmitting,
-          },
-          {
-            label: 'Save Changes',
-            onClick: handleSubmit,
-            variant: 'default',
-            loading: isSubmitting,
-          },
-        ]
+      ? [{ label: 'Close', onClick: handleClose, variant: 'outline' }]
       : [
           {
             label: 'Cancel',
-            onClick: handleClose,
+            onClick: mode === 'edit' ? handleSwitchToView : handleClose,
             variant: 'outline',
             disabled: isSubmitting,
           },
           {
-            label: 'Create Task',
+            label: mode === 'create' ? 'Create task' : 'Save changes',
             onClick: handleSubmit,
             variant: 'default',
             loading: isSubmitting,
@@ -260,122 +204,22 @@ export const TaskFormDrawer: React.FC<TaskFormDrawerProps> = ({
       mode={mode}
       headerActions={headerActions}
       isLoading={taskLoading && mode !== 'create'}
-      loadingText="Loading task details..."
+      loadingText="Loading task..."
       size="md"
       footerButtons={footerButtons}
       footerAlignment="right"
-      resizable={true}
+      resizable
       storageKey="task-drawer-width"
       onClose={handleClose}
     >
-      <div className="space-y-5">
-        {/* Task Details Section */}
-        <div>
-          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
-            Task Details
-          </h3>
-          <div className="divide-y divide-border/40">
-            {/* Title row */}
-            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-              <Label htmlFor="title" className="text-[13px] text-muted-foreground font-normal">
-                Title <span className="text-destructive">*</span>
-              </Label>
-              {isViewMode ? (
-                <span className="text-sm font-medium">{title || 'Untitled'}</span>
-              ) : (
-                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} disabled={isSubmitting} placeholder="Enter task title..." className="h-9" />
-              )}
-            </div>
-
-            {/* Priority row */}
-            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-              <Label htmlFor="priority" className="text-[13px] text-muted-foreground font-normal">Priority</Label>
-              {isViewMode ? (
-                <span className="text-sm font-medium">{priority}</span>
-              ) : (
-                <Select value={priority} onValueChange={(value) => setPriority(value as PriorityEnum)} disabled={isSubmitting}>
-                  <SelectTrigger id="priority" className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="LOW">Low</SelectItem>
-                    <SelectItem value="MEDIUM">Medium</SelectItem>
-                    <SelectItem value="HIGH">High</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
-            {/* Status row */}
-            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-              <Label htmlFor="status" className="text-[13px] text-muted-foreground font-normal">Status</Label>
-              {isViewMode ? (
-                <span className="text-sm font-medium">{status}</span>
-              ) : (
-                <Select value={status} onValueChange={(value) => setStatus(value as TaskStatusEnum)} disabled={isSubmitting}>
-                  <SelectTrigger id="status" className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TODO">To Do</SelectItem>
-                    <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                    <SelectItem value="DONE">Done</SelectItem>
-                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
-            {/* Due Date row */}
-            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-              <Label htmlFor="dueDate" className="text-[13px] text-muted-foreground font-normal">Due Date</Label>
-              {isViewMode ? (
-                <span className="text-sm font-medium">{dueDate || 'Not set'}</span>
-              ) : (
-                <Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={isSubmitting} className="h-9" />
-              )}
-            </div>
-
-            {/* Assigned To row */}
-            <div className="grid grid-cols-[110px_1fr] items-center gap-3 py-2.5">
-              <Label htmlFor="assigneeUserId" className="text-[13px] text-muted-foreground font-normal">Assigned To</Label>
-              {isViewMode ? (
-                <span className="text-sm font-medium">
-                  <UserAvatar id={assigneeUserId || null} size="xs" showName />
-                </span>
-              ) : (
-                <Select
-                  value={assigneeUserId || 'unassigned'}
-                  onValueChange={(value) => setAssigneeUserId(value === 'unassigned' ? '' : value)}
-                  disabled={isSubmitting || usersLoading}
-                >
-                  <SelectTrigger id="assigneeUserId" className="h-9">
-                    <SelectValue placeholder={usersLoading ? 'Loading users...' : 'Assign to...'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {assignableUsers.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        <UserAvatar id={u.id} size="xs" showName />
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-border/50" />
-
-        {/* Description Section */}
-        <div>
-          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-0.5 mb-2">
-            Description
-          </h3>
-          {isViewMode ? (
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{description || 'No description'}</p>
-          ) : (
-            <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} disabled={isSubmitting} placeholder="Enter task description..." rows={4} />
-          )}
-        </div>
-      </div>
+      <TaskFormFields
+        draft={draft}
+        onChange={patchDraft}
+        readOnly={mode === 'view'}
+        disabled={isSubmitting}
+        lockedToLeadId={leadId ?? null}
+        relatedLabel={task?.related_label ?? task?.lead_name ?? null}
+      />
     </SideDrawer>
   );
 };
