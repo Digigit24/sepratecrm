@@ -130,10 +130,37 @@ export interface LeadOrder {
   updated_at: string;
 }
 
+/**
+ * What a task can be attached to. Tasks used to be lead-only; they are now
+ * CRM-wide, so `related_type: 'NONE'` (or an absent field on an older backend)
+ * is a perfectly valid standalone task.
+ */
+export type TaskRelatedType = 'LEAD' | 'PROJECT' | 'UNIT' | 'MEETING' | 'NONE';
+
+export const TASK_RELATED_TYPE_OPTIONS: { value: TaskRelatedType; label: string }[] = [
+  { value: 'NONE', label: 'No link' },
+  { value: 'LEAD', label: 'Lead' },
+  { value: 'PROJECT', label: 'Project' },
+  { value: 'UNIT', label: 'Unit' },
+  { value: 'MEETING', label: 'Meeting' },
+];
+
+export interface TaskChecklistItem {
+  id: number;
+  title: string;
+  is_done: boolean;
+  order_index?: number;
+  created_at?: string;
+}
+
 export interface Task {
   id: number;
   tenant_id: string;
-  lead: number;
+  /**
+   * Legacy lead link. Optional since tasks went CRM-wide — a task with
+   * `related_type: 'PROJECT'` (or no link at all) has no `lead`.
+   */
+  lead?: number;
   lead_name?: string; // From serializer
   title: string;
   description?: string;
@@ -148,6 +175,32 @@ export interface Task {
   created_at: string;
   updated_at: string;
   completed_at?: string;
+
+  // ---- CRM-wide task-manager contract -------------------------------------
+  // Everything below is served by the newer backend only. The UI must render
+  // correctly when all of it is absent, so every field is optional.
+  /** What this task hangs off. Treat a missing value as 'LEAD' when `lead` is
+   *  set, otherwise 'NONE'. */
+  related_type?: TaskRelatedType;
+  related_id?: number | null;
+  /** Server-resolved display name for the linked object. */
+  related_label?: string | null;
+  /** Start of the work window; `due_date` remains the deadline. */
+  start_date?: string | null;
+  /** All-day tasks are floating dates, not 00:00 instants. */
+  is_all_day?: boolean;
+  /** IANA zone the task's own dates are expressed in. */
+  timezone?: string | null;
+  /** RFC-5545 RRULE string for a repeating task. */
+  rrule?: string | null;
+  /** Manual sort position within its group. */
+  order_index?: number;
+  labels?: string[];
+  checklist_items?: TaskChecklistItem[];
+  checklist_done_count?: number;
+  checklist_total_count?: number;
+  /** Minutes before `due_date` to remind the assignee, when supported. */
+  reminder_offset_minutes?: number | null;
 }
 
 export interface LeadFieldConfiguration {
@@ -424,6 +477,9 @@ export interface TasksQueryParams {
   created_at__gte?: string;
   created_at__lte?: string;
   ordering?: string;
+  related_type?: TaskRelatedType;
+  related_id?: number;
+  labels?: string;
   [key: string]: string | number | boolean | undefined;
 }
 
@@ -502,7 +558,8 @@ export interface CreateLeadOrderPayload {
 export interface UpdateLeadOrderPayload extends Partial<CreateLeadOrderPayload> {}
 
 export interface CreateTaskPayload {
-  lead: number;
+  /** Optional since tasks went CRM-wide; still sent for lead-scoped creates. */
+  lead?: number;
   title: string;
   description?: string;
   status?: TaskStatusEnum;
@@ -511,6 +568,16 @@ export interface CreateTaskPayload {
   assignee_user_id?: string;
   reporter_user_id?: string;
   checklist?: any;
+  // Ignored by an older backend, which simply drops unknown keys.
+  related_type?: TaskRelatedType;
+  related_id?: number | null;
+  start_date?: string | null;
+  is_all_day?: boolean;
+  timezone?: string | null;
+  rrule?: string | null;
+  order_index?: number;
+  labels?: string[];
+  reminder_offset_minutes?: number | null;
 }
 
 export interface UpdateTaskPayload extends Partial<CreateTaskPayload> {}

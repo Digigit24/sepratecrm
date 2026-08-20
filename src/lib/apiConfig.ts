@@ -492,6 +492,15 @@ export const API_CONFIG = {
     TASK_CREATE: '/tasks/',
     TASK_UPDATE: '/tasks/:id/',
     TASK_DELETE: '/tasks/:id/',
+    // Task-manager endpoints built on the Django side in parallel with the UI.
+    // Every one of these may 404/501 on an older backend — tasksService.ts
+    // degrades to the plain TASKS list + client-side grouping when it does.
+    TASK_BULK: '/tasks/bulk/',
+    TASK_COMPLETE: '/tasks/:id/complete/',
+    TASK_REORDER: '/tasks/reorder/',
+    TASK_MY_DAY: '/tasks/my-day/',
+    TASK_CHECKLIST: '/tasks/:id/checklist/',
+    TASK_CHECKLIST_ITEM: '/tasks/:id/checklist/:itemId/',
 
     // Meeting endpoints
     MEETINGS: '/meetings/',
