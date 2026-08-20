@@ -200,7 +200,7 @@ export interface Task {
   checklist_done_count?: number;
   checklist_total_count?: number;
   /** Minutes before `due_date` to remind the assignee, when supported. */
-  reminder_offset_minutes?: number | null;
+  reminder_minutes_before?: number | null;
 }
 
 export interface LeadFieldConfiguration {
@@ -577,7 +577,7 @@ export interface CreateTaskPayload {
   rrule?: string | null;
   order_index?: number;
   labels?: string[];
-  reminder_offset_minutes?: number | null;
+  reminder_minutes_before?: number | null;
 }
 
 export interface UpdateTaskPayload extends Partial<CreateTaskPayload> {}

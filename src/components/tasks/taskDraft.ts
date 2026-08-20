@@ -99,7 +99,7 @@ export const draftFromTask = (task: Task, viewerTimeZone?: string): TaskDraft =>
     relatedId: resolveRelatedId(task),
     labels: Array.isArray(task.labels) ? task.labels : [],
     rrule: task.rrule || '',
-    reminderOffsetMinutes: task.reminder_offset_minutes ?? null,
+    reminderOffsetMinutes: task.reminder_minutes_before ?? null,
     timezone: tz,
   };
 };
@@ -129,7 +129,7 @@ export const draftToPayload = (draft: TaskDraft): CreateTaskPayload & UpdateTask
     timezone: tz,
     rrule: draft.rrule || null,
     labels: draft.labels,
-    reminder_offset_minutes: draft.reminderOffsetMinutes,
+    reminder_minutes_before: draft.reminderOffsetMinutes,
   };
 
   if (draft.relatedType === 'LEAD' && draft.relatedId) {
