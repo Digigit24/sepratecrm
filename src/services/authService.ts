@@ -2,6 +2,7 @@
 import { authClient, tokenManager } from '@/lib/client';
 import { API_CONFIG } from '@/lib/apiConfig';
 import { sanitizeThemeValue } from '@/lib/storageGuard';
+import { clearLegacyVendorToken } from '@/lib/whatsapp/legacyVendorToken';
 import { 
   LoginPayload, 
   LoginResponse, 
@@ -118,11 +119,17 @@ class AuthService {
             console.log('✅ WhatsApp Vendor UID fetched:', tenantSettings.whatsapp_vendor_uid);
           }
 
-          // Store whatsapp_api_token in tenant object
-          if (tenantSettings.whatsapp_api_token) {
-            user.tenant.whatsapp_api_token = tenantSettings.whatsapp_api_token;
-            console.log('✅ WhatsApp API Token fetched:', '****' + tenantSettings.whatsapp_api_token.slice(-4));
-          }
+          // NOTE: `whatsapp_api_token` is DELIBERATELY not fetched or stored here.
+          //
+          // It is the Laravel gateway's tenant-wide `vendor_api_access_token`:
+          // long-lived, unscoped, and enough on its own to read every conversation
+          // and send as the business. Persisting it in `celiyo_user` meant one XSS
+          // anywhere in this SPA was a full WhatsApp Business account takeover.
+          //
+          // Chat now authenticates with the user's own JWT via DigiCRM
+          // (services/whatsappChatService.ts). The administrative Laravel routes
+          // that still need the vendor token fetch it into MEMORY ONLY, on demand,
+          // from exactly one place: lib/whatsapp/legacyVendorToken.ts.
         } catch (tenantError) {
           console.warn('⚠️ Failed to fetch tenant settings:', tenantError);
         }
@@ -492,6 +499,10 @@ class AuthService {
     console.log('🧹 Clearing all auth data...');
     this.removeTokens();
     this.removeUser();
+    // The WhatsApp vendor token lives in memory for the life of the tab. Drop it
+    // here so signing out — or switching tenants on a shared browser — cannot
+    // leave the previous tenant's WhatsApp credential reachable.
+    clearLegacyVendorToken();
   }
 
   // Legacy methods for backward compatibility

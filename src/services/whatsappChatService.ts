@@ -106,8 +106,21 @@ export interface RealtimeGrant {
   /** Pusher app key (public by design). */
   key: string;
   cluster: string;
-  /** The single private channel this grant authorises. */
+  /**
+   * The single private channel this grant authorises, VERBATIM — including the
+   * mandatory `private-` prefix (e.g. `private-vendor-channel.<uid>`).
+   *
+   * Never reconstruct this client-side. Doing so is what produced the long-lived
+   * bug where the frontend subscribed to `vendor-channel.<uid>` without the
+   * prefix, which Pusher rejects outright however correct the auth is. Taking it
+   * from the grant also lets the backend rename the channel without a frontend
+   * release.
+   */
   channel: string;
+  /** Raw pusher-js event name to bind, e.g. `VendorChannelBroadcast`. */
+  event: string | null;
+  /** Laravel-Echo event name (leading dot), e.g. `.VendorChannelBroadcast`. */
+  echo_event: string | null;
   /** ISO-8601 expiry, when the backend reports one. */
   expires_at?: string | null;
   /** Optional pre-signed auth, when the backend grants in one round trip. */
@@ -120,9 +133,16 @@ export interface RealtimeGrant {
 }
 
 export interface ChatHistoryPage {
+  /** This page of messages, newest last. */
   messages: WhatsAppMessage[];
-  /** Opaque cursor for the PREVIOUS (older) page; null when at the beginning. */
-  cursor: string | null;
+  /**
+   * OPAQUE cursor (e.g. `"p2"`). Feed it back to walk further BACK in time.
+   *
+   * The pagination runs backwards: each successive page is OLDER than the last,
+   * so pages must be PREPENDED to the transcript, never appended. Null when the
+   * beginning of the conversation has been reached.
+   */
+  nextCursor: string | null;
   hasMore: boolean;
   /** Backend-authoritative 24-hour window state for this conversation. */
   window: ConversationWindow;
@@ -140,6 +160,8 @@ export interface ConversationWindow {
   open: boolean | null;
   expiresAt: string | null;
   requiresTemplate: boolean | null;
+  /** Backend-rendered "closes in 3 hours" string, when supplied. */
+  expiresHuman?: string | null;
 }
 
 export interface ConversationSummary {
@@ -175,15 +197,26 @@ function bool(value: unknown): boolean | null {
 }
 
 /**
- * Pull the window state out of whichever key the backend used.
+ * Pull the 24-hour window state out of the payload.
  *
- * We accept the normalised names first, then the Laravel adapter's original
- * `reply_window_*` spelling, so this keeps working while the rename lands.
+ * The CANONICAL source is the `reply_window` object
+ * `{ open, expires_at, requires_template, expires_human }`. The backend also
+ * emits the older flat aliases for compatibility with the currently-deployed
+ * frontend, so we fall back through them — this is exactly the key-name
+ * mismatch (`reply_window_expires_at` vs `window_expires_at`) that used to make
+ * every "closes in 3h" countdown render nothing.
  */
 export function readConversationWindow(payload: unknown): ConversationWindow {
   const p = record(payload);
+  const canonical = record(p.reply_window);
   const nested = record(p.window);
-  const source = Object.keys(nested).length > 0 ? nested : p;
+  // Canonical object first; then a `window` wrapper; then the flat top level.
+  const source =
+    Object.keys(canonical).length > 0
+      ? canonical
+      : Object.keys(nested).length > 0
+        ? nested
+        : p;
 
   return {
     open:
@@ -196,6 +229,8 @@ export function readConversationWindow(payload: unknown): ConversationWindow {
       str(source.window_expires_at) ??
       str(source.reply_window_expires_at),
     requiresTemplate: bool(source.requires_template),
+    expiresHuman:
+      str(source.expires_human) ?? str(source.reply_window_expires_human),
   };
 }
 
@@ -238,6 +273,8 @@ class WhatsAppChatService {
         key: str(d.key) ?? str(d.app_key) ?? '',
         cluster: str(d.cluster) ?? '',
         channel: str(d.channel) ?? str(d.channel_name) ?? '',
+        event: str(d.event),
+        echo_event: str(d.echo_event),
         expires_at: str(d.expires_at),
         auth: str(d.auth),
         channel_data: str(d.channel_data),
@@ -251,9 +288,9 @@ class WhatsAppChatService {
   }
 
   /**
-   * Paginated history for one contact, NEWEST LAST (render order).
+   * Paginated history for one contact, NEWEST LAST within the page.
    *
-   * `cursor` walks BACKWARDS into older messages.
+   * Successive pages go BACKWARDS in time — see `ChatHistoryPage.nextCursor`.
    */
   async getChatHistory(params: {
     contact: string;
@@ -267,14 +304,17 @@ class WhatsAppChatService {
         `${WHATSAPP_CHAT_PATHS.CHAT}?${search.toString()}`,
         { suppressErrorToast: true },
       );
+      // NB: read the list from the RAW body, not from `record(...)` — `record`
+      // collapses an array to `{}`, which would silently drop every message
+      // when the backend answers with a bare array.
       const d = record(res.data);
-      const messages = sortWhatsAppMessages(normaliseWhatsAppMessages(readMessageList(d)));
-      const cursor = str(d.cursor) ?? str(d.next_cursor) ?? str(d.previous);
+      const messages = sortWhatsAppMessages(normaliseWhatsAppMessages(readMessageList(res.data)));
+      const nextCursor = str(d.next_cursor) ?? str(d.cursor) ?? str(d.previous);
 
       return {
         messages,
-        cursor,
-        hasMore: d.has_more === true || (cursor !== null && cursor !== ''),
+        nextCursor,
+        hasMore: d.has_more === true || (nextCursor !== null && nextCursor !== ''),
         window: readConversationWindow(d),
       };
     } catch (error) {

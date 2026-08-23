@@ -323,15 +323,22 @@ class WhatsAppCrmService {
 
   // ---- Lead WhatsApp ----
 
-  /** Read WA vendor credentials from localStorage (set at login). */
+  /**
+   * Tenant routing hint for the DigiCRM WhatsApp proxy.
+   *
+   * The vendor UID is NOT a secret — it appears in every gateway URL — so it may
+   * come from localStorage. The vendor API TOKEN deliberately does not: it used
+   * to be forwarded here as `X-WA-Api-Token`, which meant the browser held (and
+   * re-sent) a tenant-wide WhatsApp credential on every chat read. DigiCRM
+   * resolves that credential server-side from the authenticated tenant instead.
+   */
   private _waHeaders(): Record<string, string> {
     try {
       const user = JSON.parse(localStorage.getItem('celiyo_user') || '{}');
       const headers: Record<string, string> = {};
-      // Credentials live inside tenant.settings (from admin.celiyo.com API)
       const settings = user?.tenant?.settings ?? {};
-      if (settings.whatsapp_vendor_uid) headers['X-WA-Vendor-Uid'] = settings.whatsapp_vendor_uid;
-      if (settings.whatsapp_api_token)  headers['X-WA-Api-Token']  = settings.whatsapp_api_token;
+      const vendorUid = settings.whatsapp_vendor_uid ?? user?.tenant?.whatsapp_vendor_uid;
+      if (vendorUid) headers['X-WA-Vendor-Uid'] = vendorUid;
       return headers;
     } catch {
       return {};

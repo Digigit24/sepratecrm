@@ -241,6 +241,39 @@ const InteractiveBubble: React.FC<{ message: WhatsAppMessage }> = ({ message }) 
     );
   }
 
+  // A Meta Flow reply: the recipient submitted a form. There is no fixed shape
+  // to the payload, so render the submitted key/value pairs rather than dropping
+  // the message or dumping raw JSON at the user.
+  if (iv.type === 'flow_reply' || iv.type === 'nfm_reply') {
+    const entries = Object.entries(iv.data ?? {}).filter(
+      ([, v]) => v !== null && v !== undefined && v !== '',
+    );
+    return (
+      <div className="min-w-[200px] max-w-[300px]" data-testid="interactive-message">
+        <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+          <List className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Form response</span>
+        </div>
+        {entries.length > 0 ? (
+          <dl className="mt-1 space-y-0.5">
+            {entries.map(([key, value]) => (
+              <div key={key} className="flex gap-2 text-[13px]">
+                <dt className="shrink-0 font-medium text-muted-foreground">{key}</dt>
+                <dd className="min-w-0 break-words text-[#0b141a]">
+                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <p className="mt-0.5 text-sm text-[#0b141a]">
+            <LinkifiedText text={message.text ?? 'Submitted'} />
+          </p>
+        )}
+      </div>
+    );
+  }
+
   // The recipient's CHOICE — render what they picked, not the whole menu.
   if (iv.reply) {
     return (
@@ -428,11 +461,14 @@ export const MessageContent: React.FC<MessageContentProps> = ({ message, classNa
           <div data-testid="document-message">
             <AuthedDocument
               mediaId={message.media.url}
-              filename={message.media.filename || message.text || 'Document'}
+              // NOT `|| message.text`: the backend mirrors `media.caption` into
+              // `text`, so falling back to it would print the caption as the
+              // filename AND again as the caption below.
+              filename={message.media.filename || 'Document'}
               size={message.media.size}
               mime={message.media.mime}
             />
-            <Caption text={message.media.caption} />
+            <Caption text={message.media.caption ?? message.text} />
           </div>
         ) : (
           <UnsupportedRow label="Document unavailable" text={message.text} />

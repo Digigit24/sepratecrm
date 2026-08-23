@@ -5,6 +5,7 @@ import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 import { API_CONFIG } from '@/lib/apiConfig';
 import { tokenManager } from '@/lib/client';
+import { whatsappChatService, isWhatsappEndpointUnavailable } from '@/services/whatsappChatService';
 
 // Make Pusher available globally for Laravel Echo
 declare global {
@@ -53,23 +54,17 @@ const getAccessToken = (): string | null => {
   return null;
 };
 
-// Get vendor API key for X-Api-Key header
-const getVendorApiKey = (): string | null => {
-  try {
-    const userJson = localStorage.getItem('celiyo_user');
-    if (userJson) {
-      const user = JSON.parse(userJson);
-      const apiKey = user?.tenant?.whatsapp_api_token;
-      if (apiKey) {
-        console.log('Pusher: Using vendor API key (length:', apiKey.length, ')');
-        return apiKey;
-      }
-    }
-  } catch (error) {
-    console.error('Failed to get vendor API key:', error);
-  }
-  return null;
-};
+// NOTE: there is deliberately no `getVendorApiKey()` here any more.
+//
+// This service used to read `celiyo_user.tenant.whatsapp_api_token` from
+// localStorage and send it as a bearer to Laravel's `/api/broadcasting/auth`.
+// That endpoint additionally accepted an UNVERIFIED JWT, so the whole path was
+// a cross-tenant realtime-read primitive — and the token itself grants full
+// control of the WhatsApp Business account.
+//
+// Channel auth now goes through DigiCRM's short-lived, single-channel grant
+// (services/whatsappChatService.getRealtimeGrant), signed against the user's own
+// JWT and scoped to one socket and one channel. Nothing long-lived is held.
 
 // Event types from Laravel broadcasting
 export interface ContactMessageEvent {
@@ -168,28 +163,17 @@ const notifyCallbacks = <K extends keyof RealtimeCallbacks>(
   });
 };
 
-// Initialize Laravel Echo with Pusher using custom authorizer
+// Initialize Laravel Echo with Pusher using a DigiCRM-granted authorizer.
 export const initEcho = (): Echo<any> | null => {
-  const vendorApiKey = getVendorApiKey();
-
-  if (!vendorApiKey) {
-    console.warn('Pusher: No vendor API key available for authentication');
-    return null;
-  }
-
   // Return existing instance if already initialized
   if (echoInstance) {
     return echoInstance;
   }
 
-  // Broadcasting auth endpoint - using /api/broadcasting/auth
-  const authUrl = `${API_CONFIG.WHATSAPP_EXTERNAL_BASE_URL}/broadcasting/auth`;
-
   console.log('Pusher: Initializing with config:', {
     key: PUSHER_CONFIG.key,
     cluster: PUSHER_CONFIG.cluster,
-    authUrl,
-    hasApiKey: !!vendorApiKey,
+    auth: 'digicrm realtime grant',
   });
 
   try {
@@ -203,43 +187,37 @@ export const initEcho = (): Echo<any> | null => {
       key: PUSHER_CONFIG.key,
       cluster: PUSHER_CONFIG.cluster,
       forceTLS: PUSHER_CONFIG.forceTLS,
-      // Use custom authorizer with X-Api-Key header
-      authorizer: (channel: any, options: any) => {
+      // Authorise each private channel with a SHORT-LIVED, SINGLE-CHANNEL grant
+      // minted by DigiCRM against the user's own JWT. The tenant-wide vendor
+      // token that used to sign this is gone; nothing durable is held by the
+      // browser, and a stolen signature is useless on another socket.
+      authorizer: (channel: any) => {
         return {
           authorize: (socketId: string, callback: (error: any, data: any) => void) => {
             console.log('Pusher: Authorizing channel:', channel.name, 'socket_id:', socketId);
 
-            fetch(authUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${vendorApiKey}`,
-              },
-              body: JSON.stringify({
-                socket_id: socketId,
-                channel_name: channel.name,
-              }),
-            })
-              .then(response => {
-                console.log('Pusher: Auth response status:', response.status);
-                if (!response.ok) {
-                  throw new Error(`Auth failed with status ${response.status}`);
-                }
-                return response.json();
-              })
-              .then(data => {
-                console.log('Pusher: Auth response data:', data);
-                if (data.auth) {
+            whatsappChatService
+              .getRealtimeGrant({ socket_id: socketId, channel_name: channel.name })
+              .then(grant => {
+                if (grant.auth) {
                   console.log('Pusher: Auth successful for channel:', channel.name);
-                  callback(null, data);
+                  callback(null, {
+                    auth: grant.auth,
+                    ...(grant.channel_data ? { channel_data: grant.channel_data } : {}),
+                  });
                 } else {
-                  console.error('Pusher: Auth failed - no auth key in response:', data);
-                  callback(new Error(data.error || data.message || 'Auth failed - no auth key'), null);
+                  console.error('Pusher: Realtime grant returned no auth signature');
+                  callback(new Error('Realtime grant returned no auth signature'), null);
                 }
               })
               .catch(error => {
-                console.error('Pusher: Auth error for channel:', channel.name, error);
+                // A 404/501/502/503 means the grant endpoint is not deployed yet.
+                // Degrade to "no live updates" — the chat itself still works.
+                if (isWhatsappEndpointUnavailable(error)) {
+                  console.warn('Pusher: realtime grant endpoint not available yet — live updates disabled');
+                } else {
+                  console.error('Pusher: Auth error for channel:', channel.name, error);
+                }
                 callback(error, null);
               });
           },
@@ -273,6 +251,40 @@ export const initEcho = (): Echo<any> | null => {
   }
 };
 
+// Dispatch one raw broadcast payload to the registered callbacks.
+//
+// Extracted from the inline listener so every bound event name shares exactly
+// one implementation.
+const handleBroadcast = (data: any) => {
+  console.log('Pusher: VendorChannelBroadcast event received:', data);
+
+  // Handle new simplified API format (contactUid, isNewIncomingMessage, etc.)
+  if (data?.contactUid !== undefined) {
+    notifyCallbacks('onVendorBroadcast', data as VendorChannelBroadcastEvent);
+
+    // Also trigger status update if message_status is present
+    if (data.message_status && data.lastMessageUid) {
+      notifyCallbacks('onMessageStatus', {
+        message: {
+          uid: data.lastMessageUid,
+          status: data.message_status,
+          updated_at: new Date().toISOString(),
+        },
+      });
+    }
+    return;
+  }
+
+  // Handle legacy event types based on data structure
+  if (data?.message && data?.contact) {
+    notifyCallbacks('onNewMessage', data as ContactMessageEvent);
+  } else if (data?.contact && !data?.message) {
+    notifyCallbacks('onContactUpdated', data as ContactUpdatedEvent);
+  } else if (data?.message && data.message.status) {
+    notifyCallbacks('onMessageStatus', data as MessageStatusEvent);
+  }
+};
+
 // Subscribe to vendor channel for real-time updates
 // Uses singleton pattern - multiple callers share one Pusher subscription
 export const subscribeToVendorChannel = (
@@ -300,134 +312,97 @@ export const subscribeToVendorChannel = (
     };
   }
 
-  const echo = initEcho();
+  // The channel name is NEVER constructed here.
+  //
+  // It used to be `vendor-channel.${vendorUid}` — missing the mandatory
+  // `private-` prefix, so Pusher rejected the subscription outright no matter
+  // how correct the auth was. The grant returns the exact channel (and the exact
+  // event name) to use, which also lets the backend rename either one without a
+  // frontend release.
+  let cancelled = false;
+  let activeChannelName: string | null = null;
 
-  if (!echo) {
-    console.error('Pusher: Echo not initialized - cannot subscribe to channel');
-    callbacks.onError?.({ message: 'Echo not initialized' });
-    callbackRegistry.delete(callbackId);
-    return () => {};
-  }
+  whatsappChatService
+    .getRealtimeGrant()
+    .then(grant => {
+      if (cancelled) return;
 
-  // Channel name format: vendor-channel.{vendorUid} (with hyphen, not dot)
-  const channelName = `vendor-channel.${vendorUid}`;
-  console.log(`Pusher: Subscribing to private channel: ${channelName}`);
+      if (!grant.channel) {
+        console.warn('Pusher: realtime grant returned no channel — live updates disabled');
+        notifyCallbacks('onError', { message: 'No realtime channel granted' });
+        return;
+      }
 
-  try {
-    currentChannel = echo.private(channelName);
-    subscribedVendorUid = vendorUid;
+      const echo = initEcho();
+      const pusher = echo?.connector?.pusher;
+      if (!echo || !pusher) {
+        console.error('Pusher: Echo not initialized - cannot subscribe to channel');
+        notifyCallbacks('onError', { message: 'Echo not initialized' });
+        return;
+      }
 
-    // Get the underlying Pusher channel for direct event binding
-    const pusherChannel = currentChannel.subscription;
+      const channelName = grant.channel;
+      activeChannelName = channelName;
+      subscribedVendorUid = vendorUid;
+      console.log(`Pusher: Subscribing to private channel: ${channelName}`);
 
-    // Bind to pusher:subscription_succeeded for reliable connection detection
-    if (pusherChannel) {
-      pusherChannel.bind('pusher:subscription_succeeded', () => {
+      // Subscribe with RAW pusher-js, not echo.private(): Echo prepends its own
+      // `private-` and would produce `private-private-…`. The grant name is final.
+      const channel = pusher.subscribe(channelName);
+      currentChannel = channel;
+
+      channel.bind('pusher:subscription_succeeded', () => {
         console.log(`Pusher: subscription_succeeded for ${channelName}`);
         isChannelSubscribed = true;
         notifyCallbacks('onConnected', undefined as any);
       });
 
-      pusherChannel.bind('pusher:subscription_error', (error: any) => {
+      channel.bind('pusher:subscription_error', (error: any) => {
         console.error(`Pusher: subscription_error for ${channelName}:`, error);
         isChannelSubscribed = false;
         notifyCallbacks('onError', error);
       });
-    }
 
-    // Listen to the main VendorChannelBroadcast event
-    // NOTE: Dot prefix (.VendorChannelBroadcast) is required for raw event name matching
-    // Without dot, Laravel Echo expects namespaced event (App\Events\VendorChannelBroadcast)
-    currentChannel
-      .listen('.VendorChannelBroadcast', (data: any) => {
-        console.log('Pusher: VendorChannelBroadcast event received:', data);
+      // Bind the event name the grant gave us, in both raw and dotted form.
+      // Duplicate delivery is harmless: consumers dedupe on wamid.
+      const eventNames = new Set<string>();
+      if (grant.event) { eventNames.add(grant.event); eventNames.add(`.${grant.event}`); }
+      if (grant.echo_event) { eventNames.add(grant.echo_event); eventNames.add(grant.echo_event.replace(/^./, '')); }
+      if (eventNames.size === 0) { eventNames.add('VendorChannelBroadcast'); eventNames.add('.VendorChannelBroadcast'); }
 
-        // Handle new simplified API format (contactUid, isNewIncomingMessage, etc.)
-        if (data.contactUid !== undefined) {
-          console.log('Pusher: VendorChannelBroadcast (simplified format)', {
-            contactUid: data.contactUid,
-            isNewIncoming: data.isNewIncomingMessage,
-            messageStatus: data.message_status,
-            lastMessageUid: data.lastMessageUid,
-          });
-          notifyCallbacks('onVendorBroadcast', data as VendorChannelBroadcastEvent);
-
-          // Also trigger status update if message_status is present
-          if (data.message_status && data.lastMessageUid) {
-            notifyCallbacks('onMessageStatus', {
-              message: {
-                uid: data.lastMessageUid,
-                status: data.message_status,
-                updated_at: new Date().toISOString(),
-              }
-            });
-          }
-          return;
-        }
-
-        // Handle legacy event types based on data structure
-        if (data.message && data.contact) {
-          // New message event
-          console.log('Pusher: New message received', {
-            contact: data.contact?.uid,
-            messageType: data.message?.message_type,
-            isIncoming: data.message?.is_incoming_message,
-            body: data.message?.body?.substring(0, 50),
-          });
-          notifyCallbacks('onNewMessage', data as ContactMessageEvent);
-        } else if (data.contact && !data.message) {
-          // Contact updated event
-          console.log('Pusher: Contact updated', {
-            contact: data.contact?.uid,
-            unread: data.contact?.unread_messages_count,
-          });
-          notifyCallbacks('onContactUpdated', data as ContactUpdatedEvent);
-        } else if (data.message && data.message.status) {
-          // Message status update event
-          console.log('Pusher: Message status changed', {
-            message: data.message?.uid,
-            status: data.message?.status,
-          });
-          notifyCallbacks('onMessageStatus', data as MessageStatusEvent);
-        }
-      })
-      .subscribed(() => {
-        console.log(`Pusher: Echo subscribed callback for ${channelName}`);
-        isChannelSubscribed = true;
-        // onConnected already called by pusher:subscription_succeeded
-      })
-      .error((error: any) => {
-        console.error(`Pusher: Error subscribing to ${channelName}:`, error);
-        isChannelSubscribed = false;
-        // Provide more details about the error
-        if (error?.status === 403) {
-          console.error('Pusher: 403 Forbidden - Check broadcasting auth endpoint and token');
-        } else if (error?.status === 401) {
-          console.error('Pusher: 401 Unauthorized - Token may be invalid or expired');
-        }
-        notifyCallbacks('onError', error);
-      });
-
-    // Return cleanup function that removes callbacks but keeps subscription active
-    return () => {
-      console.log(`Pusher: Removing callbacks ${callbackId}, remaining listeners: ${callbackRegistry.size - 1}`);
-      callbackRegistry.delete(callbackId);
-
-      // Only unsubscribe if no more listeners
-      if (callbackRegistry.size === 0) {
-        console.log(`Pusher: No more listeners, unsubscribing from ${channelName}`);
-        echo.leave(channelName);
-        currentChannel = null;
-        isChannelSubscribed = false;
-        subscribedVendorUid = null;
+      eventNames.forEach(eventName => channel.bind(eventName, handleBroadcast));
+    })
+    .catch(error => {
+      if (isWhatsappEndpointUnavailable(error)) {
+        // Grant endpoint not deployed yet — chat still works, just not live.
+        console.warn('Pusher: realtime grant not available yet — live updates disabled');
+      } else {
+        console.error('Pusher: Failed to subscribe to vendor channel:', error);
       }
-    };
-  } catch (error) {
-    console.error('Pusher: Failed to subscribe to vendor channel:', error);
+      notifyCallbacks('onError', error);
+    });
+
+  // Cleanup removes this listener; the subscription itself is torn down only
+  // when the last listener goes away.
+  return () => {
+    cancelled = true;
+    console.log(`Pusher: Removing callbacks ${callbackId}, remaining listeners: ${callbackRegistry.size - 1}`);
     callbackRegistry.delete(callbackId);
-    notifyCallbacks('onError', error);
-    return () => {};
-  }
+
+    if (callbackRegistry.size === 0 && activeChannelName) {
+      console.log(`Pusher: No more listeners, unsubscribing from ${activeChannelName}`);
+      try {
+        const pusher = echoInstance?.connector?.pusher;
+        currentChannel?.unbind_all?.();
+        pusher?.unsubscribe(activeChannelName);
+      } catch (error) {
+        console.error('Pusher: error while unsubscribing:', error);
+      }
+      currentChannel = null;
+      isChannelSubscribed = false;
+      subscribedVendorUid = null;
+    }
+  };
 };
 
 // Disconnect Echo instance

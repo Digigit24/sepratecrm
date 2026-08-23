@@ -1,27 +1,21 @@
 // src/lib/externalWhatsappClient.ts
 // External WhatsApp client for Laravel API (whatsappapi.celiyo.com/api)
+//
+// LEGACY. This client talks to the Laravel gateway DIRECTLY, authenticated with
+// the tenant-wide vendor API token. Every route still on it is administrative
+// (contacts, campaigns, templates, bot flows, scheduling, QR codes) — chat,
+// sending and realtime have all moved to DigiCRM and the user's own JWT.
+//
+// The token is no longer read from localStorage. It is fetched on demand into
+// memory by lib/whatsapp/legacyVendorToken.ts, which is the only module allowed
+// to touch it and which documents exactly what still depends on it.
+//
+// Do not add new callers. Add a DigiCRM endpoint instead.
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { API_CONFIG } from './apiConfig';
+import { getLegacyVendorToken, getLegacyVendorUid } from './whatsapp/legacyVendorToken';
 
 const USER_KEY = 'celiyo_user';
-
-/**
- * Get WhatsApp API token from localStorage
- * This token is stored in: celiyo_user.tenant.whatsapp_api_token
- * and is used for authenticating with the WhatsApp API
- */
-export const getWhatsappApiToken = (): string | null => {
-  try {
-    const userJson = localStorage.getItem(USER_KEY);
-    if (userJson) {
-      const user = JSON.parse(userJson);
-      return user?.tenant?.whatsapp_api_token || null;
-    }
-  } catch (error) {
-    console.error('Failed to get WhatsApp API token:', error);
-  }
-  return null;
-};
 
 // Create external WhatsApp client for Laravel API
 const externalWhatsappClient: AxiosInstance = axios.create({
@@ -32,10 +26,14 @@ const externalWhatsappClient: AxiosInstance = axios.create({
   },
 });
 
-// Request interceptor - attach WhatsApp API token (not user auth token)
+// Request interceptor - attach the vendor API token (not the user auth token).
+//
+// Async on purpose: the token is fetched into memory on first use rather than
+// read from localStorage, so the first request of a session awaits it. Later
+// requests hit the in-memory cache and resolve immediately.
 externalWhatsappClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    const whatsappApiToken = getWhatsappApiToken();
+  async (config: InternalAxiosRequestConfig) => {
+    const whatsappApiToken = await getLegacyVendorToken();
 
     if (whatsappApiToken) {
       config.headers.Authorization = `Bearer ${whatsappApiToken}`;
@@ -119,23 +117,13 @@ externalWhatsappClient.interceptors.response.use(
 );
 
 /**
- * Get vendor UID from localStorage
+ * Get vendor UID from localStorage.
+ *
+ * Unlike the token, the vendor uid is NOT a secret — it appears in every gateway
+ * URL — so it may stay in localStorage. Delegated so there is one resolution
+ * order, in one place.
  */
-export const getVendorUid = (): string | null => {
-  try {
-    const userJson = localStorage.getItem(USER_KEY);
-    if (userJson) {
-      const user = JSON.parse(userJson);
-      return user?.vendor_uid
-        || user?.tenant?.vendor_uid
-        || user?.tenant?.whatsapp_vendor_uid
-        || null;
-    }
-  } catch (error) {
-    console.error('Failed to get vendor UID:', error);
-  }
-  return null;
-};
+export const getVendorUid = (): string | null => getLegacyVendorUid();
 
 /**
  * Build URL with vendor UID

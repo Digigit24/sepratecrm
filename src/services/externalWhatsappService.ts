@@ -4,6 +4,7 @@
 
 import { AxiosResponse } from 'axios';
 import { externalWhatsappClient } from '@/lib/externalWhatsappClient';
+import { getLegacyVendorToken } from '@/lib/whatsapp/legacyVendorToken';
 
 const USER_KEY = 'celiyo_user';
 
@@ -22,18 +23,16 @@ export const getWhatsappVendorUid = (): string | null => {
   return null;
 };
 
-export const getWhatsappApiToken = (): string | null => {
-  try {
-    const userJson = localStorage.getItem(USER_KEY);
-    if (userJson) {
-      const user = JSON.parse(userJson);
-      return user?.tenant?.whatsapp_api_token || null;
-    }
-  } catch (error) {
-    console.error('Failed to get WhatsApp API Token:', error);
-  }
-  return null;
-};
+/**
+ * The vendor API token, from MEMORY — never from localStorage.
+ *
+ * Persisting this tenant-wide credential in `celiyo_user` turned any XSS into a
+ * full WhatsApp Business account takeover. It now lives in memory for the life
+ * of the tab and is owned by exactly one module.
+ *
+ * @see lib/whatsapp/legacyVendorToken.ts for what still depends on it.
+ */
+export const getWhatsappApiToken = (): Promise<string | null> => getLegacyVendorToken();
 
 // ==================== RESPONSE HANDLERS ====================
 

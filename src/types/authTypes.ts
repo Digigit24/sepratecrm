@@ -39,7 +39,13 @@ export interface Tenant {
   settings?: TenantSettings;
   gallery_images?: TenantImage[];
   whatsapp_vendor_uid?: string;
-  whatsapp_api_token?: string;
+  // `whatsapp_api_token` is deliberately absent.
+  //
+  // It is the tenant-wide WhatsApp vendor credential. It used to be fetched at
+  // login and persisted here inside `localStorage.celiyo_user`, which made any
+  // XSS a full WhatsApp Business account takeover. Nothing writes it now, and
+  // the few Laravel routes that still need it read it into memory only, from
+  // lib/whatsapp/legacyVendorToken.ts. Do not add it back to a stored type.
 }
 
 export interface Role {

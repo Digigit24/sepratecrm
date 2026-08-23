@@ -65,11 +65,17 @@ export interface RealtimeHandlers {
   onStateChange?: (state: RealtimeConnectionState) => void;
 }
 
-/** Events we bind on the private channel. Bound with and without the dot form. */
-const MESSAGE_EVENTS = [
+/**
+ * Fallback event names, used only if the grant does not name one.
+ *
+ * The grant returns `event` (raw pusher-js) and `echo_event` (leading dot, for
+ * Laravel Echo). Prefer those — hardcoding an event name here is the same class
+ * of mistake as hardcoding the channel name.
+ */
+const FALLBACK_MESSAGE_EVENTS = [
+  'VendorChannelBroadcast',
   'whatsapp.message',
   'message.received',
-  'VendorChannelBroadcast',
 ] as const;
 
 const STATUS_EVENTS = ['whatsapp.status', 'message.status'] as const;
@@ -171,7 +177,7 @@ export function subscribeToWhatsappRealtime(
     }, delay);
   };
 
-  const bindMessageHandlers = (ch: Channel) => {
+  const bindMessageHandlers = (ch: Channel, g: RealtimeGrant) => {
     const onMessage = (payload: unknown) => {
       const event = readMessageEvent(payload);
       if (event) handlers.onMessage?.(event);
@@ -180,12 +186,27 @@ export function subscribeToWhatsappRealtime(
       if (status) handlers.onStatus?.(status);
     };
 
-    for (const name of MESSAGE_EVENTS) {
-      // Laravel broadcasts with a leading dot for raw (non-namespaced) names;
-      // a plain Pusher publisher does not. Bind both — the dedupe on `wamid`
-      // makes a double delivery harmless.
+    // The grant names the event. We bind raw AND dotted forms because Laravel
+    // broadcasts non-namespaced names with a leading dot while a plain Pusher
+    // publisher does not — and the wamid dedupe makes a double delivery a no-op.
+    const names = new Set<string>();
+    if (g.event) {
+      names.add(g.event);
+      names.add(`.${g.event}`);
+    }
+    if (g.echo_event) {
+      names.add(g.echo_event);
+      names.add(g.echo_event.replace(/^\./, ''));
+    }
+    if (names.size === 0) {
+      for (const name of FALLBACK_MESSAGE_EVENTS) {
+        names.add(name);
+        names.add(`.${name}`);
+      }
+    }
+
+    for (const name of names) {
       ch.bind(name, onMessage);
-      ch.bind(`.${name}`, onMessage);
     }
 
     for (const name of STATUS_EVENTS) {
@@ -278,7 +299,10 @@ export function subscribeToWhatsappRealtime(
       if (state !== 'connected') setState('disconnected');
     });
 
+    // VERBATIM from the grant — including the mandatory `private-` prefix.
+    // Never rebuild this string here.
     channel = pusher.subscribe(grant.channel);
+    const activeGrant = grant;
     channel.bind('pusher:subscription_succeeded', () => {
       retryAttempt = 0;
       setState('connected');
@@ -289,7 +313,7 @@ export function subscribeToWhatsappRealtime(
       teardownClient();
       scheduleRetry();
     });
-    bindMessageHandlers(channel);
+    bindMessageHandlers(channel, activeGrant);
   };
 
   const teardownClient = () => {

@@ -29,8 +29,10 @@ const createBotFlowClient = (): AxiosInstance => {
     headers: { 'Content-Type': 'application/json' },
   });
 
-  client.interceptors.request.use((config) => {
-    const token = getWhatsappApiToken() || tokenManager.getAccessToken();
+  // Async: the vendor token is fetched into memory on first use rather than read
+  // from localStorage. See lib/whatsapp/legacyVendorToken.ts.
+  client.interceptors.request.use(async (config) => {
+    const token = (await getWhatsappApiToken()) || tokenManager.getAccessToken();
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   });

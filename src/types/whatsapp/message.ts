@@ -111,8 +111,15 @@ export interface WhatsAppListSection {
 }
 
 export interface WhatsAppInteractive {
-  /** 'button' | 'list' | 'button_reply' | 'list_reply' | 'nfm_reply' | … */
+  /**
+   * 'button' | 'list' | 'button_reply' | 'list_reply' | 'flow_reply' | …
+   *
+   * The backend spells this `kind` on flow replies (`{kind:'flow_reply', data}`);
+   * the normaliser folds `kind` into `type` so renderers only read one field.
+   */
   type?: string | null;
+  /** Opaque payload of a Meta Flow reply (`nfm_reply.response_json`). */
+  data?: Record<string, unknown> | null;
   header?: { type?: string | null; text?: string | null; media?: WhatsAppMedia | null } | null;
   body?: string | null;
   footer?: string | null;
@@ -467,14 +474,21 @@ function normaliseInteractive(raw: Record<string, unknown>): WhatsAppInteractive
 
   const type =
     asString(source.type) ??
+    // Flow replies arrive as { kind: 'flow_reply', data: {...} }.
+    asString(source.kind) ??
     asString(source.interactive_type) ??
     (sections ? 'list' : buttons ? 'button' : null);
 
+  const data = Object.keys(asRecord(source.data)).length ? asRecord(source.data) : null;
+
   // Nothing displayable at all → treat as absent so the caller can fall back.
-  if (!type && !body && !footer && !headerText && !buttons && !sections && !reply) return null;
+  if (!type && !body && !footer && !headerText && !buttons && !sections && !reply && !data) {
+    return null;
+  }
 
   return {
     type,
+    data,
     header: headerText ? { type: 'text', text: headerText, media: null } : null,
     body,
     footer,
