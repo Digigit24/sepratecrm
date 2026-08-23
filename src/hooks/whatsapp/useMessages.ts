@@ -6,6 +6,7 @@ import type { WhatsAppMessage, Template } from '@/types/whatsappTypes';
 import { chatService } from '@/services/whatsapp/chatService';
 import { chatKeys, updateContactPreviewInCache } from '@/hooks/whatsapp/useChat';
 import { templatesService } from '@/services/whatsapp/templatesService';
+import { messageIdentities } from '@/lib/whatsapp/richRealtime';
 
 export interface UseMessagesReturn {
   messages: WhatsAppMessage[];
@@ -89,15 +90,40 @@ export function useMessages(conversationPhone: string | null): UseMessagesReturn
                 interaction_message_data: m.interaction_message_data,
                 template_message: m.template_message,
                 whatsapp_message_error: m.whatsapp_message_error,
+                // Pinned-envelope fields, passed through untouched.
+                //
+                // Rows written by the DigiCRM realtime path carry the envelope
+                // (media / location / contacts / interactive / template), and
+                // ChatWindow's normaliseWhatsAppMessage PREFERS those names over
+                // the legacy ones. Dropping them here - which this transform used
+                // to do - blanked every non-text bubble that arrived over the
+                // socket. `wamid` and `client_id` come along for the dedupe below.
+                wamid: m.wamid ?? null,
+                client_id: m.client_id ?? null,
+                media: m.media,
+                location: m.location,
+                contacts: m.contacts,
+                interactive: m.interactive,
+                template: m.template,
+                reply_to: m.reply_to,
+                error: m.error,
               };
             });
             // Merge: purely additive - never lose messages
             setMessages(prev => {
-              const existingIds = new Set(prev.map(m => m.id));
+              // Identity is wamid -> client_id -> id, NOT id alone.
+              //
+              // Three sightings can describe one message: the optimistic local
+              // echo (client_id, no server id yet), Laravel's thin event via a
+              // refetch (server id + wamid), and DigiCRM's rich event (wamid +
+              // id). Matching on id alone cannot collapse the echo, and cannot
+              // collapse a rich event whose id the server has not issued yet.
+              const existingKeys = new Set(prev.flatMap(m => messageIdentities(m)));
 
-              // Find NEW messages from cache that don't exist locally (by ID only)
               const newMessages = transformed.filter((m: WhatsAppMessage) => {
-                return !existingIds.has(m.id);
+                const keys = messageIdentities(m);
+                if (keys.length === 0) return true;
+                return !keys.some(key => existingKeys.has(key));
               });
 
               // Keep all prev messages, update temp→real if matched
@@ -157,11 +183,12 @@ export function useMessages(conversationPhone: string | null): UseMessagesReturn
                 ...newMessages.filter(m => !replacedTempIds.has(m.id))
               ];
 
-              // Remove duplicates by ID (final safety dedup)
-              const seenIds = new Set<string>();
+              // Final safety dedup, on the same wamid -> client_id -> id identity.
+              const seen = new Set<string>();
               const deduped = combined.filter(m => {
-                if (seenIds.has(m.id)) return false;
-                seenIds.add(m.id);
+                const keys = messageIdentities(m);
+                if (keys.some(key => seen.has(key))) return false;
+                keys.forEach(key => seen.add(key));
                 return true;
               });
 

@@ -12,7 +12,18 @@ import {
   ContactUpdatedEvent,
   MessageStatusEvent,
   VendorChannelBroadcastEvent,
+  DigicrmMessageEvent,
+  DigicrmStatusEvent,
 } from '@/services/pusherService';
+import {
+  readRichMessage,
+  needsSingleMessageRefetch,
+  envelopeToCacheRow,
+  mergeRowIntoMessages,
+  markRichEventSeen,
+  scheduleThinRefetch,
+  cancelThinRefetch,
+} from '@/lib/whatsapp/richRealtime';
 import { chatKeys } from '@/hooks/whatsapp/useChat';
 import { chatService } from '@/services/whatsapp/chatService';
 import type { ChatContact, ChatMessage, ChatMessagesResponse, ChatContactsResponse } from '@/services/whatsapp/chatService';
@@ -45,6 +56,72 @@ function refreshOpenConversation(queryClient: QueryClient, contactUid: string): 
     });
 
   inFlightMessageRefresh.set(contactUid, p);
+  return p;
+}
+
+// ─── Rich events supersede the thin one ─────────────────────────────────────
+// Laravel's VendorChannelBroadcast and DigiCRM's DigicrmMessage BOTH fire for
+// the same inbound message, and DigiCRM's usually lands slightly later (it goes
+// out after n8n relays the webhook). Refetching the moment the thin event
+// arrives would therefore still cost one conversation GET per message even
+// though the rich event was about to render it for free.
+//
+// The waiting/cancelling rules live in lib/whatsapp/richRealtime so every
+// consumer of the channel shares one view of them; this is just the wiring.
+
+// ─── Narrow refetch of ONE message ──────────────────────────────────────────
+// Used only when the rich payload cannot be trusted: the server shrank it past
+// Pusher's 10KB limit, or n8n did not forward enough for the envelope to match
+// its own declared type.
+//
+// ONE message, never the conversation - fetching the conversation here would
+// reintroduce exactly the cost this whole change removes. `getMessage(uid)` is
+// the real single-message endpoint; when the envelope carries no server uid
+// (n8n currently pins only `message_wamid`, so `id` can be empty) we fall back
+// to the newest-message page, which is still one message.
+//
+// Single-flight per contact, same as the full refresh above.
+const inFlightSingleRefresh = new Map<string, Promise<void>>();
+
+function refreshSingleMessage(
+  queryClient: QueryClient,
+  contactUid: string,
+  messageUid: string | null,
+): Promise<void> {
+  const existing = inFlightSingleRefresh.get(contactUid);
+  if (existing) return existing;
+
+  const fetchOne: Promise<ChatMessage | undefined> = messageUid
+    ? chatService.getMessage(messageUid)
+    : chatService
+        .getContactMessages(contactUid, { page: 1, limit: 1 })
+        .then((result) => result?.messages?.[0]);
+
+  const p = fetchOne
+    .then((fresh) => {
+      if (!fresh) return;
+      queryClient.setQueriesData<ChatMessagesResponse>(
+        { queryKey: chatKeys.messages(contactUid, {}) },
+        (oldData) => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            messages: mergeRowIntoMessages(
+              (oldData.messages ?? []) as unknown as Record<string, unknown>[],
+              fresh as unknown as Record<string, unknown>,
+            ) as unknown as ChatMessage[],
+          };
+        },
+      );
+    })
+    .catch((err) => {
+      console.error('useRealtimeChat: failed to refresh single message', err);
+    })
+    .finally(() => {
+      inFlightSingleRefresh.delete(contactUid);
+    });
+
+  inFlightSingleRefresh.set(contactUid, p);
   return p;
 }
 
@@ -389,8 +466,13 @@ const handleContactUpdated = useCallback((data: ContactUpdatedEvent) => {
       // appear. Single-flight + direct cache write: exactly one GET per event
       // regardless of how many components are listening, and no dependency on
       // a mounted React Query observer (works after useChatMessages removal).
+      //
+      // Deferred by RICH_GRACE_MS once DigiCRM's rich events are known to be
+      // live, so the rich event for this same message can cancel it and render
+      // from the socket instead. Falls straight through to an immediate refetch
+      // when no rich event has ever been seen.
       if (isNewIncomingMessage && contactUid === selectedContactUid) {
-        refreshOpenConversation(queryClient, contactUid);
+        scheduleThinRefetch(contactUid, () => refreshOpenConversation(queryClient, contactUid));
       }
     }
 
@@ -417,12 +499,148 @@ const handleContactUpdated = useCallback((data: ContactUpdatedEvent) => {
     }
   }, [queryClient, selectedContactUid, playSound]);
 
+  // Handle DigicrmMessage: the FULL envelope, published by DigiCRM's own
+  // inbound webhook. This is the path that renders without a network call.
+  const handleDigicrmMessage = useCallback((data: DigicrmMessageEvent) => {
+    const event = readRichMessage(data);
+    if (!event) {
+      console.warn('useRealtimeChat: DigicrmMessage carried no renderable message', data);
+      return;
+    }
+
+    // From here on the thin Laravel event is redundant for this conversation.
+    markRichEventSeen();
+    const contactUid = event.contactUid;
+    if (contactUid) cancelThinRefetch(contactUid);
+
+    const incoming = event.message.direction === 'in';
+    if (incoming) playSound();
+
+    const asRealtimeMessage: RealtimeMessage = {
+      _uid: event.message.id,
+      message: event.message.text ?? '',
+      message_type: event.message.type as RealtimeMessage['message_type'],
+      is_incoming_message: incoming,
+      direction: incoming ? 'incoming' : 'outgoing',
+      status: (event.message.status ?? 'delivered') as RealtimeMessage['status'],
+      messaged_at: event.message.timestamp,
+      formatted_message_time: '',
+      media_url: event.message.media?.url ?? undefined,
+      media_type: event.message.media?.mime ?? undefined,
+      file_name: event.message.media?.filename ?? undefined,
+    };
+    setLastMessage(asRealtimeMessage);
+
+    if (!contactUid) {
+      // Nothing to key the conversation on. The thin event still owns the
+      // contacts-list bookkeeping, so this degrades to today's behaviour.
+      return;
+    }
+
+    onNewMessage?.(asRealtimeMessage, contactUid);
+
+    // Keep the conversation list in step. Deliberately NOT unread_count: that
+    // is incremented by the thin Laravel event, which fires for every message
+    // whether or not DigiCRM publishes, and double-counting it here would be
+    // worse than the refetch this change removes.
+    queryClient.setQueriesData<ChatContactsResponse>(
+      { queryKey: chatKeys.contacts() },
+      (oldData) => {
+        if (!oldData?.contacts?.length) return oldData;
+        const index = oldData.contacts.findIndex((c: ChatContact) => c._uid === contactUid);
+        if (index === -1) return oldData;
+
+        const updated: ChatContact = {
+          ...oldData.contacts[index],
+          last_message: event.message.text ?? oldData.contacts[index].last_message,
+          last_message_at: event.message.timestamp,
+        };
+        return {
+          ...oldData,
+          contacts: [updated, ...oldData.contacts.filter((c: ChatContact) => c._uid !== contactUid)],
+        };
+      },
+    );
+
+    // The payload is not always trustworthy. It was shrunk to fit Pusher's 10KB
+    // limit, or n8n forwarded less than the envelope's own type promises (an
+    // image arriving as a text envelope with no media). Fetch that ONE message
+    // rather than render something wrong - and never the whole conversation,
+    // which is the cost this change exists to remove.
+    if (needsSingleMessageRefetch(event)) {
+      console.log('useRealtimeChat: rich event too thin to render, refetching one message');
+      void refreshSingleMessage(queryClient, contactUid, event.message.id || null);
+      return;
+    }
+
+    // The whole point: straight into the cache, no network call.
+    queryClient.setQueriesData<ChatMessagesResponse>(
+      { queryKey: chatKeys.messages(contactUid, {}) },
+      (oldData) => {
+        if (!oldData) return oldData;
+        const next = mergeRowIntoMessages(
+          (oldData.messages ?? []) as unknown as Record<string, unknown>[],
+          envelopeToCacheRow(event.message, contactUid),
+        ) as unknown as ChatMessage[];
+        return {
+          ...oldData,
+          messages: next,
+          total: next.length,
+        };
+      },
+    );
+  }, [queryClient, playSound, onNewMessage]);
+
+  // Handle DigicrmMessageStatus: flat delivery receipt, applied in place.
+  const handleDigicrmStatus = useCallback((data: DigicrmStatusEvent) => {
+    const { wamid, id, status, error } = data;
+    if (!status || (!wamid && !id)) return;
+
+    markRichEventSeen();
+    onMessageStatusUpdate?.(id ?? wamid ?? '', status);
+
+    const contactUid = data.contact_uid ?? selectedContactUid;
+    if (!contactUid) return;
+
+    queryClient.setQueriesData<ChatMessagesResponse>(
+      { queryKey: chatKeys.messages(contactUid, {}) },
+      (oldData) => {
+        if (!oldData?.messages) return oldData;
+        return {
+          ...oldData,
+          messages: oldData.messages.map((msg) => {
+            const row = msg as unknown as Record<string, unknown>;
+            const matches =
+              (wamid && row.wamid === wamid) ||
+              (id && (row._uid === id || row.id === id));
+            if (!matches) return msg;
+            // Ticks are outbound-only. An inbound row has no delivery state of
+            // ours to report, and stamping one would draw a tick on the other
+            // party's message.
+            const isIncoming =
+              row.is_incoming_message === true ||
+              row.direction === 'in' ||
+              row.direction === 'incoming';
+            if (isIncoming) return msg;
+            return {
+              ...msg,
+              status: status as ChatMessage['status'],
+              ...(error ? { whatsapp_message_error: error } : {}),
+            };
+          }),
+        };
+      },
+    );
+  }, [queryClient, selectedContactUid, onMessageStatusUpdate]);
+
   // Store handlers in refs to avoid re-subscription on every change
   const handlersRef = useRef({
     onNewMessage: handleNewMessage,
     onContactUpdated: handleContactUpdated,
     onMessageStatus: handleMessageStatus,
     onVendorBroadcast: handleVendorBroadcast,
+    onDigicrmMessage: handleDigicrmMessage,
+    onDigicrmMessageStatus: handleDigicrmStatus,
   });
 
   // Update refs when handlers change (without triggering re-subscription)
@@ -432,8 +650,13 @@ const handleContactUpdated = useCallback((data: ContactUpdatedEvent) => {
       onContactUpdated: handleContactUpdated,
       onMessageStatus: handleMessageStatus,
       onVendorBroadcast: handleVendorBroadcast,
+      onDigicrmMessage: handleDigicrmMessage,
+      onDigicrmMessageStatus: handleDigicrmStatus,
     };
-  }, [handleNewMessage, handleContactUpdated, handleMessageStatus, handleVendorBroadcast]);
+  }, [
+    handleNewMessage, handleContactUpdated, handleMessageStatus,
+    handleVendorBroadcast, handleDigicrmMessage, handleDigicrmStatus,
+  ]);
 
   // Subscribe to real-time channel - only once on mount
   useEffect(() => {
@@ -457,6 +680,8 @@ const handleContactUpdated = useCallback((data: ContactUpdatedEvent) => {
       onContactUpdated: (data) => handlersRef.current.onContactUpdated(data),
       onMessageStatus: (data) => handlersRef.current.onMessageStatus(data),
       onVendorBroadcast: (data) => handlersRef.current.onVendorBroadcast(data),
+      onDigicrmMessage: (data) => handlersRef.current.onDigicrmMessage(data),
+      onDigicrmMessageStatus: (data) => handlersRef.current.onDigicrmMessageStatus(data),
       onConnected: () => {
         console.log('useRealtimeChat: Connected to Pusher');
         setIsConnected(true);
