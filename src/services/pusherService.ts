@@ -131,11 +131,38 @@ export interface VendorChannelBroadcastEvent {
   assignedUserId?: number;
 }
 
+/**
+ * DigiCRM's rich message event (`grant.digicrm_event`).
+ *
+ * `message` is the pinned envelope, byte-identical to `GET /api/whatsapp/chat/`.
+ * It is typed `unknown` on purpose: this comes off a socket, and the consumer
+ * runs it through `normaliseWhatsAppMessage` rather than trusting the shape.
+ */
+export interface DigicrmMessageEvent {
+  message: unknown;
+  contact: string | null;
+  contact_uid: string | null;
+}
+
+/** DigiCRM's flat delivery receipt (`grant.digicrm_status_event`). */
+export interface DigicrmStatusEvent {
+  wamid: string | null;
+  id: string | null;
+  status: string | null;
+  error: string | null;
+  contact: string | null;
+  contact_uid: string | null;
+}
+
 export interface RealtimeCallbacks {
   onNewMessage?: (data: ContactMessageEvent) => void;
   onContactUpdated?: (data: ContactUpdatedEvent) => void;
   onMessageStatus?: (data: MessageStatusEvent) => void;
   onVendorBroadcast?: (data: VendorChannelBroadcastEvent) => void;
+  /** Full-envelope message published by DigiCRM's own webhook. */
+  onDigicrmMessage?: (data: DigicrmMessageEvent) => void;
+  /** Delivery receipt published by DigiCRM's own webhook. */
+  onDigicrmMessageStatus?: (data: DigicrmStatusEvent) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
   onError?: (error: any) => void;
@@ -305,6 +332,61 @@ const handleBroadcast = (data: any) => {
   }
 };
 
+// Bind every non-empty name in `names`, plus its dotted/undotted twin, to one
+// handler. Laravel broadcasts non-namespaced names with a leading dot while a
+// plain Pusher publisher does not, and we cannot know which one produced a
+// given event - so bind both. A duplicate delivery is a no-op: consumers dedupe
+// on wamid.
+interface BindableChannel {
+  bind: (event: string, handler: (data: unknown) => void) => void;
+}
+
+const bindByValue = (
+  channel: BindableChannel,
+  names: (string | null | undefined)[],
+  handler: (data: unknown) => void,
+) => {
+  const bound = new Set<string>();
+  names.forEach(name => {
+    if (!name) return;
+    bound.add(name);
+    bound.add(name.startsWith('.') ? name.replace(/^\./, '') : `.${name}`);
+  });
+  bound.forEach(name => channel.bind(name, handler));
+  return bound;
+};
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const asString = (value: unknown): string | null =>
+  typeof value === 'string' && value !== '' ? value : null;
+
+const handleDigicrmMessage = (data: unknown) => {
+  console.log('Pusher: DigiCRM rich message received:', data);
+  const d = asRecord(data);
+  notifyCallbacks('onDigicrmMessage', {
+    message: d.message ?? null,
+    contact: asString(d.contact),
+    contact_uid: asString(d.contact_uid),
+  });
+};
+
+const handleDigicrmStatus = (data: unknown) => {
+  console.log('Pusher: DigiCRM status received:', data);
+  const d = asRecord(data);
+  notifyCallbacks('onDigicrmMessageStatus', {
+    wamid: asString(d.wamid),
+    id: asString(d.id),
+    status: asString(d.status),
+    error: asString(d.error),
+    contact: asString(d.contact),
+    contact_uid: asString(d.contact_uid),
+  });
+};
+
 // Subscribe to vendor channel for real-time updates
 // Uses singleton pattern - multiple callers share one Pusher subscription
 export const subscribeToVendorChannel = (
@@ -391,6 +473,16 @@ export const subscribeToVendorChannel = (
       if (eventNames.size === 0) { eventNames.add('VendorChannelBroadcast'); eventNames.add('.VendorChannelBroadcast'); }
 
       eventNames.forEach(eventName => channel.bind(eventName, handleBroadcast));
+
+      // DigiCRM's own events, on the same channel, carrying the FULL envelope.
+      //
+      // Laravel's event above is a notification; these are the message. Bound
+      // by value from the grant for exactly the same reason `event` is - the
+      // backend can rename them without a frontend release - and skipped
+      // entirely when the grant does not name them, which is what makes this
+      // safe against a DigiCRM that has not deployed the publisher yet.
+      bindByValue(channel, [grant.digicrm_event, grant.digicrm_echo_event], handleDigicrmMessage);
+      bindByValue(channel, [grant.digicrm_status_event, grant.digicrm_status_echo_event], handleDigicrmStatus);
     })
     .catch(error => {
       if (isWhatsappEndpointUnavailable(error)) {

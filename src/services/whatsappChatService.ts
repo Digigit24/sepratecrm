@@ -122,6 +122,23 @@ export interface RealtimeGrant {
   event: string | null;
   /** Laravel-Echo event name (leading dot), e.g. `.VendorChannelBroadcast`. */
   echo_event: string | null;
+  /**
+   * DigiCRM's OWN events, on the SAME channel.
+   *
+   * `event` above is Laravel's, and it is a NOTIFICATION: no body, no wamid, so
+   * a client has to refetch the whole conversation to render one reply. These
+   * carry the full pinned envelope instead - byte-identical to what
+   * `GET /api/whatsapp/chat/` returns - so a client renders straight from the
+   * socket.
+   *
+   * Optional and additive: a backend that does not publish them returns null
+   * and the Laravel path keeps working exactly as before. Bind BY VALUE.
+   */
+  digicrm_event: string | null;
+  digicrm_echo_event: string | null;
+  /** Flat delivery receipt: `{wamid, id, status, error, contact}`. */
+  digicrm_status_event: string | null;
+  digicrm_status_echo_event: string | null;
   /** ISO-8601 expiry, when the backend reports one. */
   expires_at?: string | null;
   /** Optional pre-signed auth, when the backend grants in one round trip. */
@@ -276,6 +293,10 @@ class WhatsAppChatService {
         channel: str(d.channel) ?? str(d.channel_name) ?? '',
         event: str(d.event),
         echo_event: str(d.echo_event),
+        digicrm_event: str(d.digicrm_event),
+        digicrm_echo_event: str(d.digicrm_echo_event),
+        digicrm_status_event: str(d.digicrm_status_event),
+        digicrm_status_echo_event: str(d.digicrm_status_echo_event),
         expires_at: str(d.expires_at),
         auth: str(d.auth),
         channel_data: str(d.channel_data),
