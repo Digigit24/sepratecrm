@@ -117,15 +117,6 @@ export function linkify(text: string, options: LinkifyOptions = {}): React.React
   return nodes.length === 1 ? nodes[0] : nodes;
 }
 
-/** Convenience component: linkified text that preserves newlines. */
-export const LinkifiedText: React.FC<{ text: string | null | undefined; className?: string }> = ({
-  text,
-  className,
-}) => {
-  if (!text) return null;
-  return (
-    <span className={className} style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-      {linkify(text)}
-    </span>
-  );
-};
+// NOTE: the `LinkifiedText` component that used to live here now lives in
+// components/whatsapp/LinkifiedText.tsx. Keeping a component and plain helper
+// functions in one module breaks React Fast Refresh for every importer.

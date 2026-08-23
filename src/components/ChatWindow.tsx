@@ -51,6 +51,7 @@ import { API_CONFIG } from "@/lib/apiConfig";
 import type { Template } from "@/types/whatsappTypes";
 import { MessageContent } from "@/components/whatsapp/MessageContent";
 import { DeliveryStatus } from "@/components/whatsapp/DeliveryStatus";
+import { getWindowState } from "@/lib/whatsapp/getWindowState";
 import {
   normaliseWhatsAppMessage,
   type WhatsAppMessage,
@@ -231,6 +232,22 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
     media_values: msg.media_values,
     interaction_message_data: msg.interaction_message_data,
   }));
+
+  // ── The 24-hour reply window ───────────────────────────────────────────────
+  //
+  // Outside it, Meta rejects free-form messages outright and only an approved
+  // template will send. The Inbox previously showed NOTHING about this, so a
+  // rep would type a reply, press send, and watch it fail with no explanation.
+  //
+  // getWindowState prefers the backend-authoritative `reply_window` object and
+  // falls back to the last-inbound heuristic. The inbox service does not send
+  // window fields yet, so today this is the heuristic — `isHeuristic` lets us
+  // word the banner honestly rather than asserting something we guessed.
+  const windowState = useMemo(
+    () => getWindowState({ messages }),
+    [messages],
+  );
+  const windowClosed = !windowState.windowOpen && messages.length > 0;
 
   // NOTE: the template / interactive / media helpers that used to live here are
   // gone. Every message type is now rendered by the shared MessageContent
@@ -966,6 +983,21 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
             🐛 DEBUG: Dialog state is OPEN. Selected files: {selectedFiles.length}
           </div>
         )}
+        {/* 24-hour window notice — in place, never a modal. */}
+        {windowClosed && (
+          <div
+            className="mb-2 flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-[12px] text-amber-900 border border-amber-200"
+            role="status"
+            data-testid="chat-window-closed-notice"
+          >
+            <span className="flex-1">
+              {windowState.isHeuristic
+                ? "This contact has not messaged in the last 24 hours, so free-form replies will likely be rejected. Send an approved template to reopen the conversation."
+                : "The 24-hour reply window has closed. Send an approved template to reopen the conversation."}
+              {windowState.expiresHuman ? ` (${windowState.expiresHuman})` : ""}
+            </span>
+          </div>
+        )}
         <form onSubmit={handleSendMessage} className="flex items-end gap-2">
           {/* Attachment Menu */}
           <Popover open={isAttachmentMenuOpen} onOpenChange={setIsAttachmentMenuOpen}>
@@ -1055,7 +1087,12 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
             )}
             <Input
               ref={inputRef}
-              placeholder="Type a message or / for templates..."
+              disabled={windowClosed}
+              placeholder={
+                windowClosed
+                  ? "Send an approved template to reopen the conversation"
+                  : "Type a message or / for templates..."
+              }
               className="flex-1 bg-transparent border-0 text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 px-4 py-2.5 text-sm h-auto"
               value={input}
               onChange={handleInputChange}

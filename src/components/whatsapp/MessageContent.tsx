@@ -23,7 +23,7 @@
 import React from 'react';
 import { MapPin, User, ExternalLink, List, CornerUpLeft, HelpCircle, Phone, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { LinkifiedText } from '@/lib/whatsapp/linkify';
+import { LinkifiedText } from './LinkifiedText';
 import { AuthedImage, AuthedVideo, AuthedAudio, AuthedDocument } from './AuthedMedia';
 import {
   renderTemplateBody,

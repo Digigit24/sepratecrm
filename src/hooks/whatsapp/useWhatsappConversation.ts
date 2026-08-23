@@ -238,8 +238,19 @@ export function useWhatsappConversation(
 
         setMessages((prev) => {
           if (result.message) {
+            // Stamp OUR client id onto the confirmation before merging.
+            //
+            // Without this the collapse depends on the backend echoing
+            // `client_id` back. When it does not — and it is not obliged to —
+            // the confirmed row shares no identity with the optimistic echo
+            // (different id, echo has no wamid yet) and the user sees their
+            // message twice. We know the correlation locally; assert it.
+            const confirmed = {
+              ...result.message,
+              client_id: result.message.client_id ?? clientId,
+            };
             // Merge collapses the echo and the confirmation into one row.
-            return mergeWhatsAppMessages(prev, [result.message]);
+            return mergeWhatsAppMessages(prev, [confirmed]);
           }
           // No body came back — promote the echo in place using the wamid.
           return prev.map((m) =>
