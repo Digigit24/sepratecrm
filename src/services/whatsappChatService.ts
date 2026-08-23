@@ -25,6 +25,7 @@
 
 import type { AxiosError } from 'axios';
 import { crmClient } from '@/lib/client';
+import { toMediaFilename } from '@/lib/whatsapp/media';
 import {
   normaliseWhatsAppMessage,
   normaliseWhatsAppMessages,
@@ -431,8 +432,12 @@ class WhatsAppChatService {
     mediaId: string,
     fallbackMime = 'application/octet-stream',
   ): Promise<{ url: string; mimeType: string }> {
+    // `mediaId` may arrive as a bare id OR as a full legacy URL
+    // (…/{vendorUid}/media/<name>), because older payloads put a link here.
+    // Reduce it to the identifier before handing it to the proxy.
+    const id = toMediaFilename(mediaId) || mediaId;
     try {
-      const res = await crmClient.get(WHATSAPP_CHAT_PATHS.MEDIA(mediaId), {
+      const res = await crmClient.get(WHATSAPP_CHAT_PATHS.MEDIA(id), {
         responseType: 'blob',
         suppressErrorToast: true,
       });

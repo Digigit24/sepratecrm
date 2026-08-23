@@ -262,10 +262,30 @@ describe('media', () => {
     expect(url).not.toMatch(/\/media\/\.\./);
   });
 
-  it('encodes the media id so it cannot escape the path', async () => {
+  it('strips path traversal out of the media id', async () => {
+    // Laravel's public media route resolves `../.env` to the app root and serves
+    // the APP_KEY that decrypts every tenant's Meta credentials. Our proxy path
+    // must never carry a traversal, encoded or otherwise.
     get.mockResolvedValueOnce({ data: new Blob(['x']), headers: {} });
     global.URL.createObjectURL = vi.fn(() => 'blob:mock') as never;
+
     await whatsappChatService.fetchMediaObjectUrl('../../.env');
-    expect(get.mock.calls[0][0]).toBe('/whatsapp/media/..%2F..%2F.env/');
+
+    const url = get.mock.calls[0][0] as string;
+    expect(url).toBe('/whatsapp/media/.env/');
+    expect(url).not.toContain('..');
+    expect(url).not.toContain('%2E%2E');
+  });
+
+  it('reduces a full legacy media URL to its identifier', async () => {
+    // Older payloads put a whole URL in `media_values.link`.
+    get.mockResolvedValueOnce({ data: new Blob(['x']), headers: {} });
+    global.URL.createObjectURL = vi.fn(() => 'blob:mock') as never;
+
+    await whatsappChatService.fetchMediaObjectUrl(
+      'https://whatsappapi.celiyo.com/api/vendor-1/media/photo-9.jpg',
+    );
+
+    expect(get.mock.calls[0][0]).toBe('/whatsapp/media/photo-9.jpg/');
   });
 });

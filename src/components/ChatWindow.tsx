@@ -1,13 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from "react";
 import {
-  getTemplateParameterValues as sharedGetTemplateParameterValues,
-  renderTemplateBody as sharedRenderTemplateBody,
-  getTemplateHeaderText as sharedGetTemplateHeaderText,
-  getTemplateFooter as sharedGetTemplateFooter,
-  getTemplateButtons as sharedGetTemplateButtons,
-  type TemplateSource,
-} from "@/lib/whatsapp/renderTemplate";
-import {
   Send,
   ArrowLeft,
   MoreVertical,
@@ -17,9 +9,9 @@ import {
   Phone,
   Video,
   Search,
+  Hash,
   Check,
   CheckCheck,
-  Clock,
   XCircle,
   Image as ImageIcon,
   FileText,
@@ -28,12 +20,6 @@ import {
   User,
   Camera,
   X,
-  Reply,
-  Hash,
-  ExternalLink,
-  List,
-  ChevronDown,
-  ChevronUp,
   PanelRightOpen,
   PanelRightClose,
 } from "lucide-react";
@@ -61,12 +47,33 @@ import { useClearChatHistory } from "@/hooks/whatsapp/useChat";
 import { useTemplates } from "@/hooks/whatsapp/useTemplates";
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import MediaWithAuth from './MediaWithAuth';
-import VoiceMessagePlayer from './VoiceMessagePlayer';
-import DocumentWithAuth from './DocumentWithAuth';
-import { getMediaUrl } from "@/services/whatsapp";
 import { API_CONFIG } from "@/lib/apiConfig";
 import type { Template } from "@/types/whatsappTypes";
+import { MessageContent } from "@/components/whatsapp/MessageContent";
+import { DeliveryStatus } from "@/components/whatsapp/DeliveryStatus";
+import {
+  normaliseWhatsAppMessage,
+  type WhatsAppMessage,
+  type WhatsAppMessageStatus,
+} from "@/types/whatsapp/message";
+
+// ── Adapters from this page's legacy row shape to the normalised envelope ──
+//
+// ChatWindow still sources messages from the older inbox service, whose rows
+// carry media_values / template_proforma / interaction_message_data. The
+// normaliser understands all of those, so the rendering layer only ever sees
+// one shape — and a row it cannot classify becomes an "unsupported" bubble
+// instead of a blank one.
+const toNormalisedMessage = (msg: Record<string, unknown>): WhatsAppMessage =>
+  normaliseWhatsAppMessage(msg);
+
+const TICK_STATUSES: readonly string[] = ["pending", "sent", "delivered", "read", "failed"];
+
+/** Only render ticks for a status we actually recognise. */
+const normaliseStatusForTicks = (status: unknown): WhatsAppMessageStatus | null => {
+  const value = typeof status === "string" ? status.toLowerCase() : "";
+  return TICK_STATUSES.includes(value) ? (value as WhatsAppMessageStatus) : null;
+};
 type Props = {
   conversationId: string;
   selectedConversation?: {
@@ -191,120 +198,10 @@ const isSameDay = (date1: Date, date2: Date): boolean => {
 };
 
 // Renders an interactive message (button/cta_url/list) from Laravel flows
-const InteractiveMessageBubble = ({ msg }: { msg: any }) => {
-  const [showListSheet, setShowListSheet] = useState(false);
-  const imd = msg.interaction_message_data;
-
-  return (
-    <>
-      {/* Header media */}
-      {imd.header_type && imd.header_type !== 'text' && imd.media_link && (
-        <div className="w-full bg-gray-100 flex items-center justify-center overflow-hidden" style={{ maxHeight: 200 }}>
-          {imd.header_type === 'image' && (
-            <a href={imd.media_link} target="_blank" rel="noopener noreferrer">
-              <img src={imd.media_link} alt="header" className="w-full object-cover" />
-            </a>
-          )}
-          {imd.header_type === 'video' && (
-            <video controls src={imd.media_link} className="w-full" />
-          )}
-          {imd.header_type === 'audio' && (
-            <audio controls src={imd.media_link} className="w-full mx-4 my-2" />
-          )}
-          {imd.header_type === 'document' && (
-            <a href={imd.media_link} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center py-4 text-gray-500 hover:text-gray-700">
-              <FileText className="h-10 w-10 mb-1" />
-              <span className="text-xs">Document</span>
-            </a>
-          )}
-        </div>
-      )}
-
-      {/* Body */}
-      <div className="px-3 pt-3 pb-2">
-        {imd.header_type === 'text' && imd.header_text && (
-          <p className="font-bold text-[15px] text-[#0b141a] mb-2">{imd.header_text}</p>
-        )}
-        {imd.body_text && (
-          <p className="text-[14px] leading-[1.5] text-[#0b141a] break-words whitespace-pre-wrap">{imd.body_text}</p>
-        )}
-        {imd.footer_text && (
-          <p className="text-xs text-gray-400 mt-2">{imd.footer_text}</p>
-        )}
-        {/* Timestamp */}
-        <div className="flex items-center justify-end mt-1 text-[11px] text-[#667781]">
-          <span>{msg.time}</span>
-        </div>
-      </div>
-
-      {/* Reply buttons */}
-      {imd.interactive_type === 'button' && imd.buttons && Object.keys(imd.buttons).length > 0 && (
-        <div className="flex flex-col">
-          {Object.values(imd.buttons as Record<string, string>).filter(Boolean).map((label, i) => (
-            <button
-              key={i}
-              type="button"
-              className="w-full py-2.5 px-3 text-[14px] font-normal text-[#00a5f4] hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 border-t border-gray-200"
-            >
-              <Reply className="h-4 w-4 rotate-180 scale-x-[-1]" />
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* CTA URL button */}
-      {imd.interactive_type === 'cta_url' && imd.cta_url?.url && (
-        <div className="border-t border-gray-200">
-          <a
-            href={imd.cta_url.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full py-2.5 px-3 text-[14px] font-normal text-[#00a5f4] hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-          >
-            <ExternalLink className="h-4 w-4" />
-            {imd.cta_url.display_text || imd.cta_url.url}
-          </a>
-        </div>
-      )}
-
-      {/* List message button */}
-      {imd.interactive_type === 'list' && imd.list_data && (
-        <div className="border-t border-gray-200">
-          <button
-            type="button"
-            className="w-full py-2.5 px-3 text-[14px] font-normal text-[#00a5f4] hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-            onClick={() => setShowListSheet(v => !v)}
-          >
-            <List className="h-4 w-4" />
-            {imd.list_data.button_text || 'View Options'}
-            {showListSheet ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
-          </button>
-          {showListSheet && imd.list_data.sections && (
-            <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 max-h-64 overflow-y-auto">
-              {imd.list_data.sections.map((section: any, si: number) => (
-                <div key={si} className="mb-3">
-                  {section.title && (
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{section.title}</p>
-                  )}
-                  {section.rows?.map((row: any, ri: number) => (
-                    <div key={ri} className="mb-2">
-                      <p className="text-sm font-medium text-[#0b141a]">{row.title}</p>
-                      {row.description && (
-                        <p className="text-xs text-gray-500">{row.description}</p>
-                      )}
-                    </div>
-                  ))}
-                  {si < imd.list_data.sections.length - 1 && <hr className="my-2 border-gray-200" />}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </>
-  );
-};
+// NOTE: the bespoke InteractiveMessageBubble that used to live here is gone.
+// Interactive and button messages (and the other nine types) are rendered by
+// the shared components/whatsapp/MessageContent.tsx, so the Inbox and the CRM
+// lead drawer cannot drift apart again.
 
 export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onBack, onToggleContactPanel, showContactPanel, hideHeader }: Props) => {
   const { messages, isLoading, error, hasMoreMessages, isLoadingMoreMessages, loadMoreMessages, sendMessage, sendMediaMessage, sendTemplateMessage } = useMessages(selectedConversation?.phone || null);
@@ -335,61 +232,9 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
     interaction_message_data: msg.interaction_message_data,
   }));
 
-  // Check if message is a template message (requires actual template data, not just HTML)
-  const isTemplateMessage = (msg: typeof transformedMessages[0]) => {
-    return msg.type === 'template' ||
-           msg.template_proforma ||
-           msg.template_components ||
-           (msg.metadata as any)?.template_name;
-  };
-
-  // Check if message is an interactive/button message from Laravel flows
-  const isInteractiveMessage = (msg: typeof transformedMessages[0]) => {
-    return !!msg.interaction_message_data?.interactive_type;
-  };
-
-  // Check if message has media from media_values
-  const hasMediaValues = (msg: typeof transformedMessages[0]) => {
-    return msg.media_values && ['image', 'video', 'audio', 'document'].includes(msg.media_values.type);
-  };
-
-  // Build the shared renderer's source shape from a transformed message.
-  const toTemplateSource = (msg: typeof transformedMessages[0]): TemplateSource => ({
-    template_proforma: (msg as any).template_proforma ?? null,
-    template_components: (msg as any).template_components ?? null,
-    template_component_values: (msg as any).template_component_values ?? null,
-    metadata: (msg.metadata as any) ?? null,
-    text: (msg as any).text ?? null,
-  });
-
-  // ─── Template helpers now delegate to the SHARED renderer (single source of
-  //     truth, also used by LeadWhatsAppDrawer). See src/lib/whatsapp/renderTemplate.ts.
-  const getTemplateParameterValues = sharedGetTemplateParameterValues;
-
-  const renderTemplateContent = (msg: typeof transformedMessages[0]) => {
-    // A real template body → shared substitution (proforma/components + values).
-    if ((msg as any).template_proforma || (msg as any).template_components) {
-      return sharedRenderTemplateBody(toTemplateSource(msg));
-    }
-    // Interactive/flow message body (ChatWindow-specific, kept).
-    if (msg.interaction_message_data?.body?.text) {
-      return msg.interaction_message_data.body.text;
-    }
-    if ((msg as any).text) return (msg as any).text;
-    if ((msg.metadata as any)?.template_name) {
-      return `[Template: ${(msg.metadata as any).template_name}]`;
-    }
-    return '[Template Message]';
-  };
-
-  const getTemplateHeader = (msg: typeof transformedMessages[0]): string | null =>
-    sharedGetTemplateHeaderText(toTemplateSource(msg));
-
-  const getTemplateFooter = (msg: typeof transformedMessages[0]): string | null =>
-    sharedGetTemplateFooter(toTemplateSource(msg));
-
-  const getTemplateButtons = (msg: typeof transformedMessages[0]): Array<{ type: string; text: string }> | null =>
-    sharedGetTemplateButtons(toTemplateSource(msg));
+  // NOTE: the template / interactive / media helpers that used to live here are
+  // gone. Every message type is now rendered by the shared MessageContent
+  // component, which understands this row shape via normaliseWhatsAppMessage.
 
   // Log messages for debugging
   useEffect(() => {
@@ -1011,6 +856,10 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
                 idx === 0 ||
                 !isSameDay(msg.date, transformedMessages[idx - 1].date);
 
+              // Normalise ONCE per row: the renderer and the delivery ticks
+              // must agree on the same view of the message.
+              const normalised = toNormalisedMessage(msg);
+
               return (
                 <React.Fragment key={idx}>
                   {/* Date Separator */}
@@ -1033,178 +882,29 @@ export const ChatWindow = ({ conversationId, selectedConversation, isMobile, onB
                   >
                 <div
                   className={cn(
-                    "relative max-w-[85%] sm:max-w-[70%] md:max-w-[65%] rounded-lg shadow-sm",
-                    // Template and interactive messages get white background with no padding (padding added inside)
-                    isTemplateMessage(msg) || isInteractiveMessage(msg)
-                      ? "bg-white text-[#0b141a] rounded-br-none border border-gray-200 overflow-hidden"
-                      : msg.from === "me"
-                        ? "bg-[#dcf8c6] text-[#0b141a] rounded-br-none border border-emerald-100 px-3 py-2"
-                        : "bg-white text-[#0b141a] rounded-bl-none border border-gray-200 px-3 py-2"
+                    "relative max-w-[85%] sm:max-w-[70%] md:max-w-[65%] rounded-lg shadow-sm px-3 py-2",
+                    // MessageContent owns each type's internal layout, so every
+                    // bubble now shares one padding rule.
+                    msg.from === "me"
+                      ? "bg-[#dcf8c6] text-[#0b141a] rounded-br-none border border-emerald-100"
+                      : "bg-white text-[#0b141a] rounded-bl-none border border-gray-200"
                   )}
                 >
-                  {/* Render media from media_values (API response) or metadata (local upload) */}
-                  {(msg.type === 'image' || msg.media_values?.type === 'image') && !isTemplateMessage(msg) && (
-                    <div className="relative mb-1">
-                      <MediaWithAuth
-                        type="image"
-                        src={msg.media_values?.link || getMediaUrl(msg.metadata?.media_id)}
-                        previewSrc={msg.metadata?.file_preview_url}
-                        alt="sent image"
-                        className="rounded-md max-w-[240px] w-full h-auto"
-                      />
-                      {msg.metadata?.is_uploading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {(msg.type === 'video' || msg.media_values?.type === 'video') && !isTemplateMessage(msg) && (
-                    <div className="relative mb-1">
-                      <MediaWithAuth
-                        type="video"
-                        src={msg.media_values?.link || getMediaUrl(msg.metadata?.media_id)}
-                        previewSrc={msg.metadata?.file_preview_url}
-                        alt="sent video"
-                        className="rounded-md max-w-[240px] w-full h-auto"
-                      />
-                      {msg.metadata?.is_uploading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {(msg.type === 'audio' || msg.media_values?.type === 'audio') && !isTemplateMessage(msg) && (
-                    <div className="relative">
-                      {msg.metadata?.is_uploading ? (
-                        <div className="flex items-center gap-2 py-1 px-1" style={{ minWidth: 220 }}>
-                          <div className="w-10 h-10 rounded-full bg-[#25d366] flex items-center justify-center opacity-50">
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          </div>
-                          <span className="text-xs text-muted-foreground">Uploading…</span>
-                        </div>
-                      ) : (
-                        <VoiceMessagePlayer
-                          src={msg.media_values?.link || getMediaUrl(msg.metadata?.media_id)}
-                          isOutgoing={msg.from === 'me'}
-                        />
-                      )}
-                    </div>
-                  )}
-                  {(msg.type === 'document' || msg.media_values?.type === 'document') && !isTemplateMessage(msg) && (
-                    <div className="relative mb-1">
-                      <DocumentWithAuth
-                        src={msg.media_values?.link || getMediaUrl(msg.metadata?.media_id)}
-                        filename={msg.media_values?.file_name || msg.media_values?.original_filename || msg.text || 'Document'}
-                        className="rounded-md max-w-full"
-                      />
-                      {msg.metadata?.is_uploading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {/* Template message with header media */}
-                  {isTemplateMessage(msg) && msg.media_values && (
-                    <div className="mb-2">
-                      {msg.media_values.type === 'image' && (
-                        <MediaWithAuth
-                          type="image"
-                          src={msg.media_values.link}
-                          alt="template media"
-                          className="rounded-md max-w-[240px] w-full h-auto"
-                        />
-                      )}
-                      {msg.media_values.type === 'video' && (
-                        <MediaWithAuth
-                          type="video"
-                          src={msg.media_values.link}
-                          alt="template video"
-                          className="rounded-md max-w-[240px] w-full h-auto"
-                        />
-                      )}
-                      {msg.media_values.type === 'audio' && (
-                        <MediaWithAuth
-                          type="audio"
-                          src={msg.media_values.link}
-                          alt="template audio"
-                          className="rounded-md max-w-[240px] w-full h-auto"
-                        />
-                      )}
-                      {msg.media_values.type === 'document' && (
-                        <DocumentWithAuth
-                          src={msg.media_values.link}
-                          filename={msg.media_values.file_name || msg.media_values.original_filename || 'Document'}
-                          className="rounded-md max-w-full"
-                        />
-                      )}
-                    </div>
-                  )}
-                  {/* Template message content */}
-                  {isTemplateMessage(msg) ? (
-                    <>
-                      {/* Template content with padding */}
-                      <div className="px-3 pt-3 pb-2">
-                        {/* Template header - bold title */}
-                        {getTemplateHeader(msg) && (
-                          <p className="font-bold text-[15px] text-[#0b141a] mb-3">{getTemplateHeader(msg)}</p>
-                        )}
-                        {/* Template body */}
-                        <p className="text-[14px] leading-[1.5] text-[#0b141a] break-words whitespace-pre-wrap">
-                          {renderTemplateContent(msg)}
-                        </p>
-                        {/* Template footer */}
-                        {getTemplateFooter(msg) && (
-                          <p className="text-xs text-gray-500 mt-3">{getTemplateFooter(msg)}</p>
-                        )}
-                      </div>
-                      {/* Template buttons - outside padding area */}
-                      {getTemplateButtons(msg) && (
-                        <div className="flex flex-col">
-                          {getTemplateButtons(msg)!.map((btn: any, i: number) => (
-                            <button
-                              key={i}
-                              type="button"
-                              className="w-full py-3 px-3 text-[14px] font-normal text-[#00a5f4] hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 border-t border-gray-200"
-                              onClick={() => console.log('Template button clicked:', btn.text)}
-                            >
-                              <Reply className="h-4 w-4 rotate-180 scale-x-[-1]" />
-                              {btn.text}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {/* Timestamp for template */}
-                      <div className="flex items-center justify-end px-3 pb-2 text-[11px] text-[#667781]">
-                        <span>{msg.time}</span>
-                      </div>
-                    </>
-                  ) : isInteractiveMessage(msg) ? (
-                    <InteractiveMessageBubble msg={msg} />
-                  ) : (
-                    <>
-                      {/* Regular message body - show text or media caption */}
-                      {(msg.text || msg.media_values?.caption) && (
-                        <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
-                          {msg.text || msg.media_values?.caption}
-                        </p>
-                      )}
-                      {/* Timestamp for regular messages */}
-                      <div className={cn(
-                        "flex items-center justify-end gap-1 mt-1 text-[11px]",
-                        msg.from === "me" ? "text-[#667781]" : "text-[#667781]"
-                      )}>
-                        <span>{msg.time}</span>
-                        {msg.from === "me" && (
-                          <span className="flex items-center">
-                            {getStatusIcon(msg.status)}
-                          </span>
-                        )}
-                      </div>
-                    </>
-                  )}
+                  {/* ALL 11 WhatsApp message types + a graceful unsupported row.
+                      One renderer, shared with the CRM lead drawer. Media is
+                      fetched through the AUTHENTICATED DigiCRM proxy.
+                      See components/whatsapp/MessageContent.tsx. */}
+                  <MessageContent message={normalised} />
+
+                  {/* Timestamp + real delivery ticks (outbound only) */}
+                  <div className="flex items-center justify-end gap-1 mt-1 text-[11px] text-[#667781]">
+                    <span>{msg.time}</span>
+                    <DeliveryStatus
+                      direction={msg.from === "me" ? "out" : "in"}
+                      status={normaliseStatusForTicks(msg.status)}
+                      error={normalised.error}
+                    />
+                  </div>
                 </div>
               </div>
                 </React.Fragment>
