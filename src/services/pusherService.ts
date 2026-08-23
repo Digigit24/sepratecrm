@@ -5,7 +5,11 @@ import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 import { API_CONFIG } from '@/lib/apiConfig';
 import { tokenManager } from '@/lib/client';
-import { whatsappChatService, isWhatsappEndpointUnavailable } from '@/services/whatsappChatService';
+import {
+  whatsappChatService,
+  isWhatsappEndpointUnavailable,
+  type RealtimeGrant,
+} from '@/services/whatsappChatService';
 
 // Make Pusher available globally for Laravel Echo
 declare global {
@@ -17,7 +21,13 @@ declare global {
 
 window.Pusher = Pusher;
 
-// Pusher Configuration
+// LAST-RESORT connection defaults.
+//
+// These are not the source of truth: the grant is. They only happen to match
+// DigiCRM's settings.py defaults (PUSHER_KEY / PUSHER_CLUSTER) today, so the
+// moment that server points at a different Pusher app, a hardcoded key here
+// connects to the wrong app and every `auth` the backend signs fails the
+// signature check — with no error more helpful than subscription_error.
 const PUSHER_CONFIG = {
   key: '649db422ae8f2e9c7a9d',
   cluster: 'ap2',
@@ -164,15 +174,23 @@ const notifyCallbacks = <K extends keyof RealtimeCallbacks>(
 };
 
 // Initialize Laravel Echo with Pusher using a DigiCRM-granted authorizer.
-export const initEcho = (): Echo<any> | null => {
+//
+// Pass the grant whenever you have one: it names the app key and cluster the
+// backend actually signs against, plus any self-hosted (Reverb/soketi)
+// overrides. PUSHER_CONFIG is only the fallback for a caller with no grant.
+export const initEcho = (grant?: RealtimeGrant | null): Echo<any> | null => {
   // Return existing instance if already initialized
   if (echoInstance) {
     return echoInstance;
   }
 
+  const key = grant?.key || PUSHER_CONFIG.key;
+  const cluster = grant?.cluster || PUSHER_CONFIG.cluster;
+  const forceTLS = grant?.force_tls ?? PUSHER_CONFIG.forceTLS;
+
   console.log('Pusher: Initializing with config:', {
-    key: PUSHER_CONFIG.key,
-    cluster: PUSHER_CONFIG.cluster,
+    key,
+    cluster,
     auth: 'digicrm realtime grant',
   });
 
@@ -184,9 +202,11 @@ export const initEcho = (): Echo<any> | null => {
 
     echoInstance = new Echo({
       broadcaster: 'pusher',
-      key: PUSHER_CONFIG.key,
-      cluster: PUSHER_CONFIG.cluster,
-      forceTLS: PUSHER_CONFIG.forceTLS,
+      key,
+      cluster,
+      forceTLS,
+      ...(grant?.host ? { wsHost: grant.host } : {}),
+      ...(grant?.port ? { wsPort: grant.port } : {}),
       // Authorise each private channel with a SHORT-LIVED, SINGLE-CHANNEL grant
       // minted by DigiCRM against the user's own JWT. The tenant-wide vendor
       // token that used to sign this is gone; nothing durable is held by the
@@ -198,12 +218,12 @@ export const initEcho = (): Echo<any> | null => {
 
             whatsappChatService
               .getRealtimeGrant({ socket_id: socketId, channel_name: channel.name })
-              .then(grant => {
-                if (grant.auth) {
+              .then(signed => {
+                if (signed.auth) {
                   console.log('Pusher: Auth successful for channel:', channel.name);
                   callback(null, {
-                    auth: grant.auth,
-                    ...(grant.channel_data ? { channel_data: grant.channel_data } : {}),
+                    auth: signed.auth,
+                    ...(signed.channel_data ? { channel_data: signed.channel_data } : {}),
                   });
                 } else {
                   console.error('Pusher: Realtime grant returned no auth signature');
@@ -333,7 +353,7 @@ export const subscribeToVendorChannel = (
         return;
       }
 
-      const echo = initEcho();
+      const echo = initEcho(grant);
       const pusher = echo?.connector?.pusher;
       if (!echo || !pusher) {
         console.error('Pusher: Echo not initialized - cannot subscribe to channel');
@@ -367,7 +387,7 @@ export const subscribeToVendorChannel = (
       // Duplicate delivery is harmless: consumers dedupe on wamid.
       const eventNames = new Set<string>();
       if (grant.event) { eventNames.add(grant.event); eventNames.add(`.${grant.event}`); }
-      if (grant.echo_event) { eventNames.add(grant.echo_event); eventNames.add(grant.echo_event.replace(/^./, '')); }
+      if (grant.echo_event) { eventNames.add(grant.echo_event); eventNames.add(grant.echo_event.replace(/^\./, '')); }
       if (eventNames.size === 0) { eventNames.add('VendorChannelBroadcast'); eventNames.add('.VendorChannelBroadcast'); }
 
       eventNames.forEach(eventName => channel.bind(eventName, handleBroadcast));
