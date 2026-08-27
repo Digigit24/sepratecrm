@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, isPast, isFuture, isToday } from 'date-fns';
+import { useTheme } from 'next-themes';
 
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
@@ -203,6 +204,8 @@ export const LeadDetailsPage = ({
 }: LeadDetailsPageProps = {}) => {
   const { leadId } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
+  const { resolvedTheme } = useTheme();
+  const badgeScheme = resolvedTheme === 'dark' ? 'dark' : 'light';
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
@@ -718,7 +721,7 @@ export const LeadDetailsPage = ({
                 {statusObj && (
                   <span
                     className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium leading-none"
-                    style={hexBadgeStyle(statusObj.color_hex)}
+                    style={hexBadgeStyle(statusObj.color_hex, undefined, badgeScheme)}
                   >
                     <span
                       className="w-1.5 h-1.5 rounded-full mr-1.5 flex-shrink-0"
