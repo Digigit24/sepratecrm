@@ -151,7 +151,7 @@ const AppLayout = () => {
 
               {/* WhatsApp Routes */}
               <Route path="/whatsapp/onboarding" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><WhatsAppOnboarding /></ModuleProtectedRoute>} />
-              <Route path="/whatsapp/contacts" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.messages.view"><Contacts /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/contacts" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.contacts.view"><Contacts /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/chats" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.messages.view"><Chats /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/groups" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.messages.view"><Groups /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/templates" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.templates.view"><Templates /></ModuleProtectedRoute>} />
@@ -159,7 +159,7 @@ const AppLayout = () => {
                   send loop (no campaign row, dropped scheduling). Superseded by the
                   server-backed /crm/campaigns. Route kept as a redirect; page file retained. */}
               <Route path="/whatsapp/campaigns" element={<Navigate to="/crm/campaigns" replace />} />
-              <Route path="/whatsapp/flows" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><Flows /></ModuleProtectedRoute>} />
+              <Route path="/whatsapp/flows" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.flows.view"><Flows /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/flows/:flow_id" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><FlowEditor /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/bot-flows" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><BotFlows /></ModuleProtectedRoute>} />
               <Route path="/whatsapp/bot-flows/:flowId" element={<ModuleProtectedRoute requiredModule="whatsapp" requiredPermission="whatsapp.settings.view"><BotFlowBuilder /></ModuleProtectedRoute>} />

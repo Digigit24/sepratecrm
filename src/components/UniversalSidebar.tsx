@@ -96,14 +96,14 @@ const menuSections: MenuSection[] = [
         module: "whatsapp",
         children: [
           { id: "whatsapp-onboarding", label: "Onboarding", icon: UserPlus, path: "/whatsapp/onboarding", permission: "whatsapp.settings.view" },
-          { id: "whatsapp-contacts", label: "Contacts", icon: Users, path: "/whatsapp/contacts", permission: "whatsapp.messages.view" },
+          { id: "whatsapp-contacts", label: "Contacts", icon: Users, path: "/whatsapp/contacts", permission: "whatsapp.contacts.view" },
           { id: "whatsapp-chats", label: "Chats", icon: MessageCircle, path: "/whatsapp/chats", permission: "whatsapp.messages.view" },
           { id: "whatsapp-groups", label: "Groups", icon: Users, path: "/whatsapp/groups", permission: "whatsapp.messages.view" },
           { id: "whatsapp-templates", label: "Templates", icon: FileText, path: "/whatsapp/templates", permission: "whatsapp.templates.view" },
           // DEPRECATED: legacy WhatsApp Campaigns (client-side send loop, no campaign row,
           // drops scheduling). Use the server-backed CRM "WA Campaigns" (/crm/campaigns) below.
           // { id: "whatsapp-campaigns", label: "Campaigns", icon: Send, path: "/whatsapp/campaigns", permission: "whatsapp.campaigns.view" },
-          { id: "whatsapp-flows", label: "Flows", icon: Workflow, path: "/whatsapp/flows", permission: "whatsapp.settings.view" },
+          { id: "whatsapp-flows", label: "Flows", icon: Workflow, path: "/whatsapp/flows", permission: "whatsapp.flows.view" },
           { id: "whatsapp-bot-flows", label: "Bot Flows", icon: Bot, path: "/whatsapp/bot-flows", permission: "whatsapp.settings.view" },
           { id: "whatsapp-qrcode", label: "QR Codes", icon: QrCode, path: "/whatsapp/qrcode", permission: "whatsapp.settings.view" },
         ],
