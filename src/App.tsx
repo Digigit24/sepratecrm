@@ -65,6 +65,9 @@ const OAuthCallback = lazy(() => import("./pages/OAuthCallback").then(m => ({ de
 const Work = lazy(() => import("./pages/Work"));
 const ComposioCallback = lazy(() => import("./pages/ComposioCallback").then(m => ({ default: m.ComposioCallback })));
 const ComposioConnections = lazy(() => import("./pages/ComposioConnections"));
+// SPIKE (Option B WebView bridge, _plans/09-flutter-voip-webview-bridge-spike.md)
+// — chrome-free softphone-only route for the Flutter WebView to load.
+const TelephonyEmbed = lazy(() => import("./pages/TelephonyEmbed"));
 
 import { ThemeSync } from "@/components/ThemeSync";
 import { WebSocketProvider } from "./context/WebSocketProvider";
@@ -253,6 +256,15 @@ const App = () => {
                   permission card at the user mid-flow.
                 */}
                 <Route path="/integrations/composio/callback" element={<Suspense fallback={<RouteFallback />}><ComposioCallback /></Suspense>} />
+                {/*
+                  SPIKE, Option B WebView bridge — deliberately NOT wrapped in
+                  ProtectedRoute/AppLayout. Its own auth is a token+user pair
+                  read from the query string on mount (see TelephonyEmbed.tsx);
+                  gating it behind the normal login flow would defeat the
+                  point (a mobile WebView loading just the softphone, not the
+                  full authenticated SPA shell).
+                */}
+                <Route path="/telephony/embed" element={<Suspense fallback={<RouteFallback />}><TelephonyEmbed /></Suspense>} />
                 <Route
                   path="/*"
                   element={
