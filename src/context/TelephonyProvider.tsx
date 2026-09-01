@@ -198,6 +198,30 @@ export const TelephonyProvider: React.FC<{ children: ReactNode }> = ({ children 
     currentCallRef.current = currentCall;
   }, [currentCall]);
 
+  // Bridge to the native app shell, when one is listening. A plain browser
+  // tab has no `flutter_inappwebview` global, so this is a safe no-op outside
+  // the embedded WebView -- nothing to guard for on that side.
+  //
+  // WHY THIS EXISTS: crmflutter keeps this page's WebView alive across
+  // navigation (flutter_inappwebview's keepAlive), which means an active call
+  // can keep running with no visible UI anywhere. Its floating "in call"
+  // banner and the keep-alive lifecycle itself both need to know a call
+  // started, who it is with, and -- the one Flutter cannot infer any other
+  // way -- the exact moment it is really over, so the banner can disappear
+  // and the WebView session can eventually be released.
+  useEffect(() => {
+    const bridge = (window as unknown as {
+      flutter_inappwebview?: { callHandler?: (name: string, payload: unknown) => void };
+    }).flutter_inappwebview;
+    if (!bridge?.callHandler) return;
+    bridge.callHandler('telephonyStatus', {
+      status,
+      number: currentCall?.number ?? null,
+      leadId: currentCall?.leadId ?? null,
+      direction: currentCall?.direction ?? null,
+    });
+  }, [status, currentCall]);
+
   const resetCall = useCallback(() => {
     setCurrentCall(null);
     setIsMuted(false);
