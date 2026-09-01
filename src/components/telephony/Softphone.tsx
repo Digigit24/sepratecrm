@@ -55,14 +55,42 @@ const launcherColor = (status: PhoneStatus): string => {
   }
 };
 
-export const Softphone: React.FC = () => {
+/**
+ * Embedded mode = the widget IS the whole page (crmflutter's WebView loads
+ * /telephony/embed and nothing else).
+ *
+ * Three things have to change when that is true, and they are all about the
+ * fact that there is no surrounding app:
+ *   - no launcher button. The launcher exists to summon the panel over a page;
+ *     embedded, the panel is the page, and a user who saw only a 48px circle
+ *     in the corner of an otherwise blank WebView would reasonably think it
+ *     had failed to load.
+ *   - the panel fills the viewport instead of floating bottom-right at 320px.
+ *   - no close button. Closing would leave a genuinely blank screen with no
+ *     way back, since there is no app behind it.
+ */
+const EmbeddedContext = React.createContext(false);
+const useEmbedded = () => React.useContext(EmbeddedContext);
+
+export interface SoftphoneProps {
+  /** Render as a full-viewport page rather than a floating overlay. */
+  embedded?: boolean;
+}
+
+export const Softphone: React.FC<SoftphoneProps> = ({ embedded = false }) => {
   const navigate = useNavigate();
   const phone = useTelephonyPhone();
   const { status, panelOpen, setPanelOpen } = phone;
 
+  // Embedded has no launcher, so nothing would ever open the panel.
+  React.useEffect(() => {
+    if (embedded && !panelOpen) setPanelOpen(true);
+  }, [embedded, panelOpen, setPanelOpen]);
+
   return (
-    <>
-      {/* Launcher */}
+    <EmbeddedContext.Provider value={embedded}>
+      {/* Launcher — pointless embedded: the panel is already the page. */}
+      {!embedded && (
       <button
         type="button"
         onClick={() => setPanelOpen(!panelOpen)}
@@ -80,10 +108,20 @@ export const Softphone: React.FC = () => {
           <Phone className="h-5 w-5" />
         )}
       </button>
+      )}
 
       {/* Panel */}
       {panelOpen && (
-        <div className="fixed bottom-20 right-5 z-[60] w-[calc(100vw-2.5rem)] sm:w-[320px] max-w-[360px] rounded-xl border bg-card shadow-2xl max-h-[calc(100vh-7rem)] overflow-y-auto overflow-x-hidden">
+        <div
+          className={cn(
+            'z-[60] bg-card overflow-y-auto overflow-x-hidden',
+            embedded
+              // Fill the WebView. No rounding/shadow/offsets — there is no
+              // page behind it to float above.
+              ? 'fixed inset-0 w-full h-[100dvh] max-h-none border-0'
+              : 'fixed bottom-20 right-5 w-[calc(100vw-2.5rem)] sm:w-[320px] max-w-[360px] rounded-xl border shadow-2xl max-h-[calc(100vh-7rem)]',
+          )}
+        >
           <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/40">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold">Softphone</span>
@@ -104,18 +142,21 @@ export const Softphone: React.FC = () => {
                   <LogOut className="h-3.5 w-3.5" />
                 </Button>
               )}
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setPanelOpen(false)} aria-label="Close">
-                <X className="h-3.5 w-3.5" />
-              </Button>
+              {/* Closing embedded would leave a blank WebView with no way back. */}
+              {!embedded && (
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setPanelOpen(false)} aria-label="Close">
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           </div>
 
-          <div className="p-3">
+          <div className={cn(embedded ? 'p-4' : 'p-3')}>
             <SoftphoneBody navigate={navigate} />
           </div>
         </div>
       )}
-    </>
+    </EmbeddedContext.Provider>
   );
 };
 
@@ -295,34 +336,57 @@ const LoginForm: React.FC = () => {
 
 const Dialpad: React.FC = () => {
   const phone = useTelephonyPhone();
+  const embedded = useEmbedded();
   const [number, setNumber] = useState('');
 
+  // Touch targets. The overlay's 40px keys are fine under a mouse; on a phone
+  // they are below the ~44px minimum and sit 8px apart, which is a misdial
+  // waiting to happen. Embedded gets 56px keys and the space to use them,
+  // since the panel now owns the whole viewport.
   return (
-    <div className="space-y-3">
+    <div className={cn(embedded ? 'space-y-4' : 'space-y-3')}>
       <Input
         value={number}
         onChange={(e) => setNumber(e.target.value)}
         placeholder="Enter number"
-        className="text-center font-mono"
+        inputMode="tel"
+        autoComplete="tel"
+        className={cn('text-center font-mono', embedded && 'h-14 text-2xl tracking-wider')}
         onKeyDown={(e) => e.key === 'Enter' && number && phone.dial({ toNumber: number })}
       />
-      <div className="grid grid-cols-3 gap-2">
+      <div className={cn('grid grid-cols-3', embedded ? 'gap-3' : 'gap-2')}>
         {DIAL_KEYS.map((k) => (
-          <Button key={k} variant="outline" className="h-10 text-base font-medium" onClick={() => setNumber((n) => n + k)}>
+          <Button
+            key={k}
+            variant="outline"
+            className={cn('font-medium', embedded ? 'h-14 text-xl' : 'h-10 text-base')}
+            onClick={() => setNumber((n) => n + k)}
+          >
             {k}
           </Button>
         ))}
       </div>
-      <div className="flex gap-2">
-        <Button variant="outline" className="flex-1" disabled={!number} onClick={() => setNumber((n) => n.slice(0, -1))}>
+      <div className={cn('flex', embedded ? 'gap-3' : 'gap-2')}>
+        <Button
+          variant="outline"
+          className={cn('flex-1', embedded && 'h-14 text-xl')}
+          disabled={!number}
+          onClick={() => setNumber((n) => n.slice(0, -1))}
+        >
           ⌫
         </Button>
-        <Button className="flex-1 bg-green-600 hover:bg-green-700" disabled={!number} onClick={() => phone.dial({ toNumber: number })}>
-          <Phone className="h-4 w-4 mr-2" />
+        <Button
+          className={cn('flex-1 bg-green-600 hover:bg-green-700', embedded && 'h-14 text-base')}
+          disabled={!number}
+          onClick={() => phone.dial({ toNumber: number })}
+        >
+          <Phone className={cn('mr-2', embedded ? 'h-5 w-5' : 'h-4 w-4')} />
           Call
         </Button>
       </div>
-      <TenantIdentityNote />
+      {/* Workspace-identity footnote is app context, not dialling. Embedded the
+          ask was "only dialler and calling option", so it goes. */}
+      {!embedded && <TenantIdentityNote />}
     </div>
   );
 };
