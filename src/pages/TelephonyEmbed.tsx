@@ -113,26 +113,50 @@ export default function TelephonyEmbed() {
  * friction, not safety. Prefilling would still leave them one tap from the
  * thing they already asked for.
  *
- * FIRES EXACTLY ONCE, and that guard is the important part of this component.
- * This is a real outbound call to a real customer. A WebView reload, a
- * remount, a reconnect, or React re-running an effect must never place a
- * second one, so the ref latches on the first successful dial and is never
- * reset. `dial()` itself is also a no-op unless status is `ready`, so this
- * waits for registration rather than firing into a dead socket.
+ * FIRES AT MOST ONCE. This is a real outbound call to a real customer, so a
+ * WebView reload, a remount, a reconnect or React re-running an effect must
+ * never place a second one. The latch is set when a call is OBSERVED to
+ * exist — not when one is merely attempted, which is what the first version
+ * got wrong: it marked itself done before `dial()` had actually taken, and
+ * `dial()` fails silently, so a no-op looked identical to success.
  */
 function AutoDialer({ number }: { number: string | null }) {
-  const { status, dial } = useTelephonyPhone();
-  const dialedRef = React.useRef(false);
+  const { status, currentCall, dial } = useTelephonyPhone();
+  const digits = (number ?? '').replace(/\D/g, '');
+  const startedRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (dialedRef.current) return;
-    if (status !== 'ready') return; // not registered yet, or already on a call
-    const digits = (number ?? '').replace(/\D/g, '');
     if (!digits) return;
+    if (startedRef.current) return;
 
-    dialedRef.current = true;
-    dial({ toNumber: digits });
-  }, [status, number, dial]);
+    // A call exists, so the dial landed (or the user started one by hand).
+    // Latch for good — this is the ONLY thing that marks us done.
+    if (currentCall) {
+      startedRef.current = true;
+      return;
+    }
+
+    if (status !== 'ready') return; // not registered yet
+
+    // DEFERRED ON PURPOSE, and this one line is the whole bug fix.
+    //
+    // `dial()` gates on `statusRef.current`, but the provider syncs that ref
+    // inside its own `useEffect`. React runs CHILD effects before PARENT
+    // effects, and AutoDialer is a child of TelephonyProvider — so on the very
+    // render where `status` first becomes 'ready', `statusRef.current` is still
+    // the previous value. Calling dial() there hits `statusRef.current !==
+    // 'ready'` and returns silently: no call, no error, no state change, and
+    // nothing to re-trigger the effect. The panel just sits on the keypad
+    // while the host app's header says "Calling …".
+    //
+    // A macrotask runs after React has flushed every passive effect for the
+    // commit, parent included, so by the time this fires the ref is current.
+    const id = window.setTimeout(() => {
+      if (startedRef.current) return;
+      dial({ toNumber: digits });
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [status, currentCall, digits, dial]);
 
   return null;
 }
