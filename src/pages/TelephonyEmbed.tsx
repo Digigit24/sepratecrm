@@ -92,7 +92,10 @@ export default function TelephonyEmbed() {
   return (
     <div className="min-h-screen bg-background">
       <TelephonyProvider>
-        <AutoDialer number={searchParams.get('number')} />
+        <AutoDialer
+          number={searchParams.get('number')}
+          leadId={searchParams.get('leadId')}
+        />
         <Softphone embedded />
       </TelephonyProvider>
     </div>
@@ -120,7 +123,13 @@ export default function TelephonyEmbed() {
  * got wrong: it marked itself done before `dial()` had actually taken, and
  * `dial()` fails silently, so a no-op looked identical to success.
  */
-function AutoDialer({ number }: { number: string | null }) {
+function AutoDialer({
+  number,
+  leadId,
+}: {
+  number: string | null;
+  leadId: string | null;
+}) {
   const { status, currentCall, dial } = useTelephonyPhone();
   const digits = (number ?? '').replace(/\D/g, '');
   const startedRef = React.useRef(false);
@@ -153,10 +162,19 @@ function AutoDialer({ number }: { number: string | null }) {
     // commit, parent included, so by the time this fires the ref is current.
     const id = window.setTimeout(() => {
       if (startedRef.current) return;
-      dial({ toNumber: digits });
+      // `leadId` rides along into the CDR as an extra param, and digicrm's
+      // `_payload_lead_id` prefers it over guessing the lead from the phone
+      // number. That guess takes `.order_by('id').first()`, so with two leads
+      // sharing a number — which exists in production — every call lands on
+      // the lower id and the other lead's history stays empty forever.
+      const parsedLead = leadId ? Number(leadId) : NaN;
+      dial({
+        toNumber: digits,
+        ...(Number.isFinite(parsedLead) ? { leadId: parsedLead } : {}),
+      });
     }, 0);
     return () => window.clearTimeout(id);
-  }, [status, currentCall, digits, dial]);
+  }, [status, currentCall, digits, leadId, dial]);
 
   return null;
 }
