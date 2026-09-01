@@ -24,11 +24,21 @@ import {
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useTelephonyPhone, type PhoneStatus } from '@/context/TelephonyProvider';
 import { useAuth } from '@/hooks/useAuth';
+import { useTelephony } from '@/hooks/useTelephony';
+import { isAdminUser, hasPermissionForResource } from '@/lib/permissions';
 import {
   TELEPHONY_NOT_CONFIGURED_COPY,
   isSharedTelephonyIdentity,
+  type CallingProfile,
 } from '@/types/telephony.types';
 import { SoftphoneLeadContext } from './SoftphoneLeadContext';
 
@@ -152,11 +162,141 @@ export const Softphone: React.FC<SoftphoneProps> = ({ embedded = false }) => {
           </div>
 
           <div className={cn(embedded ? 'p-4' : 'p-3')}>
+            {embedded && <ProfileSwitcher />}
             <SoftphoneBody navigate={navigate} />
           </div>
         </div>
       )}
     </EmbeddedContext.Provider>
+  );
+};
+
+/**
+ * Admin-only line picker, rendered above the dialler on the embed page.
+ *
+ * Why an assignment and not a client-side toggle
+ * ----------------------------------------------
+ * `GET /telephony/webrtc-config` takes no parameters — the SERVER decides which
+ * extension you register as, walking: your own agent row, then a profile
+ * assigned to you, then the tenant default. The client cannot ask for a
+ * specific profile, so a purely local "selected profile" would relabel the UI
+ * while the phone stayed registered as whatever the server picked. That is a
+ * worse bug than no switcher at all: the admin would believe they were dialling
+ * from the support line and the customer would see the sales number.
+ *
+ * So switching writes the real thing — `POST /calling-profiles/<id>/assign/`
+ * with the admin's own user id — and then calls `reconnect()`. The backend
+ * drops the cached TeleCMI token on assign, so the next webrtc-config genuinely
+ * re-resolves and the softphone re-registers on the new extension.
+ *
+ * Consequences, both intended:
+ *  - the choice PERSISTS. Reload the WebView and you are still on that line.
+ *  - it is the same assignment an admin sets in Settings, so the two surfaces
+ *    agree instead of holding separate opinions about who is on which line.
+ *
+ * Who sees it
+ * -----------
+ * Admins with more than one profile to choose between. A regular user with an
+ * assigned profile sees nothing — same gate as the Calling Profiles card
+ * (`isAdminUser || telephony.settings.edit`), no new role concept — and the
+ * backend refuses non-admin assigns with 403 regardless, so this is a UI
+ * courtesy on top of a real check rather than the check itself.
+ */
+const ProfileSwitcher: React.FC = () => {
+  const phone = useTelephonyPhone();
+  const { user } = useAuth();
+  const { useCallingProfiles, useCallingProfileAssignments, assignCallingProfile } = useTelephony();
+
+  const isAdmin = isAdminUser(user) || hasPermissionForResource(user, 'telephony.settings.edit');
+  const userId = user?.id ?? null;
+  // Only admins ever fetch these — a regular user on the embed page should not
+  // spend two requests discovering it has nothing to show them.
+  const enabled = isAdmin && !!userId;
+
+  const { data: profilesData } = useCallingProfiles(enabled);
+  const { data: assignmentsData, mutate: mutateAssignments } = useCallingProfileAssignments(enabled);
+  const [switching, setSwitching] = useState(false);
+
+  const profiles = React.useMemo<CallingProfile[]>(
+    () => (Array.isArray(profilesData) ? profilesData.filter((p) => p.is_active) : []),
+    [profilesData],
+  );
+
+  const assignedId = React.useMemo(() => {
+    if (!Array.isArray(assignmentsData) || !userId) return null;
+    return assignmentsData.find((a) => a.user_id === userId)?.profile_id ?? null;
+  }, [assignmentsData, userId]);
+
+  // What the phone is actually on right now: an explicit assignment if there is
+  // one, else whichever profile the server would have fallen back to.
+  const activeId = assignedId ?? profiles.find((p) => p.is_default)?.id ?? null;
+
+  const onSelect = async (value: string) => {
+    const id = Number(value);
+    if (!userId || !Number.isFinite(id) || id === activeId) return;
+    setSwitching(true);
+    try {
+      await assignCallingProfile(id, userId);
+      await mutateAssignments();
+      // Re-resolve webrtc-config and re-REGISTER. Without this the UI would
+      // show the new line while the SIP session stayed on the old extension.
+      await phone.reconnect();
+    } catch {
+      // assignCallingProfile has already toasted; leaving the select on the old
+      // value is correct, because the old value is still what the phone is on.
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  // Nothing to choose between is not a switcher, it is clutter.
+  if (!enabled || profiles.length < 2) return null;
+
+  // A personal agent row (resolution step 1) OUTRANKS any assignment, so
+  // switching would silently do nothing. Say so rather than offering a control
+  // that appears to work.
+  if (phone.configSource === 'user') {
+    return (
+      <p
+        data-testid="softphone-profile-switcher-blocked"
+        className="mb-4 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+      >
+        <Users className="mt-0.5 h-3 w-3 shrink-0" />
+        <span>
+          You are on your own TeleCMI extension, which takes priority over calling
+          profiles. Remove it under Settings → My Telephony to pick a line here.
+        </span>
+      </p>
+    );
+  }
+
+  return (
+    <div className="mb-4 space-y-1.5" data-testid="softphone-profile-switcher">
+      <Label className="text-xs text-muted-foreground">Calling from</Label>
+      <Select
+        value={activeId != null ? String(activeId) : undefined}
+        onValueChange={onSelect}
+        disabled={switching}
+      >
+        <SelectTrigger className="h-12" aria-label="Calling profile">
+          <SelectValue placeholder="Choose a line" />
+        </SelectTrigger>
+        <SelectContent>
+          {profiles.map((p) => (
+            <SelectItem key={p.id} value={String(p.id)}>
+              {p.label}
+              {p.caller_id ? ` — ${p.caller_id}` : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {switching && (
+        <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Reconnecting on the new line…
+        </p>
+      )}
+    </div>
   );
 };
 
