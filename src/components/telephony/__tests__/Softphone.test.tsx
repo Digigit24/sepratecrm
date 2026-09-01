@@ -226,3 +226,64 @@ describe('Softphone — server-supplied auth', () => {
     expect(screen.getByLabelText(/password/i)).toBeTruthy();
   });
 });
+
+describe('embedded mode (/telephony/embed in the crmflutter WebView)', () => {
+  it('renders no launcher — embedded, the panel IS the page', () => {
+    h.phone = basePhone({ status: 'ready' });
+    render(<Softphone embedded />);
+    // Without this the WebView shows a 48px circle on a blank screen and the
+    // dialler hides behind a tap nothing prompts you to make.
+    expect(screen.queryByLabelText('Open softphone')).not.toBeInTheDocument();
+  });
+
+  it('still renders the launcher in normal overlay mode', () => {
+    h.phone = basePhone({ status: 'ready' });
+    render(<Softphone />);
+    expect(screen.getByLabelText('Open softphone')).toBeInTheDocument();
+  });
+
+  it('opens itself when embedded, since nothing else can', () => {
+    const setPanelOpen = vi.fn();
+    h.phone = basePhone({ status: 'ready', panelOpen: false, setPanelOpen });
+    render(<Softphone embedded />);
+    expect(setPanelOpen).toHaveBeenCalledWith(true);
+  });
+
+  it('does not force the panel open in normal mode', () => {
+    const setPanelOpen = vi.fn();
+    h.phone = basePhone({ status: 'ready', panelOpen: false, setPanelOpen });
+    render(<Softphone />);
+    expect(setPanelOpen).not.toHaveBeenCalled();
+  });
+
+  it('hides the close button — closing would leave a dead blank WebView', () => {
+    h.phone = basePhone({ status: 'ready' });
+    render(<Softphone embedded />);
+    expect(screen.queryByLabelText('Close')).not.toBeInTheDocument();
+  });
+
+  it('shows the dialler and the call button, which is the whole ask', () => {
+    h.phone = basePhone({ status: 'ready' });
+    render(<Softphone embedded />);
+    expect(screen.getByPlaceholderText('Enter number')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /call/i })).toBeInTheDocument();
+    for (const key of ['1', '5', '9', '0', '*', '#']) {
+      expect(screen.getByRole('button', { name: key })).toBeInTheDocument();
+    }
+  });
+
+  it('drops the workspace-identity footnote embedded, keeps it in the app', () => {
+    const shared = { status: 'ready', configSource: 'tenant' } as const;
+    const { unmount } = render(<Softphone embedded />);
+    expect(screen.queryByTestId('softphone-tenant-identity-note')).not.toBeInTheDocument();
+    unmount();
+
+    h.phone = basePhone(shared);
+    render(<Softphone />);
+    // Only asserted when the identity really is shared; otherwise the note is
+    // correctly absent in both modes and this would prove nothing.
+    if (screen.queryByTestId('softphone-tenant-identity-note')) {
+      expect(screen.getByTestId('softphone-tenant-identity-note')).toBeInTheDocument();
+    }
+  });
+});

@@ -84,13 +84,15 @@ export default function TelephonyEmbed() {
     );
   }
 
-  // No app chrome at all — just the provider + the floating widget it
-  // renders. The WebView shell on the Flutter side supplies the rest of the
-  // "screen" (or doesn't need to; the widget is self-contained/`fixed`).
+  // `embedded` matters more than it looks. Without it the widget renders its
+  // normal overlay form: a 48px launcher in the corner of an otherwise empty
+  // WebView, with the dialler hidden behind a tap that nothing prompts you to
+  // make. Embedded, the panel opens itself and fills the viewport, so the
+  // route shows the dialler and nothing else — which is the whole ask.
   return (
     <div className="min-h-screen bg-background">
       <TelephonyProvider>
-        <Softphone />
+        <Softphone embedded />
       </TelephonyProvider>
     </div>
   );
