@@ -16,12 +16,12 @@
 // new secret: same short-lived session token used everywhere else in the
 // app.
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { tokenManager } from '@/lib/client';
 import { authService } from '@/services/authService';
-import { TelephonyProvider } from '@/context/TelephonyProvider';
+import { TelephonyProvider, useTelephonyPhone } from '@/context/TelephonyProvider';
 import { Softphone } from '@/components/telephony/Softphone';
 import type { User } from '@/types/authTypes';
 
@@ -92,8 +92,47 @@ export default function TelephonyEmbed() {
   return (
     <div className="min-h-screen bg-background">
       <TelephonyProvider>
+        <AutoDialer number={searchParams.get('number')} />
         <Softphone embedded />
       </TelephonyProvider>
     </div>
   );
+}
+
+/**
+ * Places the call the user already asked for, instead of showing them a
+ * dialler and asking again.
+ *
+ * The host app (crmflutter's lead screen) forwards `?number=` when the user
+ * taps Call on a lead. Until now this route ignored it: the panel announced
+ * "Calling 9191..." while presenting an empty keypad, so the number had to be
+ * typed by hand — the header was effectively lying about what was happening.
+ *
+ * WHY AUTO-DIAL RATHER THAN PREFILL. Tapping Call on a named lead IS the
+ * confirmation; a second press on a keypad the user did not ask to see is
+ * friction, not safety. Prefilling would still leave them one tap from the
+ * thing they already asked for.
+ *
+ * FIRES EXACTLY ONCE, and that guard is the important part of this component.
+ * This is a real outbound call to a real customer. A WebView reload, a
+ * remount, a reconnect, or React re-running an effect must never place a
+ * second one, so the ref latches on the first successful dial and is never
+ * reset. `dial()` itself is also a no-op unless status is `ready`, so this
+ * waits for registration rather than firing into a dead socket.
+ */
+function AutoDialer({ number }: { number: string | null }) {
+  const { status, dial } = useTelephonyPhone();
+  const dialedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (dialedRef.current) return;
+    if (status !== 'ready') return; // not registered yet, or already on a call
+    const digits = (number ?? '').replace(/\D/g, '');
+    if (!digits) return;
+
+    dialedRef.current = true;
+    dial({ toNumber: digits });
+  }, [status, number, dial]);
+
+  return null;
 }
