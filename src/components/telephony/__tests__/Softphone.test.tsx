@@ -3,7 +3,7 @@
 // The softphone's "can't call yet" surfaces. These are EXPECTED states, so the
 // assertions here are about copy and call-to-action, not about errors.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { TelephonyPhoneContextValue } from '@/context/TelephonyProvider';
 
 const h = vi.hoisted(() => ({
@@ -11,6 +11,12 @@ const h = vi.hoisted(() => ({
   navigate: vi.fn(),
   isAdminLike: false,
   permissions: [] as string[],
+  // ProfileSwitcher reads the user object through the real `isAdminUser`
+  // helper rather than `isAdminLike()`, so the mock has to carry a user.
+  user: null as unknown,
+  profiles: [] as unknown[],
+  assignments: [] as unknown[],
+  assignCallingProfile: vi.fn(),
 }));
 
 vi.mock('@/context/TelephonyProvider', () => ({
@@ -21,8 +27,20 @@ vi.mock('react-router-dom', () => ({ useNavigate: () => h.navigate }));
 
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
+    user: h.user,
     isAdminLike: () => h.isAdminLike,
     hasPermission: (k: string) => h.permissions.includes(k),
+  }),
+}));
+
+vi.mock('@/hooks/useTelephony', () => ({
+  useTelephony: () => ({
+    useCallingProfiles: (enabled: boolean) => ({ data: enabled ? h.profiles : undefined }),
+    useCallingProfileAssignments: (enabled: boolean) => ({
+      data: enabled ? h.assignments : undefined,
+      mutate: vi.fn(),
+    }),
+    assignCallingProfile: h.assignCallingProfile,
   }),
 }));
 
@@ -73,6 +91,10 @@ const basePhone = (over: Partial<TelephonyPhoneContextValue> = {}) =>
 beforeEach(() => {
   h.navigate = vi.fn();
   h.isAdminLike = false;
+  h.user = null;
+  h.profiles = [];
+  h.assignments = [];
+  h.assignCallingProfile = vi.fn().mockResolvedValue(undefined);
   h.permissions = [];
   h.phone = basePhone();
 });
@@ -285,5 +307,159 @@ describe('embedded mode (/telephony/embed in the crmflutter WebView)', () => {
     if (screen.queryByTestId('softphone-tenant-identity-note')) {
       expect(screen.getByTestId('softphone-tenant-identity-note')).toBeInTheDocument();
     }
+  });
+});
+
+describe('admin calling-profile switcher on the embed page', () => {
+  const ADMIN = { id: 'admin-1', permissions: { 'admin.full_access': true } };
+  const SALES = { id: 1, label: 'Sales line', caller_id: '+911111', is_default: true, is_active: true };
+  const SUPPORT = { id: 2, label: 'Support line', caller_id: '+912222', is_default: false, is_active: true };
+
+  const asAdminWithTwoProfiles = (over = {}) => {
+    h.user = ADMIN;
+    h.profiles = [SALES, SUPPORT];
+    h.phone = basePhone({ status: 'ready', configSource: 'tenant_profile', ...over });
+  };
+
+  it('lets an admin pick a line when there is more than one', () => {
+    asAdminWithTwoProfiles();
+    render(<Softphone embedded />);
+    expect(screen.getByTestId('softphone-profile-switcher')).toBeInTheDocument();
+  });
+
+  it('hides itself for a regular user — they get their assigned line, no choice', () => {
+    h.user = { id: 'rep-1', permissions: {} };
+    h.profiles = [SALES, SUPPORT];
+    h.phone = basePhone({ status: 'ready', configSource: 'assigned_profile' });
+    render(<Softphone embedded />);
+    expect(screen.queryByTestId('softphone-profile-switcher')).not.toBeInTheDocument();
+  });
+
+  it('hides itself with one profile — a switcher with nothing to switch to is clutter', () => {
+    h.user = ADMIN;
+    h.profiles = [SALES];
+    h.phone = basePhone({ status: 'ready', configSource: 'tenant_profile' });
+    render(<Softphone embedded />);
+    expect(screen.queryByTestId('softphone-profile-switcher')).not.toBeInTheDocument();
+  });
+
+  it('stays out of the normal in-app overlay', () => {
+    asAdminWithTwoProfiles();
+    render(<Softphone />);
+    expect(screen.queryByTestId('softphone-profile-switcher')).not.toBeInTheDocument();
+  });
+
+  it('shows the line the server actually resolved, not the first in the list', () => {
+    h.user = ADMIN;
+    h.profiles = [SALES, SUPPORT];
+    h.assignments = [{ user_id: 'admin-1', profile_id: 2 }];
+    h.phone = basePhone({ status: 'ready', configSource: 'assigned_profile' });
+    render(<Softphone embedded />);
+    expect(screen.getByLabelText('Calling profile')).toHaveTextContent('Support line');
+  });
+
+  it('falls back to the tenant default when the admin has no assignment', () => {
+    asAdminWithTwoProfiles();
+    render(<Softphone embedded />);
+    expect(screen.getByLabelText('Calling profile')).toHaveTextContent('Sales line');
+  });
+
+  it('warns instead of switching when a personal extension outranks profiles', () => {
+    // Resolution step 1 beats any assignment, so the control would appear to
+    // work and change nothing. This is the Nakshatra shape.
+    asAdminWithTwoProfiles({ configSource: 'user' });
+    render(<Softphone embedded />);
+    expect(screen.getByTestId('softphone-profile-switcher-blocked')).toBeInTheDocument();
+    expect(screen.queryByTestId('softphone-profile-switcher')).not.toBeInTheDocument();
+  });
+
+  it('drops inactive profiles — you cannot register on a disabled line', () => {
+    h.user = ADMIN;
+    h.profiles = [SALES, { ...SUPPORT, is_active: false }];
+    h.phone = basePhone({ status: 'ready', configSource: 'tenant_profile' });
+    render(<Softphone embedded />);
+    // Only one usable line left, so there is nothing to switch between.
+    expect(screen.queryByTestId('softphone-profile-switcher')).not.toBeInTheDocument();
+  });
+
+  it('does not fetch profiles at all for a regular user', () => {
+    // The hooks are called with enabled=false, which nulls the SWR key. Asserted
+    // through the mock: disabled hooks hand back undefined, not the array.
+    h.user = { id: 'rep-1', permissions: {} };
+    h.profiles = [SALES, SUPPORT];
+    h.phone = basePhone({ status: 'ready', configSource: 'assigned_profile' });
+    render(<Softphone embedded />);
+    expect(screen.queryByText('Calling from')).not.toBeInTheDocument();
+  });
+});
+
+describe('switching a line actually re-registers the phone', () => {
+  const ADMIN = { id: 'admin-1', permissions: { 'admin.full_access': true } };
+  const SALES = { id: 1, label: 'Sales line', caller_id: '+911111', is_default: true, is_active: true };
+  const SUPPORT = { id: 2, label: 'Support line', caller_id: '+912222', is_default: false, is_active: true };
+
+  // Radix Select drives itself with Pointer Events, which jsdom does not
+  // implement. Without these the trigger never opens and the test would fail
+  // for reasons that have nothing to do with the softphone.
+  beforeEach(() => {
+    if (!Element.prototype.hasPointerCapture) {
+      Element.prototype.hasPointerCapture = () => false;
+      Element.prototype.setPointerCapture = () => {};
+      Element.prototype.releasePointerCapture = () => {};
+    }
+    if (!Element.prototype.scrollIntoView) {
+      Element.prototype.scrollIntoView = () => {};
+    }
+  });
+
+  it('writes the assignment and then reconnects, in that order', async () => {
+    const order: string[] = [];
+    h.user = ADMIN;
+    h.profiles = [SALES, SUPPORT];
+    h.assignCallingProfile = vi.fn(async () => { order.push('assign'); });
+    const reconnect = vi.fn(async () => { order.push('reconnect'); });
+    h.phone = basePhone({ status: 'ready', configSource: 'tenant_profile', reconnect });
+
+    render(<Softphone embedded />);
+    fireEvent.click(screen.getByLabelText('Calling profile'));
+    fireEvent.click(await screen.findByRole('option', { name: /Support line/ }));
+
+    await waitFor(() => expect(h.assignCallingProfile).toHaveBeenCalledWith(2, 'admin-1'));
+    await waitFor(() => expect(reconnect).toHaveBeenCalled());
+    // Reconnecting BEFORE the assignment lands would re-resolve the old line
+    // and leave the phone on it while the UI claimed otherwise.
+    expect(order).toEqual(['assign', 'reconnect']);
+  });
+
+  it('does not reconnect when the assignment fails', async () => {
+    h.user = ADMIN;
+    h.profiles = [SALES, SUPPORT];
+    h.assignCallingProfile = vi.fn().mockRejectedValue(new Error('403'));
+    const reconnect = vi.fn();
+    h.phone = basePhone({ status: 'ready', configSource: 'tenant_profile', reconnect });
+
+    render(<Softphone embedded />);
+    fireEvent.click(screen.getByLabelText('Calling profile'));
+    fireEvent.click(await screen.findByRole('option', { name: /Support line/ }));
+
+    await waitFor(() => expect(h.assignCallingProfile).toHaveBeenCalled());
+    // Tearing down a working session for a switch that did not happen would
+    // leave the admin unable to call at all.
+    expect(reconnect).not.toHaveBeenCalled();
+  });
+
+  it('ignores re-picking the line already in use', async () => {
+    h.user = ADMIN;
+    h.profiles = [SALES, SUPPORT];
+    const reconnect = vi.fn();
+    h.phone = basePhone({ status: 'ready', configSource: 'tenant_profile', reconnect });
+
+    render(<Softphone embedded />);
+    fireEvent.click(screen.getByLabelText('Calling profile'));
+    fireEvent.click(await screen.findByRole('option', { name: /Sales line/ }));
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(h.assignCallingProfile).not.toHaveBeenCalled();
+    expect(reconnect).not.toHaveBeenCalled();
   });
 });
