@@ -9,20 +9,19 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to Production
     runs-on: ubuntu-latest
 
     steps:
       - name: Configure SSH
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          echo "$SSH_PRIVATE_KEY_B64" | base64 -d > ~/.ssh/thinking_healer_deploy
+          chmod 600 ~/.ssh/thinking_healer_deploy
 
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
@@ -32,21 +31,21 @@ jobs:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          ssh "$SSH_USER@$SSH_HOST" << 'EOF'
+          ssh \
+            -i ~/.ssh/thinking_healer_deploy \
+            -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" << 'EOF'
 
             set -e
 
             PROJECT_DIR="/home/jupiteermri/public_html/digicrm.celiyo.com/sepratecrm"
             DEPLOY_DIR="/home/jupiteermri/public_html/digicrm.celiyo.com"
 
-            echo "======================================"
-            echo "Starting DigiCRM Deployment"
-            echo "======================================"
+            echo "Starting deployment..."
 
-            echo "Moving to project directory..."
             cd "$PROJECT_DIR"
 
-            echo "Pulling latest code from main..."
+            echo "Pulling latest code..."
             git pull origin main
 
             echo "Installing dependencies..."
@@ -62,11 +61,9 @@ jobs:
             echo "Removing old assets..."
             rm -rf "$DEPLOY_DIR/assets"
 
-            echo "Copying new build to production..."
+            echo "Copying new build..."
             cp -a dist/. "$DEPLOY_DIR/"
 
-            echo "======================================"
             echo "Deployment completed successfully"
-            echo "======================================"
 
           EOF
