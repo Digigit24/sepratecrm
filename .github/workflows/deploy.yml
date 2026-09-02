@@ -1,0 +1,72 @@
+name: Deploy DigiCRM
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy DigiCRM
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" << 'EOF'
+
+            set -e
+
+            PROJECT_DIR="/home/jupiteermri/public_html/digicrm.celiyo.com/sepratecrm"
+            DEPLOY_DIR="/home/jupiteermri/public_html/digicrm.celiyo.com"
+
+            echo "======================================"
+            echo "Starting DigiCRM Deployment"
+            echo "======================================"
+
+            echo "Moving to project directory..."
+            cd "$PROJECT_DIR"
+
+            echo "Pulling latest code from main..."
+            git pull origin main
+
+            echo "Installing dependencies..."
+            npm ci
+
+            echo "Building application..."
+            npm run build
+
+            echo "Checking build..."
+            test -f dist/index.html
+            test -d dist/assets
+
+            echo "Removing old assets..."
+            rm -rf "$DEPLOY_DIR/assets"
+
+            echo "Copying new build to production..."
+            cp -a dist/. "$DEPLOY_DIR/"
+
+            echo "======================================"
+            echo "Deployment completed successfully"
+            echo "======================================"
+
+          EOF
